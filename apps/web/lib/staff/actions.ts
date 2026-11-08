@@ -22,7 +22,7 @@ import { generateInviteToken } from "./token";
 /*
  * Staff Server Actions. Every mutation: requireOrgContext(slug) -> requirePermission(org.id, 'staff.manage') -> Zod ->
  * ownership checks (ids must belong to this org) -> RLS-checked write -> updateTag. Audit rows are written by SQL
- * triggers in the same transaction (migration 20261108070000), so there is nothing to forget here.
+ * triggers in the same transaction (migration 20261108080000), so there is nothing to forget here.
  * The org id is NEVER read from FormData: it comes from the bound slug plus the caller's membership.
  */
 type StaffAction = (orgSlug: string, prev: ActionResult | null, formData: FormData) => Promise<ActionResult>;
