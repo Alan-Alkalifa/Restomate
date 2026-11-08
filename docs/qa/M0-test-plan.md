@@ -45,7 +45,7 @@ Helper conventions for pgTAP/e2e: impersonate via `set local role authenticated;
 | E1.4 | Click the link | Session cookie set; redirected to `next` (onboarding). Link reuse shows an error, not a second session. Tampered `token_hash` shows an error |
 | E1.5 | Onboarding step 1: name "QA Resto", type slug; try `www`, `app`, `admin`, `demo`, a 2-char slug, uppercase, spaces, an existing slug | Reserved/invalid/taken slugs rejected with a clear message and live availability indicator; valid slug shown available |
 | E1.6 | Step 2: address, city, timezone, tax (PB1 bps) and service charge; submit with invalid values (negative, >10000 bps, empty) | Invalid values rejected server-side. Defaults: IDR, Asia/Jakarta |
-| E1.7 | Step 3: skip logo/colors | Allowed. Second run: upload logo and pick colors; saved to `org_branding` |
+| E1.7 | Step 3: skip logo/colors | Allowed. Second run: enter a logo URL and pick colors (no upload in M0); saved to `org_branding` |
 | E1.8 | Submit | One transaction created: organization (active), 5 system roles with permissions, owner membership (active, all_locations), exactly **one** location, `org_branding` row, trialing subscription on the default package (Growth), audit entry. Redirect to `/{slug}` showing the setup checklist |
 | E1.9 | Force a failure (duplicate slug race: submit same slug twice in parallel; or kill the RPC mid-way via a bad location value) | No half-created tenant: zero org/roles/members rows for the failed attempt |
 | E1.10 | Submit the form twice quickly (double click/refresh) | One organization only |
@@ -97,8 +97,8 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 
 ### MF-T01: monorepo + Next.js scaffold (ADIT)
 - M0-T01-1 Fresh clone: `pnpm install` then `typecheck`, `lint`, `test`, `build` succeed. Scripts exist in `apps/web/package.json` and root.
-- M0-T01-2 `packages/db` exports the `Database` type and resolves from `apps/web` (typecheck imports it).
-- M0-T01-3 `.env.example` matches CLAUDE.md env list; no real values; `.env*` ignored by git (`git ls-files | grep env`).
+- M0-T01-2 Moved to MF-T05 (`packages/db` generated types), see M0-T05-4.
+- M0-T01-3 `.env*` files (except `.env.example`) are ignored by git (`git ls-files | grep env`). The `.env.example` content check lives in M0-T06-1.
 - M0-T01-4 Prettier/ESLint configured; Conventional Commits enforced or documented. TypeScript is 5.x and `strict` is on. `AGENTS.md` committed in `apps/web`.
 - M0-T01-5 Layout matches CLAUDE.md tree (route groups); `middleware.ts` does **not** exist (it is `proxy.ts`).
 
@@ -132,11 +132,11 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 - M0-T05-1 `supabase db reset` loads seed with no errors; re-runnable.
 - M0-T05-2 Users in §2 exist and can log in; roles correct; platform admin in `platform_admins`; Demo has 2 locations + branding; packages Starter/Growth/Pro published, Growth default, placeholder IDR prices.
 - M0-T05-3 No production secrets, no real emails/domains, passwords documented in README only as local.
-- M0-T05-4 `database.types.ts` regenerated equals committed (`supabase gen types … | diff`); `pnpm typecheck` passes.
+- M0-T05-4 `packages/db` exports the `Database` type and resolves from `apps/web` (typecheck imports it); `database.types.ts` regenerated equals committed (`supabase gen types … | diff`); `pnpm typecheck` passes.
 - M0-T05-5 `demo` slug resolves to Demo org although reserved for new signups.
 
 ### MF-T06: env, Supabase clients, proxy (DAVIN)
-- M0-T06-1 App fails fast with readable error when a required env var is missing/invalid. `NEXT_PUBLIC_` only for allowed vars.
+- M0-T06-1 `.env.example` matches the CLAUDE.md env list, with no real values. App fails fast with readable error when a required env var is missing/invalid. `NEXT_PUBLIC_` only for allowed vars.
 - M0-T06-2 `lib/supabase/admin.ts` begins with `import 'server-only'`; build fails if imported in a client component (try in a scratch branch, do not commit). `grep -r "SUPABASE_SERVICE_ROLE_KEY\|ARCJET_KEY\|RESEND_API_KEY\|DOKU_SECRET\|APP_ENCRYPTION_KEY"` in `.next/static` after build → 0 hits.
 - M0-T06-3 Proxy: host → surface mapping (`restomate.app` frontend, `app.` dashboard/admin, `{slug}.` storefront rewrite); unknown host handled; `/api/webhooks/doku` is skipped (no Arcjet, no session work). Test with `Host` header via curl.
 - M0-T06-4 Proxy refreshes session but performs no authorization (an unauthenticated direct request to a protected page still gets denied by the page/DAL, not only proxy).
@@ -167,7 +167,7 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 - M0-T10-3 Verification: valid → true; any change in body (1 byte), path, Client-Id, Request-Id, timestamp, or signature → false; wrong secret → false; missing headers → false (no throw).
 - M0-T10-4 Constant-time compare (`timingSafeEqual`), handles different-length signatures without throwing.
 - M0-T10-5 Uses raw body string, not re-serialised JSON (whitespace/key-order variants fail).
-- M0-T10-6 Timestamp skew policy is defined and tested (if none is specified, record as a finding). No secret in logs/test output.
+- M0-T10-6 Timestamp skew: M5, out of scope for MF-T10. Only check that no secret appears in logs/test output.
 
 ### MF-T11: StaffInvite template (ADIT)
 - M0-T11-1 Renders with typed props (restaurant name, inviter, role, accept URL, expiry); preview in React Email dev server; HTML + plain text.
@@ -189,7 +189,7 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 - M0-T13-4 Sign out clears cookies server-side and invalidates the session (old refresh token no longer works).
 - M0-T13-5 Cookies are `HttpOnly`, `Secure` (in prod), `SameSite=Lax`.
 - M0-T13-6 Arcjet applied on these actions (see T08-2).
-- M0-T13-7 Password reset: link single-use; after reset, record whether other sessions are invalidated (not specified; report as observation).
+- M0-T13-7 Password reset: link single-use; after reset, other sessions invalidated. If they are not, file S3; it is not a PR fail.
 
 ### MF-T14: auth pages (ADIT)
 - M0-T14-1 Login, signup, forgot, reset pages render; all states: loading (pending button, double-submit blocked), field errors, server error, success.
@@ -207,7 +207,7 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 ### MF-T16: onboarding wizard UI (ADIT)
 - M0-T16-1 Three steps with progress, back/next preserve entered values; refresh mid-way behaviour defined (draft kept or restart, no crash).
 - M0-T16-2 Slug field: lowercases/sanitises, debounced live check, loading state, race-safe (older response does not override newer).
-- M0-T16-3 Step 3 skippable; logo upload limits (type, size ≤ limit, SVG sanitised or rejected); colors validated hex; contrast warning if present.
+- M0-T16-3 Step 3 skippable; no logo upload in M0: logo URL + hex colour validation only (invalid URL, non-http(s) scheme such as `javascript:`, invalid hex rejected); contrast warning if present.
 - M0-T16-4 Submit shows pending state, prevents double submit, shows server errors on the right field; success redirect to `/{slug}`.
 - M0-T16-5 Mobile + keyboard + screen-reader basics (as T14-2/3). IDR and Asia/Jakarta preselected; timezone list usable.
 - M0-T16-6 Whole flow ≤ 5 minutes by a human (PROJECT §5.2); measured once manually.
@@ -255,7 +255,7 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 - M0-T22-4 Service-role client used only server-side; every write audited.
 
 ### MF-T23: super admin shell (ADIT)
-- M0-T23-1 `/admin` guard: anon → login; non-admin signed in → not-found/forbidden (no hint admin exists); admin → tenants list.
+- M0-T23-1 `/admin` guard: anon → 404 (not a login redirect); non-admin signed in → 404 (no hint admin exists); admin → tenants list.
 - M0-T23-2 Tenants list: search, status badge, plan, signup date; empty/loading/error; suspend/reactivate with confirm dialog + reason; list updates after action.
 - M0-T23-3 `noindex` meta + `X-Robots-Tag` on `/admin/*`; excluded from sitemap; Arcjet rate limiting applied.
 - M0-T23-4 Org owner opening `/admin` gets same response as a stranger.

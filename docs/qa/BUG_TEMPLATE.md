@@ -22,7 +22,7 @@ Copy into a PR comment or an HQ message. One bug per report.
 - Test case ID: M0-...  (if any)
 
 **User / role / restaurant**
-<e.g. cashier@demo.local, Demo Restaurant (org A); attacker owner@other.local, Other Restaurant (org B)>
+<e.g. cashier@demo.local, Demo Restaurant (org A); attacker owner@other.local, Other Bistro (org B)>
 
 **Steps to reproduce**
 1.
