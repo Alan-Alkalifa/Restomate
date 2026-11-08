@@ -187,10 +187,10 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 ### 4.3 Database tests
 - [x] Use `supabase test db` (pgTAP) in `supabase/tests/`
 - [x] Org A member cannot select/insert/update org B rows (every table)
-- [ ] Cashier cannot manage staff; Manager cannot manage billing
+- [x] Cashier cannot manage staff; Manager cannot manage billing (MF-T25 write matrix + role permission sets)
 - [ ] Removing the last owner fails; limits trigger at the package cap
 - [ ] `accept_invitation` rejects a wrong email, an expired token and a reused token
-- [ ] Fallback when Docker isn't available: run migrations against plain Postgres 16 with a small `auth` schema shim (`auth.users`, `auth.uid()`, `auth.jwt()`, `anon`/`authenticated`/`service_role` roles)
+- [x] (Used by QA: `supabase/postgres` container + psql, see docs/qa) Fallback when Docker isn't available: run migrations against plain Postgres 16 with a small `auth` schema shim (`auth.users`, `auth.uid()`, `auth.jwt()`, `anon`/`authenticated`/`service_role` roles)
 
 ### 4.4 Seed (`supabase/seed.sql`, local only)
 - [ ] Packages Starter / Growth / Pro with placeholder IDR prices, published. Growth is the trial default
