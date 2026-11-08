@@ -2,7 +2,35 @@
 
 Multi-tenant restaurant management SaaS (POS, orders, kitchen, tables, reservations, staff, reports, branded customer site). See `CLAUDE.md` for architecture and conventions and `docs/PLAN.md` for the plan.
 
-> The app setup (pnpm, Next.js) is documented with the scaffold tasks (MF-T01 / MF-T35). This section covers the local database only.
+## Prerequisites
+
+Node >= 22 (24 recommended, see `.nvmrc`), pnpm 12.18.0 (`corepack enable && corepack prepare pnpm@12.18.0 --activate`), Docker, and the Supabase CLI.
+
+## Quick start
+
+```bash
+pnpm install --frozen-lockfile
+supabase start                 # local Postgres / Auth / Realtime / Storage (see "Local database")
+supabase db reset              # migrations + seed
+cp .env.example apps/web/.env.local   # then fill in the values (`supabase status` shows the local keys)
+pnpm db:types                  # regenerate packages/db/database.types.ts
+pnpm dev                       # http://localhost:3000
+```
+
+Other scripts: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, `pnpm db:test` (pgTAP).
+
+### Database types (`@restomate/db`)
+
+`packages/db` is a workspace package that exports `Database` and the helpers `Tables`, `TablesInsert`,
+`TablesUpdate` and `Enums`. `database.types.ts` is **generated**; never edit it by hand. After any
+migration: `supabase db reset && pnpm db:types`, and commit the result. In the app:
+`import type { Database, Tables } from "@restomate/db"`.
+
+### Local tenant hosts
+
+In development the proxy also understands `localhost` hosts: `http://demo.localhost:3000` serves the
+Demo Restaurant storefront, `http://app.localhost:3000` the dashboard, and `http://localhost:3000/?__tenant=demo`
+is a path fallback. In production, unknown hosts return 404.
 
 ## Local database
 
