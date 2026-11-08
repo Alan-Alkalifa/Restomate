@@ -369,6 +369,9 @@ isOneToOne: false
 "get_invitation_preview":
 { Args: { "token": string }; Returns: Json
                            },
+"get_org_package":
+{ Args: { "org": string }; Returns: Json
+                           },
 "get_storefront":
 { Args: { "slug": string }; Returns: Json
                            },
@@ -395,6 +398,9 @@ isOneToOne: false
                            },
 "is_slug_available":
 { Args: { "slug": string }; Returns: boolean
+                           },
+"my_org_membership":
+{ Args: { "org_slug": string }; Returns: Json
                            },
 "my_permissions":
 { Args: { "org": string }; Returns: (string)[]

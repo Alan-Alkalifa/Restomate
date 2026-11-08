@@ -25,6 +25,8 @@ async function run(nodeEnv: string, host: string, path = "/") {
   return proxy(req(host, path));
 }
 
+vi.setConfig({ testTimeout: 30_000 }); // dynamic imports are slow when the whole suite runs in parallel
+
 describe("proxy", () => {
   beforeEach(() => vi.resetModules());
   afterEach(() => vi.unstubAllEnvs());
