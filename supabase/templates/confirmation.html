@@ -8,7 +8,7 @@
         <tr><td style="font-size:18px;font-weight:600;padding-bottom:8px;">Confirm your email</td></tr>
         <tr><td style="font-size:14px;line-height:22px;color:#44403c;padding-bottom:24px;">Welcome to Restomate. Confirm your email address to finish creating your account.</td></tr>
         <tr><td style="padding-bottom:24px;">
-          <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=/onboarding"
+          <a href="{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=signup"
              style="display:inline-block;background:#1c1917;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;">Confirm email</a>
         </td></tr>
         <tr><td style="font-size:12px;line-height:18px;color:#78716c;">If you did not create a Restomate account, you can ignore this email. The link can be used once and expires soon.</td></tr>
