@@ -24,6 +24,9 @@ alter table public.org_branding
   check (logo_url is null or (char_length(logo_url) <= 500 and logo_url ~ '^https://[^\s]+$'));
 grant insert (logo_url) on public.org_branding to authenticated;
 grant update (logo_url) on public.org_branding to authenticated;
+-- logo_path is for Storage object paths written only by server code (M6): not client-writable,
+-- never exposed by get_storefront (a manager could otherwise store 'javascript:...' in it).
+revoke insert (logo_path), update (logo_path) on public.org_branding from authenticated;
 
 -- 3. bounded expiry for client writes ---------------------------------------------------
 -- Client roles only (authenticated/anon); definer RPCs, the service role and the table
@@ -361,7 +364,6 @@ begin
     'branding', coalesce((
       select jsonb_build_object(
         'logo_url', b.logo_url,
-        'logo_path', b.logo_path,
         'primary_color', b.primary_color,
         'secondary_color', b.secondary_color,
         'font', b.font,

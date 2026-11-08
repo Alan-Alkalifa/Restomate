@@ -1,5 +1,5 @@
 begin;
-select plan(27);
+select plan(31);
 
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, created_at, updated_at)
 select ('00000000-0000-0000-0000-0000000000e' || n)::uuid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
@@ -72,6 +72,17 @@ select org, 'old@x.test', cashier, true, repeat('4', 64), pg_temp.uid(1), now() 
 select pg_temp.act_as(pg_temp.uid(1), 'u1@x.test');
 select lives_ok($$update public.staff_invitations set revoked_at = now() where email = 'old@x.test'$$, 'revoking an expired invitation is allowed');
 select throws_ok($$update public.staff_invitations set revoked_at = null where email = 'old@x.test'$$, 'P0001', 'INVALID_EXPIRY', 'un-revoking an expired invitation is rejected');
+
+-- logo_path is not client-writable and not exposed by get_storefront
+select pg_temp.act_as(pg_temp.uid(1), 'u1@x.test');
+select throws_ok($$update public.org_branding set logo_path = 'javascript:alert(1)' where organization_id = pg_temp.org('logo-ok')$$, '42501', null, 'owner/manager cannot update logo_path');
+select throws_ok($$insert into public.org_branding (organization_id, logo_path) values (pg_temp.org('no-logo'), 'javascript:alert(1)')$$, '42501', null, 'cannot insert logo_path');
+select lives_ok($$update public.org_branding set primary_color = '#445566' where organization_id = pg_temp.org('logo-ok')$$, 'other branding columns still writable');
+reset role;
+update public.org_branding set logo_path = 'orgs/x/logo.png' where organization_id = pg_temp.org('logo-ok');
+set local role anon;
+select is((public.get_storefront('logo-ok') -> 'branding') ? 'logo_path', false, 'get_storefront has no logo_path key');
+reset role;
 
 select * from finish();
 rollback;
