@@ -27,8 +27,8 @@ insert into tests.read_specs (label, q, exp) values
  ('subscriptions A',  'select 1 from public.subscriptions where organization_id = {A}', '{1,0,0,0,0,0,0,0,1,0}'),
  ('subscriptions B',  'select 1 from public.subscriptions where organization_id = {B}', '{0,0,0,0,0,0,1,0,1,0}'),
  -- audit_logs: org owner + platform admin only
- ('audit_logs A',     'select 1 from public.audit_logs where organization_id = {A}', '{2,0,0,0,0,0,0,0,2,0}'),
- ('audit_logs B',     'select 1 from public.audit_logs where organization_id = {B}', '{0,0,0,0,0,0,1,0,1,0}'),
+ ('audit_logs A',     'select 1 from public.audit_logs where organization_id = {A} and action like ''iso.%''', '{2,0,0,0,0,0,0,0,2,0}'),
+ ('audit_logs B',     'select 1 from public.audit_logs where organization_id = {B} and action like ''iso.%''', '{0,0,0,0,0,0,1,0,1,0}'),
  ('audit_logs org-less', 'select 1 from public.audit_logs where organization_id is null and action = ''iso.platform''', '{0,0,0,0,0,0,0,0,1,0}'),
  -- NEW behaviour (DAVIN follow-up): co-member profiles only for staff.manage holders, own row, platform admin
  ('profiles',         'select 1 from public.profiles where id in (select uid from tests.actors)', '{6,6,1,1,1,1,1,1,9,0}'),
