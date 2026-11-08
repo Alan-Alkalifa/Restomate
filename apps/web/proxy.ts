@@ -28,6 +28,11 @@ export async function proxy(request: NextRequest) {
     return new NextResponse("Not found", { status: 404 });
   }
 
+  if (surface.kind === "custom" && !allowLocalhost) {
+    // Unknown Host in production: custom domains do not exist until M7 (custom_domains). Never serve the app under it.
+    return new NextResponse("Not found", { status: 404 });
+  }
+
   // Dev-only path fallback: http://localhost:3000/?__tenant=demo
   if (allowLocalhost && surface.kind === "frontend") {
     const slug = parseTenantOverride(request.nextUrl.searchParams.get("__tenant"));
@@ -39,7 +44,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // frontend, app, custom (custom-domain tenant lookup arrives with custom_domains): refresh the session.
+  // frontend, app (and unknown hosts in dev only): refresh the session.
   return updateSession(request);
 }
 
