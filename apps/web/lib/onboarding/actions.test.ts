@@ -11,7 +11,8 @@ const updateTag = vi.fn();
 vi.mock("next/cache", () => ({ updateTag: (t: string) => updateTag(t) }));
 const protect = vi.fn();
 vi.mock("@/lib/arcjet", () => ({ ajAuth: { name: "auth" }, ajProbe: { name: "probe" }, protect: (...a: unknown[]) => protect(...a) }));
-vi.mock("@/lib/auth/dal", () => ({ requireUser: async () => ({ id: "u-1", email: "a@x.test" }) }));
+const getCurrentUser = vi.fn();
+vi.mock("@/lib/auth/dal", () => ({ requireUser: async () => ({ id: "u-1", email: "a@x.test" }), getCurrentUser: () => getCurrentUser() }));
 const capture = vi.fn();
 vi.mock("@/lib/posthog/server", () => ({ captureServer: (...a: unknown[]) => capture(...a) }));
 const rpc = vi.fn();
@@ -32,7 +33,8 @@ const input = {
 beforeEach(() => {
   vi.clearAllMocks();
   protect.mockResolvedValue({ allowed: true });
-  maybeSingle.mockResolvedValue({ data: null });
+  getCurrentUser.mockResolvedValue({ id: "u-1", email: "a@x.test" });
+  maybeSingle.mockResolvedValue({ data: null, error: null });
   rpc.mockResolvedValue({ data: { organization_id: "o-1", slug: "warung-sedap" }, error: null });
 });
 
@@ -48,6 +50,14 @@ describe("checkSlug", () => {
     expect(await checkSlug("taken-one")).toEqual({ status: "taken" });
     rpc.mockResolvedValueOnce({ data: true, error: null });
     expect(await checkSlug("free-one")).toEqual({ status: "available" });
+  });
+  it("requires a signed-in user and never says available on a failed lookup", async () => {
+    getCurrentUser.mockResolvedValue(null);
+    expect(await checkSlug("free-one")).toEqual({ status: "invalid" });
+    expect(rpc).not.toHaveBeenCalled();
+    getCurrentUser.mockResolvedValue({ id: "u-1" });
+    maybeSingle.mockResolvedValueOnce({ data: null, error: { message: "denied" } });
+    expect(await checkSlug("free-one")).toEqual({ status: "invalid" });
   });
   it("is rate limited", async () => {
     protect.mockResolvedValue({ allowed: false, reason: "RATE_LIMITED" });

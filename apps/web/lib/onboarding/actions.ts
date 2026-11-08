@@ -4,7 +4,7 @@ import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { ajAuth, ajProbe, protect } from "@/lib/arcjet";
 import { memberTag, orgTag } from "@/lib/auth/tags";
-import { requireUser } from "@/lib/auth/dal";
+import { getCurrentUser, requireUser } from "@/lib/auth/dal";
 import type { ActionResult } from "@/lib/auth/schemas";
 import { EVENTS } from "@/lib/posthog/events";
 import { captureServer } from "@/lib/posthog/server";
@@ -15,15 +15,20 @@ import { isValidSlug } from "./slug";
 
 export type SlugStatus = "available" | "taken" | "reserved" | "invalid";
 
-/** Probe endpoint (leaks existence, so rate limited). Signed-out callers are fine: the wizard sits after signup. */
+/**
+ * Probe endpoint (leaks existence): signed-in users only, and rate limited. `reserved_slugs` is readable by
+ * `authenticated` only, so a signed-out caller would otherwise get a silent RLS denial reported as "available".
+ */
 export async function checkSlug(slug: string): Promise<{ status: SlugStatus }> {
   const value = typeof slug === "string" ? slug.trim().toLowerCase() : "";
   if (!isValidSlug(value)) return { status: "invalid" };
   const decision = await protect(ajProbe);
   if (!decision.allowed) return { status: "invalid" };
+  if (!(await getCurrentUser())) return { status: "invalid" };
 
   const supabase = await createClient();
-  const { data: reserved } = await supabase.from("reserved_slugs").select("slug").eq("slug", value).maybeSingle();
+  const { data: reserved, error: reservedError } = await supabase.from("reserved_slugs").select("slug").eq("slug", value).maybeSingle();
+  if (reservedError) return { status: "invalid" }; // never report "available" on a failed lookup
   if (reserved) return { status: "reserved" };
   const { data: available, error } = await supabase.rpc("is_slug_available", { slug: value });
   if (error) return { status: "invalid" };
