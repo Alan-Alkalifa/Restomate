@@ -3,7 +3,7 @@
 Owner: REYKI · Task: MF-T24 · Sources: `docs/PLAN.md` §4, `docs/PROJECT.md` §4.9 / §5.2, `CLAUDE.md`.
 Reference for every M0 PR verification. Companion files: `BUG_TEMPLATE.md`, `PR_REPORT_TEMPLATE.md`.
 
-> **Status note.** `list_tasks` currently returns task titles only. Per-task cases in §4 are derived from the PLAN §4 checklist for each task. When a task's own acceptance criteria / QA focus differ, the task wins: add cases to §4 and tell REYKI. Expected results in the isolation matrix (§5) are the *intended* behaviour from PLAN §4.2; items marked **[Q]** need ALAN/DAVIN to confirm before MF-T25 hard-codes them.
+> **Status note.** `list_tasks` returns task titles only. Per-task cases in §4 are derived from the PLAN §4 checklist; dev PR descriptions must include the task's acceptance criteria and QA focus, and those win where they differ. Open questions were answered by ALAN (§9) and are now the expected results.
 
 ## 1. Scope and environment
 
@@ -20,11 +20,11 @@ Seeded by MF-T05 (`supabase/seed.sql`). Passwords are local-only and documented 
 | User | Org | Role | Notes |
 |---|---|---|---|
 | `owner@demo.local` | Demo Restaurant (**org A**, slug `demo`) | owner | all locations |
-| `manager@demo.local` | org A | manager | **[Q]** not listed in PLAN §4.4; REYKI needs one. Ask DAVIN to seed it, otherwise tests create it |
+| `manager@demo.local` | org A | manager | seeded (MF-T05, per ALAN) |
 | `cashier@demo.local` | org A | cashier | |
 | `waiter@demo.local` | org A | waiter | |
 | `kitchen@demo.local` | org A | kitchen | |
-| `owner@other.local` | Other Restaurant (**org B**) | owner | needed for every cross-tenant test **[Q]** PLAN §4.4 lists the user but not the org; confirm it is seeded |
+| `owner@other.local` | Other Bistro (`other-bistro`) (**org B**) | owner | org B, needed for every cross-tenant test; seeded per ALAN |
 | `admin@restomate.local` | none | platform admin | in `platform_admins` |
 
 Org A has two locations: Jakarta Selatan, Bandung. Packages: Starter (1 loc / 5 staff / 20 tables), Growth (3 / 25 / 100, trial default), Pro (unlimited).
@@ -59,7 +59,7 @@ Helper conventions for pgTAP/e2e: impersonate via `set local role authenticated;
 |---|---|---|
 | E2.1 | As owner of org A open Staff page | Members + pending invites list. Sidebar shows all owner items |
 | E2.2 | Invite `cashier2@test.local`, role Cashier, location Jakarta Selatan only | Invitation row: `token_hash` is 64-hex SHA-256, **raw token not stored anywhere** (check DB, logs, audit metadata); `expires_at` in the future; email sent once to that address (Mailpit) with accept link `/invite/<token>`; branded; sender per CLAUDE.md |
-| E2.3 | Invite same email again while pending | Rejected or replaces per spec; never two valid tokens for same email+org **[Q]** |
+| E2.3 | Invite same email again while pending | Rejected or replaces per spec; Decided: duplicate pending invite for same email+org is rejected with "Already invited, use Resend"; inviting an existing active member is rejected; never two valid tokens for same email+org |
 | E2.4 | Resend the invite | New token; old link stops working; one new email; idempotency key prevents duplicate on retry |
 | E2.5 | Open the old/revoked/expired/garbage link | Generic "invalid or expired" page; no information on whether the email/org exists |
 | E2.6 | Open valid link signed out | Prompted to sign in / sign up; email field fixed to the invited address (or mismatch rejected) |
@@ -72,7 +72,7 @@ Helper conventions for pgTAP/e2e: impersonate via `set local role authenticated;
 | E2.13 | Cashier API check with the cashier's JWT against PostgREST (`/rest/v1/staff_invitations`, `organization_members`, `roles`, insert/update) | Reads limited per matrix (§5); writes denied |
 | E2.14 | Owner changes cashier to Waiter, then deactivates | Role change takes effect on next request (sidebar changes). Deactivated: loses all org access immediately, including active session (PROJECT §4.9) |
 | E2.15 | Package limit: org on Starter with 5 staff, invite a 6th | Server rejects with `PLAN_LIMIT:max_staff`, UI shows upgrade prompt; also counts pending invites per spec |
-| E2.16 | Role/permission change by Manager | Manager can invite Cashier/Waiter/Kitchen; cannot create Owner or edit Owner **[Q]** |
+| E2.16 | Role/permission change by Manager | Decided: manager can invite/manage manager, cashier, waiter, kitchen; cannot assign the owner role or touch an owner membership (UI and direct API) |
 
 ### M0-E3: another restaurant's user cannot read any of it
 
@@ -116,13 +116,13 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 - M0-T03-1 `is_slug_available`: true/false correct; reserved, invalid, existing slugs false; callable by anon; no timing/enumeration beyond boolean.
 - M0-T03-2 `create_organization`: see E1.8/E1.9/E1.11; unauthenticated caller denied; client cannot pick role, status, package outside public/default, or owner id; package code must be public + active.
 - M0-T03-3 `accept_invitation`: rejects wrong email, expired, revoked, reused, unknown token, null token, token for deactivated-then-reinvited user; email compared case-insensitively against `auth.jwt()->>'email'`; succeeds once; creates membership + location_staff atomically; race: two parallel accepts → one membership.
-- M0-T03-4 Existing member accepting a second invite to the same org does not duplicate membership or escalate silently **[Q]**.
+- M0-T03-4 Existing member accepting a second invite to the same org does not duplicate membership or escalate silently (existing active member invite is rejected at invite time; accept path must also be safe).
 - M0-T03-5 `get_storefront`: anon OK; suspended/read_only/unknown slug → same "unavailable/not found" shape per spec; only active locations; no emails/ids beyond what is public.
 - M0-T03-6 `admin_set_org_status`: platform admin only (not org owner, not anon); reason required; writes audit log with admin id; invalid status rejected.
 - M0-T03-7 Token hash only: raw token never in any table, log or audit metadata.
 
 ### MF-T04: integrity triggers (DAVIN)
-- M0-T04-1 Limits: insert location/member/invitation at cap → error `PLAN_LIMIT:<key>`; below cap OK; Pro unlimited; changing package re-evaluates; deactivated members do not count **[Q]**; failed attempt leaves no row.
+- M0-T04-1 Limits: insert location/member/invitation at cap → error `PLAN_LIMIT:<key>`; below cap OK; Pro unlimited; changing package re-evaluates; `max_staff` counts active members + pending (unexpired, unrevoked) invitations; deactivated, expired and revoked do not count; accepting an invite at exactly the cap succeeds (no double count) while a new invite at the cap fails; failed attempt leaves no row.
 - M0-T04-2 Last active owner cannot be deleted, deactivated or demoted (update role, update status, delete). Two owners → one can leave. Race: two owners demote each other concurrently → at least one active owner remains.
 - M0-T04-3 System roles cannot be deleted/renamed; Owner role's permissions cannot be edited; custom roles can.
 - M0-T04-4 Triggers also hold when called through service role (documented exception: none).
@@ -163,11 +163,11 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 
 ### MF-T10: DOKU signature (DAVIN)
 - M0-T10-1 Digest = base64(sha256(rawBody)); omitted for GET. Component string order/newlines exactly per CLAUDE.md; `Signature = "HMACSHA256=" + base64(hmac)`.
-- M0-T10-2 Matches DOKU's documented example vector (needs the vector from docs.doku.com; if blocked, REYKI requests access; do not accept a self-generated vector as proof).
+- M0-T10-2 Matches DOKU's documented example vector. DAVIN requests docs.doku.com access at MF-T10. A self-computed vector is temporary only and is not final proof; keep the case open until the documented vector is used.
 - M0-T10-3 Verification: valid → true; any change in body (1 byte), path, Client-Id, Request-Id, timestamp, or signature → false; wrong secret → false; missing headers → false (no throw).
 - M0-T10-4 Constant-time compare (`timingSafeEqual`), handles different-length signatures without throwing.
 - M0-T10-5 Uses raw body string, not re-serialised JSON (whitespace/key-order variants fail).
-- M0-T10-6 Timestamp skew policy is defined and tested **[Q]**. No secret in logs/test output.
+- M0-T10-6 Timestamp skew policy is defined and tested (if none is specified, record as a finding). No secret in logs/test output.
 
 ### MF-T11: StaffInvite template (ADIT)
 - M0-T11-1 Renders with typed props (restaurant name, inviter, role, accept URL, expiry); preview in React Email dev server; HTML + plain text.
@@ -189,7 +189,7 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 - M0-T13-4 Sign out clears cookies server-side and invalidates the session (old refresh token no longer works).
 - M0-T13-5 Cookies are `HttpOnly`, `Secure` (in prod), `SameSite=Lax`.
 - M0-T13-6 Arcjet applied on these actions (see T08-2).
-- M0-T13-7 Password reset: link single-use; after reset, other sessions invalidated **[Q]**.
+- M0-T13-7 Password reset: link single-use; after reset, record whether other sessions are invalidated (not specified; report as observation).
 
 ### MF-T14: auth pages (ADIT)
 - M0-T14-1 Login, signup, forgot, reset pages render; all states: loading (pending button, double-submit blocked), field errors, server error, success.
@@ -226,7 +226,7 @@ Format: ID · what to check · expected. "Pass" requires the task's own acceptan
 - M0-T18-2 Sidebar from `my_permissions`: for each of 5 roles the visible items equal the role table (snapshot test). Hidden ≠ protected: each hidden route returns 403/redirect when typed.
 - M0-T18-3 Location switcher lists only accessible locations; switching persists; URL with inaccessible location denied.
 - M0-T18-4 Home checklist renders; empty/loading/error states; locked-feature state for features missing from the package (and server-side blocked).
-- M0-T18-5 Suspended org: members see a suspension notice, not data **[Q]** exact behaviour from ALAN.
+- M0-T18-5 Suspended org (decided): members see only a "suspended" notice page with no dashboard data; DB level `has_permission()` is false and tenant reads are blocked except the org's own `organizations` row (name/status); storefront shows "temporarily unavailable". `read_only`/`past_due` are M6, not tested.
 - M0-T18-6 Mobile nav usable at 400px; skip link, landmarks, focus management.
 - M0-T18-7 Unknown org slug and org the user doesn't belong to → identical not-found.
 
@@ -281,31 +281,32 @@ Applies to every table in PLAN §4.2 plus `staff_invitations` (17 tables). Drive
 | `platform_admins` | - | - | - | - | - | - | - | - | - | S own |
 | `packages` | S public+active | S public+active | S public+active | same | same | same | S own plan too | S own plan too | S public | SIUD |
 | `organizations` | - | - | S own org B only | S | S | S | S | S,U (name/contact only; not slug/status) | - | S (U only via `admin_set_org_status`) |
-| `reserved_slugs` | - | - | - | - | - | - | - | - | - | S (writes: service role) |
-| `subscriptions` | - | - | - | - | - | - | - **[Q]** | S | - | S |
+| `reserved_slugs` | - | S | S | S | S | S | S | S | S | S (writes: service role only) |
+| `subscriptions` | - | - | - | - | - | - | - | S | - | S |
 | `locations` | - | - | - | S loc | S loc | S loc | S (all if `all_locations`); no IUD | S,I,U (D soft only) | - | S |
 | `permissions` | - | S | S | S | S | S | S | S | - | S |
-| `default_role_permissions` | - | S **[Q]** | S | S | S | S | S | S | - | S |
+| `default_role_permissions` | - | S | S | S | S | S | S | S | - | S |
 | `roles` | - | - | - | S | S | S | S | S,I,U,D (non-system) | - | S |
 | `role_permissions` | - | - | - | S | S | S | S | S,I,U,D (never owner role) | - | S |
 | `organization_members` | - | - | - | S own | S own | S own | S all; U non-owner | S all; U (last-owner guard) | - | S |
 | `location_staff` | - | - | - | S own | S own | S own | S,I,U,D (non-owner) | S,I,U,D | - | S |
 | `staff_invitations` | - | - | - | - | - | - | S,I,U (revoke) | S,I,U (revoke) | - | S |
 | `org_branding` | - | - | - | S | S | S | S,U | S,U | - | S |
-| `audit_logs` | - | - | - | - | - | - | S **[Q]** | S | - | S (incl. org null) |
-| `platform_settings` | - | - | - | - | - | - | - | - | - | S,I,U **[Q]** anon-readable keys? |
+| `audit_logs` | - | - | - | - | - | - | - | S | - | S (incl. org null) |
+| `platform_settings` | - | - | - | - | - | - | - | - | - | - (read only inside definer functions; writes service role; audited admin function arrives in M1) |
 
 Rules that apply to **all** rows:
 1. **I/U/D on every table is `-` for anon, authN, B-any and deact**, without exception. No table is writable by org members' direct `organization_id` choice: inserts with a foreign `organization_id` are rejected by `with check`.
-2. Nobody except the service role writes: `platform_admins`, `reserved_slugs`, `permissions`, `default_role_permissions`, `platform_settings` (padmin via audited function only **[Q]**), `audit_logs` (written by `private.write_audit` only; no client I/U/D, including owner and padmin).
+2. Nobody except the service role writes: `platform_admins`, `reserved_slugs`, `permissions`, `default_role_permissions`, `platform_settings` (no client access at all in M0), `audit_logs` (written by `private.write_audit` only; no client I/U/D, including owner and padmin).
 3. `organization_members` and `organizations` have no direct client **I**/**D**: creation only through `create_organization` / `accept_invitation`; removal = deactivate.
 4. `staff_invitations.token_hash` must not be selectable by any client role (column privilege or view). Test `select token_hash` as owner → error/empty.
 5. Cashier/waiter/kitchen/manager cannot escalate: update own `organization_members.role_id`/`status`/`all_locations` → denied; insert a membership for self → denied; update `role_permissions` → denied.
 6. Deactivated member: all org-scoped reads return 0 rows immediately, with the old JWT still valid.
-7. Manager may not touch owner membership or assign the owner role **[Q]**; manager never has `billing.manage`, `settings.manage`, `locations.manage` (locations I/U denied, subscriptions S denied).
+7. Manager may not touch owner membership or assign the owner role (decided); manager never has `billing.manage`, `settings.manage`, `locations.manage` (locations I/U denied, subscriptions S denied).
 8. Cross-org FK integrity: a row in org A cannot reference an org B role/location/member (see T04-5).
 9. Anon `execute` on RPCs: only `is_slug_available` and `get_storefront`. All others (`create_organization`, `accept_invitation`, `admin_set_org_status`, `my_permissions`, helpers) are denied for anon. `private` schema functions not callable via API.
-10. User in two orgs (A and B): every query is scoped per org; rights in B do not leak into A.
+10. Suspended org A: for every actor `has_permission(A,…)` is false and tenant reads return 0 rows, except the org's own `organizations` row (name/status) for members.
+11. User in two orgs (A and B): every query is scoped per org; rights in B do not leak into A.
 
 Function/RPC matrix (each × same actors): `is_platform_admin` (true only padmin), `is_org_member(A)` (true only active A members), `has_permission(A,p)` (per role table; false for deact/non-member/unknown p), `has_location_access(loc)` (assigned or `all_locations` only), `my_permissions(A)` (own perms; empty for non-member, never another user's), `create_organization` (authenticated + confirmed only), `accept_invitation` (see T03-3), `admin_set_org_status` (padmin only), `get_storefront` (anon OK, active only).
 
@@ -352,13 +353,13 @@ Any data leak, permission bypass or payment error is **S1**: message ALAN immedi
 - PR verdicts: `docs/qa/PR_REPORT_TEMPLATE.md`.
 - Milestone: MF-T32 produces the M0 exit sign-off listing every case ID above with pass/fail and open bugs.
 
-## 9. Open questions for ALAN / DAVIN
+## 9. Decisions from ALAN (were open questions)
 
-1. Is a `manager@demo.local` user and an org B ("Other Restaurant") seeded by MF-T05? Tests need both.
-2. Who may read `subscriptions`, `audit_logs`, `default_role_permissions`, `platform_settings` (matrix cells marked **[Q]**)?
-3. May a manager invite/assign roles, and can a manager touch an owner? Who can create custom roles in M0 (owner only, per CLAUDE.md)?
-4. Do pending invitations and deactivated members count toward `max_staff`?
-5. Behaviour for members of a suspended org (blocked page vs read-only).
-6. Duplicate pending invite for the same email: reject or replace?
-7. DOKU documented signature example: needs docs.doku.com access (will request via HQ if blocked).
-8. Per-task acceptance criteria / QA focus did not come through `list_tasks` (titles only); please resend if they differ from PLAN §4.
+1. Seed: `manager@demo.local` is seeded. Org B is Other Bistro (`other-bistro`), owner `owner@other.local`.
+2. Reads: `subscriptions` and `audit_logs`: owner of that org + platform admin only (manager none); no client I/U/D on `audit_logs` for anyone. `platform_settings`: no client access in M0. `permissions` and `default_role_permissions`: select for any authenticated user, none for anon. `reserved_slugs`: select for authenticated, writes service role only.
+3. Manager (has `staff.manage`) manages manager/cashier/waiter/kitchen only; cannot assign the owner role or touch an owner membership. Custom roles: owner only at DB level, no UI in M0.
+4. `max_staff` counts active members + pending invitations; deactivated do not count; accepting at exactly the cap succeeds.
+5. Suspended org behaviour as in M0-T18-5 and matrix rule 10.
+6. Duplicate pending invite is rejected ("Already invited, use Resend"); inviting an existing active member is rejected.
+7. DOKU vector: see M0-T10-2.
+8. Every dev PR description must include its task's acceptance criteria and QA focus (list_tasks shows titles only). Per-task cases in §4 are updated from those when a PR arrives.
