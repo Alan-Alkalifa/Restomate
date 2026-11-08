@@ -88,7 +88,7 @@ end $$;
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a1');
 select ok(public.is_org_member('10000000-0000-0000-0000-00000000000a'), 'owner is member');
 select ok(public.has_permission('10000000-0000-0000-0000-00000000000a','billing.manage'), 'owner has billing.manage');
-select ok(public.has_permission('10000000-0000-0000-0000-00000000000a','anything.at_all'), 'owner true for any key');
+select ok(not public.has_permission('10000000-0000-0000-0000-00000000000a','anything.at_all'), 'unknown permission key is false even for the owner');
 select ok(not public.has_permission('10000000-0000-0000-0000-00000000000b','menu.manage'), 'owner has nothing in org B');
 select ok(public.has_location_access('30000000-0000-0000-0000-0000000000a2'), 'owner has access to all locations');
 select is(cardinality(public.my_permissions('10000000-0000-0000-0000-00000000000a')), 23, 'owner my_permissions = all 23');

@@ -31,6 +31,14 @@ begin
   return n;
 end $$;
 
+create function pg_temp.try_self_promote() returns int language plpgsql as $$
+declare n int;
+begin
+  update public.organization_members set role_id='20000000-0000-0000-0000-0000000000a1' where id='40000000-0000-0000-0000-0000000000a2';
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
 -- anon sees only the public catalog
 set local role anon;
 select throws_ok($$select * from public.organizations$$, '42501', null, 'anon cannot read organizations');
@@ -39,7 +47,7 @@ reset role;
 
 -- manager escalation attempts
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a2');
-select throws_ok($$update public.organization_members set role_id='20000000-0000-0000-0000-0000000000a1' where id='40000000-0000-0000-0000-0000000000a2'$$, '42501', null, 'manager cannot self-promote to owner');
+select is(pg_temp.try_self_promote(), 0, 'manager cannot self-promote to owner');
 select is(pg_temp.try_deactivate_owner(), 0, 'manager cannot deactivate owner');
 select throws_ok($$insert into public.role_permissions values ('20000000-0000-0000-0000-0000000000a3','10000000-0000-0000-0000-00000000000a','billing.manage')$$, '42501', null, 'manager cannot grant permissions to a role');
 select throws_ok($$insert into public.platform_admins (user_id) values ('00000000-0000-0000-0000-0000000000a2')$$, '42501', null, 'member cannot insert platform_admins');
