@@ -14,6 +14,20 @@ const URL_KEY = /url|pathname|referrer|href/i;
 /** Values PostHog itself uses instead of a URL. */
 const PASS_THROUGH = new Set(["$direct"]);
 
+/** Decode %xx per segment so `/%74/abc` or `/invit%65/abc` cannot dodge the token rules (undecodable segments are kept as is). */
+function decodeSegments(path: string): string {
+  return path
+    .split("/")
+    .map((seg) => {
+      try {
+        return decodeURIComponent(seg);
+      } catch {
+        return seg;
+      }
+    })
+    .join("/");
+}
+
 /**
  * Scrub a URL (absolute or path-only) before it reaches PostHog:
  *  - `/invite/{x}` -> `/invite/[token]`, `/t/{x}` -> `/t/[token]` (anywhere in the path)
@@ -31,7 +45,7 @@ export function sanitizeUrl(input: string): string {
   } catch {
     return "[invalid-url]";
   }
-  url.pathname = url.pathname.replace(TOKEN_PATH, (_m, seg: string) => `/${seg.toLowerCase()}/[token]`);
+  url.pathname = decodeSegments(url.pathname).replace(TOKEN_PATH, (_m, seg: string) => `/${seg.toLowerCase()}/[token]`);
   for (const key of [...url.searchParams.keys()]) {
     if (!ALLOWED_PARAM.test(key)) url.searchParams.delete(key);
   }
