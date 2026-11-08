@@ -4,13 +4,13 @@ import type { ActiveStorefront } from "./types";
 /** Branding comes only from sanitised CSS variables (brandingToCssVars); no per-tenant branches. */
 export function StorefrontHome({ data, cssVars }: { data: ActiveStorefront; cssVars: Record<string, string> }) {
   return (
-    <div style={cssVars as CSSProperties} className="flex min-h-screen flex-1 flex-col bg-[var(--sf-background,#fff)] text-[var(--sf-foreground,#171717)]">
+    <div style={cssVars as CSSProperties} className="flex min-h-screen flex-1 flex-col bg-white text-neutral-900 [font-family:var(--brand-font)]">
       <header className="px-4 py-6 text-center">
         {data.branding.logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element -- tenant-supplied remote logo; host not known at build time
           <img src={data.branding.logoUrl} alt="" width={96} height={96} className="mx-auto mb-3 h-24 w-24 object-contain" />
         )}
-        <h1 className="text-3xl font-semibold tracking-tight break-words">{data.name}</h1>
+        <h1 style={{ color: "var(--brand-primary)" }} className="text-3xl font-semibold tracking-tight break-words">{data.name}</h1>
       </header>
       <main className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 pb-10">
         <p role="status" className="rounded-lg border border-current/20 p-4 text-center">Menu coming soon</p>

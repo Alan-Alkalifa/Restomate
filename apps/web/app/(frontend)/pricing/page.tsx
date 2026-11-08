@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { PricingGrid } from "@/components/frontend/PricingGrid";
 import { formatMoney, getPublicPackages } from "../_data";
@@ -9,6 +10,8 @@ export const metadata: Metadata = {
 };
 
 async function Packages() {
+  // Read at request time (cached by getPublicPackages), so `next build` needs no database.
+  await connection();
   const packages = await getPublicPackages();
   return <PricingGrid packages={packages} formatMoney={formatMoney} />;
 }

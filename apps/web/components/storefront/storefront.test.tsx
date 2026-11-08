@@ -23,11 +23,11 @@ describe("frontend/storefront views", () => {
   });
   it("storefront shows locations and applies css vars", () => {
     const html = renderToStaticMarkup(
-      <StorefrontHome cssVars={{ "--sf-background": "#fff" }} data={{ status: "active", name: "Demo", slug: "demo", branding: { logoUrl: "https://cdn.example.com/l.png", primaryColor: null, secondaryColor: null, font: null, theme: {} }, locations: [{ name: "Kemang", address: "Jl. A", city: "Jakarta", phone: "021", timezone: "Asia/Jakarta" }] }} />,
+      <StorefrontHome cssVars={{ "--brand-primary": "#112233" }} data={{ status: "active", name: "Demo", slug: "demo", branding: { logoUrl: "https://cdn.example.com/l.png", primaryColor: null, secondaryColor: null, font: null, theme: {} }, locations: [{ name: "Kemang", address: "Jl. A", city: "Jakarta", phone: "021", timezone: "Asia/Jakarta" }] }} />,
     );
     expect(html).toContain("Kemang");
     expect(html).toContain("https://cdn.example.com/l.png");
-    expect(html).toContain("--sf-background");
+    expect(html).toContain("--brand-primary");
     expect(html).toContain("Menu coming soon");
   });
   it("unavailable page is noindex", () => {
