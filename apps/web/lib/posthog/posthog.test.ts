@@ -24,6 +24,8 @@ describe("sanitizeUrl", () => {
     ["/invite/secret/extra", "/invite/[token]/extra"],
     ["/t/abc", "/t/[token]"],
     ["/%74/abc", "/t/[token]"],
+    ["/invite//SECRET", "/invite/[token]"],
+    ["/s/demo/t///SECRET", "/s/demo/t/[token]"],
     ["/invit%65/abc%20d", "/invite/[token]"],
     ["/s/demo/%74/abc", "/s/demo/t/[token]"],
     ["/bad%ZZ/x", "/bad%ZZ/x"],
@@ -72,6 +74,63 @@ describe("sanitizeEvent", () => {
   });
 });
 
+describe("exception payloads", () => {
+  const exc = {
+    properties: {
+      $exception_message: "Failed for ann@example.com at https://a.b/invite/SECRET?email=ann@example.com call +62 812-3456-7890 token eyJhbGciOi.eyJzdWIiOjF9.sig_nature",
+      $exception_list: [
+        {
+          type: "Error",
+          value: "bad /t/SECRETQR and key abcDEF123456abcDEF123456xyz9",
+          stacktrace: { type: "resolved", frames: [{ filename: "https://a.b/_next/static/app.js?token_hash=SECRET", function: "onSubmit", lineno: 3 }] },
+        },
+      ],
+      $current_url: "https://a.b/t/SECRETQR",
+    },
+  };
+  it("scrubs emails, tokens, phones and URLs in message, list and frames", () => {
+    const out = JSON.stringify(sanitizeEvent(exc as never));
+    for (const leak of ["ann@example.com", "SECRET", "812-3456", "eyJhbGci", "abcDEF123456abcDEF123456xyz9", "token_hash"]) {
+      expect(out).not.toContain(leak);
+    }
+    expect(out).toContain("onSubmit");
+    expect(out).toContain('"lineno":3');
+  });
+});
+
+describe("captureClientException", () => {
+  it("is a no-op without a key and never throws", async () => {
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "");
+    const captureException = vi.fn();
+    vi.doMock("posthog-js", () => ({ default: { init: vi.fn(), captureException } }));
+    const { captureClientException } = await import("./client");
+    expect(() => captureClientException(new Error("x"))).not.toThrow();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+  it("sends a scrubbed $exception through before_send (mock host)", async () => {
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
+    vi.stubGlobal("window", {});
+    const sent: unknown[] = [];
+    let opts: { before_send: (e: unknown) => unknown } | undefined;
+    vi.doMock("posthog-js", () => ({
+      default: {
+        init: (_k: string, o: typeof opts) => void (opts = o),
+        captureException: (err: Error) =>
+          sent.push(opts!.before_send({ event: "$exception", properties: { $exception_message: err.message, $current_url: "https://a.b/invite/SECRET" } })),
+      },
+    }));
+    const { captureClientException } = await import("./client");
+    captureClientException(new Error("boom for ann@example.com on /invite/SECRET"));
+    expect(sent).toHaveLength(1);
+    expect(JSON.stringify(sent[0])).not.toMatch(/ann@example|SECRET/);
+    captureClientException("string thrown");
+    expect(sent).toHaveLength(2);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("posthog-js init options", () => {
   it("turns off autocapture and recording and masks text/attributes", async () => {
     vi.doMock("posthog-js", () => ({ default: { init: vi.fn() } }));
@@ -81,6 +140,7 @@ describe("posthog-js init options", () => {
     expect(POSTHOG_OPTIONS.mask_all_text).toBe(true);
     expect(POSTHOG_OPTIONS.mask_all_element_attributes).toBe(true);
     expect(POSTHOG_OPTIONS.capture_heatmaps).toBe(false);
+    expect(POSTHOG_OPTIONS.capture_exceptions).toBe(true);
     const out = POSTHOG_OPTIONS.before_send({ properties: { $prev_pageview_pathname: "/invite/SECRET" } } as never) as { properties: Record<string, string> };
     expect(out.properties.$prev_pageview_pathname).toBe("/invite/[token]");
   });

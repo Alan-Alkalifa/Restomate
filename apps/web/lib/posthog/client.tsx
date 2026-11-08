@@ -15,6 +15,8 @@ export const POSTHOG_OPTIONS = {
   capture_dead_clicks: false,
   capture_heatmaps: false,
   disable_session_recording: true,
+  // Uncaught errors and unhandled rejections. Messages, stacks and URLs are scrubbed in before_send (sanitizeEvent).
+  capture_exceptions: true,
   mask_all_text: true,
   mask_all_element_attributes: true,
   // Allowlisted query params only; masks /invite/{token} and /t/{token} in every URL/path property.
@@ -30,6 +32,20 @@ function init() {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
     ...POSTHOG_OPTIONS,
   });
+}
+
+/**
+ * Report an error caught by an error boundary (used by app/global-error.tsx, where the provider may not be mounted).
+ * Goes through the same before_send scrubbing. Never throws; no-op without NEXT_PUBLIC_POSTHOG_KEY.
+ */
+export function captureClientException(error: unknown): void {
+  try {
+    init();
+    if (!initialised) return;
+    posthog.captureException(error instanceof Error ? error : new Error(String(error)));
+  } catch {
+    /* analytics must never break the error page */
+  }
 }
 
 /** Initialises PostHog once (no-op without NEXT_PUBLIC_POSTHOG_KEY). Mount in the root layout. */
