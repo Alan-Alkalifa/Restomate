@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(10);
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@a.test',now(),now()),
@@ -18,6 +18,15 @@ insert into public.organization_members (id, organization_id, user_id, role_id, 
   ('40000000-0000-0000-0000-0000000000a1','10000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-0000000000a1','20000000-0000-0000-0000-0000000000a1',true),
   ('40000000-0000-0000-0000-0000000000a2','10000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-0000000000a2','20000000-0000-0000-0000-0000000000a2',true),
   ('40000000-0000-0000-0000-0000000000a3','10000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-0000000000a3','20000000-0000-0000-0000-0000000000a3',false);
+
+-- org B with its own owner (cross-org probe)
+insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
+  ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@b.test',now(),now());
+insert into public.organizations (id, slug, name) values ('10000000-0000-0000-0000-00000000000b','resto-b','Resto B');
+insert into public.roles (id, organization_id, key, name, is_system) values
+  ('20000000-0000-0000-0000-0000000000b1','10000000-0000-0000-0000-00000000000b','owner','Owner',true);
+insert into public.organization_members (id, organization_id, user_id, role_id, all_locations) values
+  ('40000000-0000-0000-0000-0000000000b1','10000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-0000000000b1','20000000-0000-0000-0000-0000000000b1',true);
 
 create function pg_temp.act_as(uid uuid) returns void language plpgsql as $$
 begin
@@ -38,6 +47,9 @@ select pg_temp.act_as('00000000-0000-0000-0000-0000000000a2');
 select is((select count(*)::int from public.profiles), 3, 'manager (staff.manage) sees all co-member profiles');
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from public.profiles), 3, 'owner sees all co-member profiles');
+
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000b1');
+select is((select count(*)::int from public.profiles), 1, 'owner of org B cannot read org A profiles');
 
 -- no client deletes on organization_members
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a1');
