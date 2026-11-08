@@ -17,4 +17,4 @@ export const signIn = notWired;
 export const signUp = notWired;
 export const requestPasswordReset = notWired;
 export const updatePassword = notWired;
-export const signOut = notWired;
+export const signOut = async (): Promise<void> => {};
