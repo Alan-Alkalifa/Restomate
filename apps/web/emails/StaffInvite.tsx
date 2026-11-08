@@ -22,6 +22,8 @@ export type StaffInviteProps = {
   expiresAt: string;
   logoUrl?: string | null;
   brandColor?: string | null;
+  /** IANA time zone used to display the expiry. Defaults to Asia/Jakarta. */
+  timeZone?: string;
 };
 
 /** All user-facing copy lives here so Bahasa Indonesia can be added in M1. */
@@ -49,14 +51,18 @@ function safeColor(value: string | null | undefined): string {
   return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : DEFAULT_BRAND;
 }
 
-export function formatExpiry(iso: string): string {
+export const DEFAULT_TIME_ZONE = "Asia/Jakarta";
+
+export function formatExpiry(iso: string, timeZone: string = DEFAULT_TIME_ZONE): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(d) + " UTC";
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+  try {
+    return new Intl.DateTimeFormat("en-GB", { ...opts, timeZone, timeZoneName: "short" }).format(d);
+  } catch {
+    // Invalid time zone name: fall back to the default.
+    return new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: DEFAULT_TIME_ZONE, timeZoneName: "short" }).format(d);
+  }
 }
 
 export default function StaffInvite({
@@ -68,6 +74,7 @@ export default function StaffInvite({
   expiresAt,
   logoUrl,
   brandColor,
+  timeZone,
 }: StaffInviteProps) {
   const t = staffInviteCopy.en;
   const color = safeColor(brandColor);
@@ -117,7 +124,7 @@ export default function StaffInvite({
               {acceptUrl}
             </Link>
           </Text>
-          <Text style={styles.small}>{t.expires(formatExpiry(expiresAt))}</Text>
+          <Text style={styles.small}>{t.expires(formatExpiry(expiresAt, timeZone))}</Text>
           <Text style={styles.small}>{t.ignore}</Text>
           <Text style={styles.footer}>{t.footer}</Text>
         </Container>
