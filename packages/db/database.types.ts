@@ -399,6 +399,9 @@ isOneToOne: false
 "is_slug_available":
 { Args: { "slug": string }; Returns: boolean
                            },
+"my_org_membership":
+{ Args: { "org_slug": string }; Returns: Json
+                           },
 "my_permissions":
 { Args: { "org": string }; Returns: (string)[]
                            }

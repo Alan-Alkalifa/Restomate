@@ -60,15 +60,18 @@ export async function requireUser(next?: string): Promise<CurrentUser> {
   redirect(target ? `/login?next=${encodeURIComponent(target)}` : "/login");
 }
 
-const orgRowSchema = z.object({
-  id: z.string(),
-  slug: z.string(),
-  name: z.string(),
-  status: z.string(),
-  currency: z.string(),
-  timezone: z.string(),
+const membershipSchema = z.object({
+  all_locations: z.boolean(),
+  org: z.object({
+    id: z.string(),
+    slug: z.string(),
+    name: z.string(),
+    status: z.string(),
+    currency: z.string(),
+    timezone: z.string(),
+  }),
+  role: z.object({ key: z.string(), name: z.string() }),
 });
-const roleRowSchema = z.object({ key: z.string(), name: z.string() });
 const packageSchema = z.object({
   code: z.string(),
   name: z.string(),
@@ -83,32 +86,19 @@ function toOrgStatus(value: string): OrgStatus {
     : "suspended";
 }
 
-/** First element if PostgREST returned an embedded array, else the object itself. */
-function one<T>(value: T | T[] | null | undefined): T | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
-
 async function loadOrgContext(userId: string, orgSlug: string): Promise<OrgContext | null> {
   "use cache: private";
   cacheLife({ stale: 30 });
 
   const supabase = await createClient();
 
-  // Membership is looked up by (user, slug) under RLS. A platform admin who is not a member gets no row, so an
-  // unknown org and a non-member are indistinguishable (same null). Deactivated members are filtered out.
-  const { data: row, error } = await supabase
-    .from("organization_members")
-    .select("all_locations, organizations!inner(id, slug, name, status, currency, timezone), roles(key, name)")
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .eq("organizations.slug", orgSlug)
-    .maybeSingle();
-  if (error || !row) return null;
-
-  const orgParsed = orgRowSchema.safeParse(one(row.organizations));
-  if (!orgParsed.success) return null;
-  const orgRow = orgParsed.data;
+  // The caller's own active membership, via a definer RPC: it works for a suspended org too (RLS hides the
+  // member's own rows while suspended) and returns null for an unknown slug, a non-member and a deactivated
+  // member alike, so slugs cannot be enumerated. A platform admin who is not a member also gets null.
+  const { data: raw, error } = await supabase.rpc("my_org_membership", { org_slug: orgSlug });
+  const parsed = membershipSchema.safeParse(raw);
+  if (error || !parsed.success) return null;
+  const { org: orgRow, role, all_locations: allLocations } = parsed.data;
   const status = toOrgStatus(orgRow.status);
 
   cacheTag(orgTag(orgRow.id), memberTag(userId, orgRow.id));
@@ -122,16 +112,10 @@ async function loadOrgContext(userId: string, orgSlug: string): Promise<OrgConte
   const permissions = (Array.isArray(permsRes.data) ? permsRes.data : []).filter(isPermissionKey);
   const locations = (locsRes.data ?? []).map((l) => ({ id: l.id, name: l.name }));
   const pkgParsed = packageSchema.safeParse(pkgRes.data);
-  // The roles table is not readable while the org is suspended (RLS), so the role may be missing there.
-  const role = roleRowSchema.safeParse(one(row.roles));
 
   return {
     org: { id: orgRow.id, slug: orgRow.slug, name: orgRow.name, status, currency: orgRow.currency, timezone: orgRow.timezone },
-    membership: {
-      roleKey: role.success ? role.data.key : "",
-      roleName: role.success ? role.data.name : "",
-      allLocations: row.all_locations,
-    },
+    membership: { roleKey: role.key, roleName: role.name, allLocations },
     permissions: status === "suspended" ? [] : permissions,
     locations,
     package: pkgParsed.success ? pkgParsed.data : null,

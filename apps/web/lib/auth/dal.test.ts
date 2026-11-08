@@ -28,7 +28,6 @@ vi.mock("next/navigation", () => ({
 type Result = { data: unknown; error?: unknown };
 const state = {
   claims: { data: null as unknown, error: null as unknown },
-  member: { data: null, error: null } as Result,
   locations: { data: [] as unknown[] } as Result,
   rpc: {} as Record<string, Result>,
   calls: [] as { table: string; filters: [string, unknown][] }[],
@@ -54,7 +53,7 @@ function builder(table: string, result: () => Result) {
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getClaims: async () => state.claims },
-    from: (table: string) => builder(table, () => (table === "locations" ? state.locations : state.member)),
+    from: (table: string) => builder(table, () => state.locations),
     rpc: async (fn: string, args: unknown) => {
       state.rpcCalls.push([fn, args]);
       return state.rpc[fn] ?? { data: null, error: null };
@@ -76,8 +75,8 @@ import {
 const ORG = { id: "o-1", slug: "demo", name: "Demo", status: "active", currency: "IDR", timezone: "Asia/Jakarta" };
 const memberRow = (over: Record<string, unknown> = {}) => ({
   all_locations: false,
-  organizations: ORG,
-  roles: { key: "cashier", name: "Cashier" },
+  org: ORG,
+  role: { key: "cashier", name: "Cashier" },
   ...over,
 });
 
@@ -89,9 +88,9 @@ beforeEach(() => {
   cacheTag.mockClear();
   cacheLife.mockClear();
   state.claims = { data: null, error: null };
-  state.member = { data: memberRow(), error: null };
   state.locations = { data: [{ id: "l-1", name: "Jakarta" }] };
   state.rpc = {
+    my_org_membership: { data: memberRow() },
     my_permissions: { data: ["orders.view", "pos.use", "not.a.permission"] },
     get_org_package: { data: { code: "growth", name: "Growth", features: ["qr_ordering"], limits: { max_tables: 20, max_staff: null } } },
     has_permission: { data: true },
@@ -150,13 +149,11 @@ describe("getOrgContext", () => {
       package: { code: "growth", name: "Growth", features: ["qr_ordering"], limits: { max_tables: 20, max_staff: null } },
     });
   });
-  it("looks up by the user id, active status and slug only", async () => {
+  it("looks the membership up by the lower-cased slug through the definer RPC", async () => {
     signedIn();
-    await getOrgContext("demo");
-    expect(state.calls[0]).toEqual({
-      table: "organization_members",
-      filters: [["user_id", "u-1"], ["status", "active"], ["organizations.slug", "demo"]],
-    });
+    await getOrgContext(" Demo ");
+    expect(state.rpcCalls[0]).toEqual(["my_org_membership", { org_slug: "demo" }]);
+    expect(state.calls.map((c) => c.table)).toEqual(["locations"]);
   });
   it("tags the cache with ids only", async () => {
     signedIn();
@@ -169,49 +166,37 @@ describe("getOrgContext", () => {
     signedIn();
     expect(await getOrgContext("Not A Slug!")).toBeNull();
     expect(state.calls).toHaveLength(0);
-    state.member = { data: null, error: null };
+    state.rpc.my_org_membership = { data: null };
     expect(await getOrgContext("other")).toBeNull();
-    state.member = { data: null, error: new Error("rls") };
+    state.rpc.my_org_membership = { data: null, error: new Error("rls") };
     expect(await getOrgContext("demo")).toBeNull();
   });
-  it("is null when the org row is malformed", async () => {
+  it("is null when the membership payload is malformed", async () => {
     signedIn();
-    state.member = { data: memberRow({ organizations: { id: 1 } }), error: null };
+    state.rpc.my_org_membership = { data: memberRow({ org: { id: 1 } }) };
     expect(await getOrgContext("demo")).toBeNull();
-  });
-  it("accepts an embedded array shape from PostgREST", async () => {
-    signedIn();
-    state.member = { data: memberRow({ organizations: [ORG], roles: [{ key: "owner", name: "Owner" }] }), error: null };
-    const ctx = await getOrgContext("demo");
-    expect(ctx?.org.id).toBe("o-1");
-    expect(ctx?.membership.roleKey).toBe("owner");
-  });
-  it("falls back to an empty role when the embedded role is missing or empty", async () => {
-    signedIn();
-    state.member = { data: memberRow({ roles: [] }), error: null };
-    expect((await getOrgContext("demo"))?.membership.roleKey).toBe("");
-    state.member = { data: memberRow({ roles: undefined }), error: null };
-    expect((await getOrgContext("demo"))?.membership.roleKey).toBe("");
+    state.rpc.my_org_membership = { data: memberRow({ role: undefined }) };
+    expect(await getOrgContext("demo")).toBeNull();
   });
   it("suspended org: context returned, permissions empty, my_permissions not called", async () => {
     signedIn();
-    state.member = { data: memberRow({ organizations: { ...ORG, status: "suspended" }, roles: null }), error: null };
+    state.rpc.my_org_membership = { data: memberRow({ org: { ...ORG, status: "suspended" } }) };
     const ctx = await getOrgContext("demo");
     expect(ctx?.org.status).toBe("suspended");
     expect(ctx?.permissions).toEqual([]);
-    expect(ctx?.membership).toEqual({ roleKey: "", roleName: "", allLocations: false });
+    expect(ctx?.membership).toEqual({ roleKey: "cashier", roleName: "Cashier", allLocations: false });
     expect(state.rpcCalls.map(([fn]) => fn)).not.toContain("my_permissions");
   });
   it("unknown org status fails closed as suspended", async () => {
     signedIn();
-    state.member = { data: memberRow({ organizations: { ...ORG, status: "weird" } }), error: null };
+    state.rpc.my_org_membership = { data: memberRow({ org: { ...ORG, status: "weird" } }) };
     const ctx = await getOrgContext("demo");
     expect(ctx?.org.status).toBe("suspended");
     expect(ctx?.permissions).toEqual([]);
   });
   it("past_due and read_only keep their permissions list", async () => {
     signedIn();
-    state.member = { data: memberRow({ organizations: { ...ORG, status: "past_due" } }), error: null };
+    state.rpc.my_org_membership = { data: memberRow({ org: { ...ORG, status: "past_due" } }) };
     expect((await getOrgContext("demo"))?.permissions).toEqual(["orders.view", "pos.use"]);
   });
   it("tolerates missing permissions, locations and package", async () => {
@@ -238,7 +223,7 @@ describe("requireOrgContext", () => {
   });
   it("404s for an unknown org and a non-member identically", async () => {
     signedIn();
-    state.member = { data: null, error: null };
+    state.rpc.my_org_membership = { data: null };
     await expect(requireOrgContext("nope")).rejects.toBeInstanceOf(NotFound);
     await expect(requireOrgContext("other-bistro")).rejects.toBeInstanceOf(NotFound);
   });

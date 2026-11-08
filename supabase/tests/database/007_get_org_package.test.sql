@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(17);
 
 -- independent of seed.sql
 delete from public.subscriptions;
@@ -43,6 +43,23 @@ select pg_temp.act_as('00000000-0000-0000-0000-0000000000d2');
 select is(public.get_org_package('10000000-0000-0000-0000-0000000000d1'), null, 'deactivated member gets nothing');
 set local role anon;
 select throws_ok($$select public.get_org_package('10000000-0000-0000-0000-0000000000d1')$$, '42501', null, 'anon cannot execute');
+
+-- my_org_membership ------------------------------------------------------------------------
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000d1');
+select is(public.my_org_membership('pkg-a') -> 'org' ->> 'slug', 'pkg-a', 'member gets their membership');
+select is(public.my_org_membership('PKG-A') -> 'role' ->> 'key', 'cashier', 'slug is case-insensitive; role key returned');
+select is(public.my_org_membership('pkg-a') ->> 'all_locations', 'false', 'all_locations returned');
+select is(public.my_org_membership('pkg-b'), null, 'org the caller is not in -> null');
+select is(public.my_org_membership('nope'), null, 'unknown slug -> null (same as non-member)');
+reset role;
+update public.organizations set status = 'suspended' where slug = 'pkg-a';
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000d1');
+select is(public.my_org_membership('pkg-a') -> 'org' ->> 'status', 'suspended', 'suspended org: membership still returned (with role)');
+select is(public.my_org_membership('pkg-a') -> 'role' ->> 'name', 'Cashier', 'suspended org: role name still returned');
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000d2');
+select is(public.my_org_membership('pkg-a'), null, 'deactivated member -> null');
+set local role anon;
+select throws_ok($$select public.my_org_membership('pkg-a')$$, '42501', null, 'anon cannot execute');
 
 -- permission catalog must match apps/web/lib/auth/permissions.ts (PERMISSION_KEYS)
 reset role;
