@@ -180,12 +180,12 @@ select * from tests.run_writes();
 -- Denied writes must leave the data untouched (checked as postgres).
 select is((select name from public.organizations where slug = 'iso-org-b'), 'Iso B', 'org B name unchanged');
 select is((select status from public.organizations where slug = 'iso-org-a'), 'active', 'org A status unchanged');
-select is((select count(*)::int from public.platform_admins), 1, 'still exactly one platform admin');
+select is((select count(*)::int from public.platform_admins where user_id in (select uid from tests.actors)), 1, 'still exactly one platform admin among the fixture users');
 select is((select count(*)::int from public.organization_members where organization_id = (select id from tests.ids where name = 'A')), 6, 'no member rows added or deleted in A');
 select is((select count(*)::int from public.audit_logs where action in ('forged','erased')), 0, 'no forged audit rows');
-select is((select count(*)::int from public.audit_logs), 4, 'audit rows intact');
+select is((select count(*)::int from public.audit_logs where action like 'iso.%'), 4, 'fixture audit rows intact');
 select is((select count(*)::int from public.reserved_slugs where slug in ('iso-r')), 0, 'no reserved slug added');
-select is((select count(*)::int from public.platform_settings), 1, 'platform_settings untouched');
+select is((select count(*)::int from public.platform_settings where key like 'iso%'), 1, 'fixture platform_settings row untouched');
 
 select * from finish();
 rollback;

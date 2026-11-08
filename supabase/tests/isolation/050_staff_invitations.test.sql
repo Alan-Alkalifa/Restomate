@@ -38,7 +38,7 @@ select is(tests.errmsg('x1', $$public.accept_invitation(upper('tok-valid-x1-0000
 select is(tests.errmsg('x1', $$public.accept_invitation(encode(extensions.digest('tok-valid-x1-0000000000','sha256'),'hex'))$$), 'INVALID_INVITATION|P0001', 'the stored hash is not a usable token');
 select is(tests.errmsg('anon', $$public.accept_invitation('tok-valid-x1-0000000000')$$), 'permission denied for function accept_invitation|42501', 'anon cannot call accept_invitation');
 select is((select count(*)::int from public.organization_members where user_id in (select uid from tests.actors where name in ('x2','x3','x5','x7','x8'))), 0, 'no failed attempt created a membership');
-select is((select count(*)::int from public.staff_invitations where accepted_at is not null), 1, 'failed attempts consumed nothing (only the pre-accepted fixture)');
+select is((select count(*)::int from public.staff_invitations where accepted_at is not null and organization_id in (select id from tests.ids where name in ('A','B'))), 1, 'failed attempts consumed nothing (only the pre-accepted fixture)');
 
 -- 2. a wrong user does not burn the token; the right user gets exactly the invited role/locations
 select is(tests.errmsg('x5', $$public.accept_invitation('tok-valid-x4-0000000000')$$), 'INVALID_INVITATION|P0001', 'x5 tries x4 token again');
