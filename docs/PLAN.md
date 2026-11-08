@@ -5,7 +5,7 @@
 > - **How** we build it (stack, rules, conventions) → `CLAUDE.md`
 > - **In what order, and what's done** → this file
 
-Last updated: 2026-11-08
+Last updated: 2026-11-08 (late evening)
 
 ---
 
@@ -15,13 +15,14 @@ Last updated: 2026-11-08
 |---|---|
 | Product spec (`PROJECT.md`) | ✅ Done (DOKU + Resend decided) |
 | Engineering rules (`CLAUDE.md`) | ✅ Done. Next.js 16 corrections from §2 applied (pending ADIT's confirmation against the installed docs in MF-T01) |
-| Monorepo (pnpm + Turborepo) | ⏳ MF-T01 (ADIT). **Correction:** this was marked done, but `main` had no monorepo files at 2026-11-08 |
-| Next.js app (`apps/web`) | ⏳ MF-T01 (ADIT). **Correction:** was marked scaffolded; not in the repo |
-| Supabase project config | ⏳ MF-T02 (DAVIN). **Correction:** was marked done; `supabase/` not in the repo |
-| Database migrations | ⏳ MF-T02 → MF-T03 → MF-T04 (DAVIN), designed in §4.2 |
+| Monorepo (pnpm + Turborepo) | ✅ MF-T01, PR #22 |
+| Next.js app (`apps/web`) | ✅ MF-T01, PR #22 (Next 16, Cache Components on, TypeScript 5.x, `AGENTS.md` committed) |
+| Supabase project config | ✅ MF-T02 |
+| Database migrations | ✅ MF-T02 → T03 → T04 (+ fixes T33, T34); `get_org_package` / `my_org_membership` (T07) |
 | Seed (Demo Restaurant) | ✅ MF-T05, PR #17 |
-| App code (auth, onboarding, shells) | ⬜ MF-T06 – MF-T23 |
-| CI | ⬜ MF-T27 (REYKI) |
+| App infrastructure (`lib/`) | ✅ env + clients (T06), auth DAL (T07), Arcjet + PostHog (T08), money (T09), DOKU signature (T10), email (T12), public data (T20) |
+| App code (auth, onboarding, staff, shells) | ⏳ Auth pages ✅ (T14), frontend shell ✅ (T21); auth actions, onboarding, staff, admin in review (§4.0) |
+| CI | ✅ MF-T27, PR #21 |
 | M0 task board | ✅ HQ board **MF** (M0 Foundation), 32 tasks; see §4.0 |
 
 ---
@@ -36,9 +37,9 @@ These came from the installed Next.js 16.4.5 and its bundled docs (`apps/web/nod
   - Layouts must not `await` the session or dynamic `params` at the top level. Pass the promise down and await it inside a Suspense-wrapped child.
   - Session lookups use `'use cache: private'`. Session-derived data is cached with plain `'use cache'` keyed by user/org ID plus `cacheTag`, and refreshed with `updateTag` in Server Actions.
   - Never put emails, tokens or other personal data in cache keys or tags.
-  - Escape hatch for a route that isn't ready yet: `export const instant = false`. Use it sparingly and track every use in §9.
-- [ ] Next 16 writes an `AGENTS.md` in `apps/web` telling agents to read the bundled docs. Keep it committed. (Rule added to `CLAUDE.md`; file lands with MF-T01)
-- [ ] TypeScript stays on **5.x** (what Next 16 ships with), not TypeScript 7. (Rule added to `CLAUDE.md`; enforced in MF-T01)
+  - Escape hatch for a route that isn't ready yet: `export const instant = false`. Use it sparingly and track every use in §14 (*`instant = false` opt-outs*).
+- [x] Next 16 writes an `AGENTS.md` in `apps/web` telling agents to read the bundled docs. Keep it committed. (Rule added to `CLAUDE.md`; file lands with MF-T01)
+- [x] TypeScript stays on **5.x** (what Next 16 ships with), not TypeScript 7. (Rule added to `CLAUDE.md`; enforced in MF-T01)
 
 The first two are now in `CLAUDE.md` → *Next.js 16 rules*. ADIT confirms all four against the installed `node_modules/next/dist/docs` in the MF-T01 PR; any mismatch gets fixed in `CLAUDE.md`.
 
@@ -70,7 +71,7 @@ M1 and M2 can run in parallel once M0 is done.
 
 ### 4.0 Task map (HQ board `MF`)
 
-One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN reviews → the user merges. UI tasks code against the backend task's documented contract in parallel and **merge after** it.
+One task = one branch = one PR. Flow: developer opens a **draft** PR → REYKI verifies → ALAN reviews → ALAN merges (squash). UI tasks code against the backend task's documented contract in parallel and **merge after** it.
 
 | Task | Owner | What | Needs | Merges after |
 |---|---|---|---|---|
@@ -79,25 +80,25 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T03 ✅ | DAVIN | `staff_invitations` + RPCs (§4.2b) | T02 | — |
 | MF-T04 ✅ | DAVIN | Triggers: plan limits, last owner, system roles (§4.2c) | T03 | — |
 | MF-T05 ✅ | DAVIN | Seed: Demo Restaurant, Other Bistro, packages, seed users (§4.4) (PR #17) | T04 | — |
-| MF-T35 | DAVIN | `packages/db` generated types (§4.1), split from T05 | T01, T05 | — |
-| MF-T06 | DAVIN | `env.ts`, `.env.example`, Supabase clients, `proxy.ts` (§4.5) | T01 | — |
-| MF-T07 | DAVIN | Auth DAL: `getCurrentUser`, `getOrgContext`, `requirePermission`, … (§4.5) | T05, T06 | — |
-| MF-T08 | DAVIN | `lib/arcjet.ts` + `lib/posthog` (§4.5) | T06 | — |
+| MF-T35 ✅ | DAVIN | `packages/db` generated types (§4.1), split from T05 (PR #38) | T01, T05 | — |
+| MF-T06 ✅ | DAVIN | `env.ts`, `.env.example`, Supabase clients, `proxy.ts` (§4.5) (PR #34) | T01 | — |
+| MF-T07 ✅ | DAVIN | Auth DAL: `getCurrentUser`, `getOrgContext`, `requirePermission`, … (§4.5) (PR #39) | T05, T06 | — |
+| MF-T08 ✅ | ADIT | `lib/arcjet.ts` + `lib/posthog` (§4.5) (PR #40) | T06 | — |
 | MF-T09 ✅ | DAVIN | `lib/money.ts` + tests (§4.5) | T01 | — |
-| MF-T10 ✅ | DAVIN | DOKU Non-SNAP signature + tests (§4.5) | T01 | — |
+| MF-T10 ✅ | ADIT | DOKU Non-SNAP signature + tests (§4.5) | T01 | — |
 | MF-T11 ✅ | ADIT | `emails/StaffInvite.tsx` (§4.5) | T01 | — |
-| MF-T12 | DAVIN | `lib/email` (Resend, log mode, `sendStaffInvite`) (§4.5) | T06, T11 | — |
-| MF-T13 | DAVIN | Auth Server Actions + `/auth/confirm` (§4.6) | T07, T08 | — |
-| MF-T14 | ADIT | Auth pages (§4.6) | T01 | T13 |
-| MF-T15 | DAVIN | Onboarding actions: `checkSlug`, `createOrganization` (§4.7) | T03, T07 | — |
-| MF-T16 | ADIT | Onboarding wizard UI (§4.7) | T14 | T15 |
-| MF-T17 | DAVIN | Staff actions: invite, resend, revoke, role, deactivate, accept (§4.8) | T04, T07, T12 | — |
-| MF-T18 | ADIT | Restaurant admin shell: sidebar from permissions, location switcher (§4.9) | T07, T14 | — |
-| MF-T19 | ADIT | Staff pages + `/invite/[token]` (§4.8) | T18 | T17 |
-| MF-T20 ✅ | DAVIN | Public data: `getPublicPackages`, `getStorefront`, `theme.ts` (§4.9) | T05, T06 | — |
-| MF-T21 | ADIT | Frontend shell + pricing + storefront placeholder (§4.9) | T01 | T20, T09 |
-| MF-T22 | DAVIN | Super admin data + `setOrgStatus` (§4.9) | T07, T03 | — |
-| MF-T23 | ADIT | Super admin shell + tenants list (§4.9) | T18 | T22 |
+| MF-T12 ✅ | ADIT | `lib/email` (Resend, log mode, `sendStaffInvite`) (§4.5) (PR #41) | T06, T11 | — |
+| MF-T13 | DAVIN | Auth Server Actions + `/auth/confirm` (§4.6) — PR #44 in QA | T07, T08 | — |
+| MF-T14 ✅ | ADIT | Auth pages (§4.6) (PR #27; actions wired in T39) | T01 | — |
+| MF-T15 | DAVIN | Onboarding actions: `checkSlug`, `createOrganization` (§4.7) — PR #47 (stacked on #44) | T03, T07 | T13 |
+| MF-T16 | ADIT | Onboarding wizard UI (§4.7) — PR #30 | T14 | T15 |
+| MF-T17 | DAVIN | Staff actions: invite, resend, revoke, role, deactivate, accept (§4.8) + audit triggers — in progress | T04, T07, T12 | T13 |
+| MF-T18 | ADIT | Restaurant admin shell: sidebar from permissions, location switcher (§4.9) — PR #29 | T07, T14 | — |
+| MF-T19 | ADIT | Staff pages + `/invite/[token]` (§4.8) — PR #37 | T18 | T17 |
+| MF-T20 ✅ | ADIT | Public data: `getPublicPackages`, `getStorefront`, `theme.ts` (§4.9) | T05, T06 | — |
+| MF-T21 ✅ | ADIT | Frontend shell + pricing + storefront placeholder (§4.9) (PR #28) | T01 | — |
+| MF-T22 | ADIT | Super admin data + `setOrgStatus` (§4.9) — PR #43 | T07, T03 | — |
+| MF-T23 | ADIT | Super admin shell + tenants list (§4.9) — PR #36 | T18 | T22 |
 | MF-T24 ✅ | REYKI | M0 test plan, isolation matrix, bug + PR report templates (PR #2) | — | — |
 | MF-T25 ✅ | REYKI | pgTAP isolation suite, core tables (§4.3) (PRs #4, #7) | — | T02 |
 | MF-T34 ✅ | DAVIN | Invitation + branding review fixes: explicit `all_locations`, `org_branding.logo_url` https-only, invite expiry cap (S3 ×3) | T03 | — |
@@ -105,33 +106,35 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T26 ✅ | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) (PRs #13, #16, #18) | T25 | T03, T04 |
 | MF-T36 ✅ | REYKI | Hardening tests for MF-T34 (PR #19) | T34 | T34 |
 | MF-T27 ✅ | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
-| MF-T28 | REYKI | Playwright setup + auth e2e | T01 | T13, T14 |
+| MF-T28 | REYKI | Playwright setup + auth e2e (after the QA queue) | T01 | T13, T14 |
 | MF-T29 | REYKI | e2e onboarding (exit criterion 1) | T28 | T15, T16 |
 | MF-T30 | REYKI | e2e staff invite as Cashier + cross-tenant (exit criteria 2–3) | T28 | T17–T19 |
 | MF-T31 | REYKI | e2e super admin, storefront, pricing | T28 | T20–T23 |
-| MF-T32 | REYKI | M0 exit sign-off report | all | — |
+| MF-T32 | REYKI | M0 exit sign-off report (includes the live Arcjet check) | all | — |
+| MF-T37 | DAVIN | Env: `EMAIL_DELIVERY` required and `resend` in production (S3 from QA #41) — PR #48 | — | — |
+| MF-T38 | ADIT | `send()` accepts exactly one recipient (S3 from QA #41) — PR #45 | — | — |
+| MF-T39 | ADIT | Wire auth pages to `lib/auth/actions`; one `ActionResult`; reuse `sanitizeNext` | T13 | — |
+| MF-T40 | ADIT | PostHog: allowlist query params, mask tokens in every URL prop, autocapture/recording off (S2 from QA #40) — PR #46 | — | — |
 
-**Critical path:** T02 → T03 → T04 → T05 → T07 → T13/T15/T17 (all DAVIN). DAVIN carries 15 of the 23 dev tasks, so backend lib work is the bottleneck; see the note in §15.
+**Critical path:** T13 (#44) → T15 (#47) → T16 (#30) and T17 → T19 (#37) → e2e T29/T30 → T32. QA throughput is now the bottleneck: REYKI verifies every PR before resuming T28.
 
-**Progress (2026-11-08, evening):**
-- ✅ Database foundation (§4.2–4.4) incl. seed; 1,177 pgTAP tests.
-- ✅ MF-T01 scaffold (#22), MF-T09 money (#31, 100% coverage), MF-T10 DOKU signature (#32), MF-T11 StaffInvite email (#26), MF-T20 public data + theme (#33), MF-T27 CI (#21).
-- ✅ CI on GitHub for every PR (lint, typecheck, unit, build, `supabase db reset` + pgTAP). Branch protection on `main` requires both checks and an up-to-date branch.
-- ⏳ In review: #34 env/clients/proxy (MF-T06; S3 fix requested), #27 auth pages, #28 pricing + storefront, #29 admin shell, #30 onboarding wizard. The UI PRs wait on DAVIN's MF-T07 (DAL), T13 (auth actions) and T15 (onboarding actions).
-- ⏳ DAVIN: MF-T35 (generated types) → T07 → T13 → T15. ADIT: #28 wiring → MF-T23 (super admin UI). REYKI: MF-T28 (Playwright).
+**Progress (2026-11-08, late evening):**
+- ✅ Merged today: #34 env/clients/proxy (T06), #38 db types (T35), #28 frontend shell + pricing (T21), #41 email (T12), #27 auth pages (T14), #40 Arcjet + PostHog (T08), #39 auth DAL (T07). pgTAP: 1,194 tests.
+- ⏳ In QA (approved by ALAN): #43 super admin data (T22), #29 admin shell (T18), #46 PostHog scrubbing (T40, S2), #44 auth actions (T13), #47 onboarding actions (T15), #30 onboarding wizard (T16), #45 single recipient (T38), #48 email env (T37), #36/#37 super admin + staff pages (T23/T19).
+- ⏳ DAVIN: MF-T17 (staff actions + audit triggers). ADIT: rebase #43 → B1-T01 until #44 merges → MF-T39. REYKI: QA queue → live Arcjet check → MF-T28.
 
 **Draft rule (from 2026-11-08):** every code PR is opened as a GitHub **draft**. PRs #3, #4, #10 and #11 were auto-merged 11–33 seconds after opening, before QA and review. ALAN marks a PR ready (`gh pr ready`) only after REYKI's QA report and ALAN's review. #11 put ADIT's untested WIP scaffold on `main`; MF-T01 stays open until a verified scaffold PR lands.
 
-**Merge rule:** please merge a PR only after ALAN comments "ready to merge" on it (after REYKI's QA report). PRs #3 and #4 were merged before that. No harm done, since nothing has been deployed, but the follow-up fixes now have to go in new migrations.
+**Merge rule:** ALAN merges (squash), one PR at a time, only after REYKI's QA PASS and ALAN's review; Markdown-only PRs skip QA. Before squashing a PR that others are stacked on, ALAN retargets them to `main` first (`--delete-branch` closes stacked PRs otherwise), then the owner rebases with `--onto`.
 
 ### 4.1 Repo and tooling
-- [ ] pnpm workspace + Turborepo, root scripts (`dev`, `build`, `lint`, `typecheck`, `test`, `db:*`) — MF-T01 (was ticked, but not in the repo)
-- [ ] Next.js app in `apps/web`; dependencies installed: `@supabase/ssr`, `@supabase/supabase-js`, `@arcjet/next`, `posthog-js`, `posthog-node`, `resend`, `@react-email/components`, `zod`, `server-only`, `vitest` — MF-T01 (was ticked, but not in the repo)
+- [x] pnpm workspace + Turborepo, root scripts (`dev`, `build`, `lint`, `typecheck`, `test`, `db:*`) — MF-T01 (PR #22)
+- [x] Next.js app in `apps/web`; dependencies installed: `@supabase/ssr`, `@supabase/supabase-js`, `@arcjet/next`, `posthog-js`, `posthog-node`, `resend`, `@react-email/components`, `zod`, `server-only`, `vitest` — MF-T01 (PR #22)
 - [x] `supabase init`, auth config, Resend SMTP block, email templates (MF-T02, PR #3)
-- [ ] Add `typecheck` and `test` scripts to `apps/web/package.json`
-- [ ] `packages/db` workspace package that exports the generated `Database` types
-- [ ] `.env.example` (matches `CLAUDE.md` → *Environment variables*); `lib/env.ts` validates it with Zod
-- [ ] Prettier + ESLint config; Conventional Commits
+- [x] Add `typecheck` and `test` scripts to `apps/web/package.json`
+- [x] `packages/db` workspace package that exports the generated `Database` types (MF-T35, PR #38)
+- [x] `.env.example` (matches `CLAUDE.md` → *Environment variables*); `lib/env.ts` validates it with Zod (MF-T06)
+- [x] Prettier + ESLint config; Conventional Commits
 - [x] `git init` and first commit (repo `Alan-Alkalifa/Alan-HQ`)
 
 ### 4.2 Database foundation (`supabase/migrations/…_foundation.sql`)
@@ -205,18 +208,18 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [x] All seed passwords are local-only and documented in the README
 
 ### 4.5 App infrastructure (`apps/web/lib`)
-- [ ] `env.ts` (Zod-validated; fails fast on boot)
-- [ ] `supabase/server.ts`, `supabase/client.ts`, `supabase/proxy.ts` (session refresh), `supabase/admin.ts` (`server-only`)
-- [ ] `auth/dal.ts`: `getCurrentUser()` (`'use cache: private'`), `requireUser()`, `getMembership(orgSlug)`, `requirePermission(orgId, perm)`, `requirePlatformAdmin()`
-- [ ] `proxy.ts`:
+- [x] `env.ts` (Zod-validated; fails fast on boot)
+- [x] `supabase/server.ts`, `supabase/client.ts`, `supabase/proxy.ts` (session refresh), `supabase/admin.ts` (`server-only`)
+- [x] `auth/dal.ts`: `getCurrentUser()` (`'use cache: private'`), `requireUser()`, `getMembership(orgSlug)`, `requirePermission(orgId, perm)`, `requirePlatformAdmin()`
+- [x] `proxy.ts`:
   - resolve host → surface (`restomate.app` → frontend, `app.` → admin, `{slug}.` → storefront rewrite)
   - refresh the Supabase session
   - skip `/api/webhooks/doku`
-- [ ] `arcjet.ts`: shared rules (shield + bot detection + rate limit; signup preset with email validation)
-- [ ] `posthog/`: client provider, server capture, `events.ts` constants; group by organization
-- [ ] `email/`: Resend client, `send()` wrapper with idempotency key and `EMAIL_DELIVERY=log` mode; `emails/StaffInvite.tsx`
-- [ ] `money.ts`: currency exponent (IDR = 0), formatting `Rp 25.000`, tax + service charge calculation, with unit tests
-- [ ] `payments/doku/signature.ts`: Non-SNAP signing and verification, with unit tests against DOKU's documented example. Built early because it is small and pure; the rest of DOKU is M5
+- [x] `arcjet.ts`: shared rules (shield + bot detection + rate limit; signup preset with email validation)
+- [x] `posthog/`: client provider, server capture, `events.ts` constants; group by organization
+- [x] `email/`: Resend client, `send()` wrapper with idempotency key and `EMAIL_DELIVERY=log` mode; `emails/StaffInvite.tsx`
+- [x] `money.ts`: currency exponent (IDR = 0), formatting `Rp 25.000`, tax + service charge calculation, with unit tests
+- [x] `payments/doku/signature.ts`: Non-SNAP signing and verification, with unit tests against DOKU's documented example. Built early because it is small and pure; the rest of DOKU is M5
 
 ### 4.6 Auth pages (`app/(auth)`)
 - [ ] Login (email + password), with Arcjet protection
@@ -238,10 +241,10 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [ ] Resend and revoke invitations; change role; deactivate a member
 
 ### 4.9 Surface shells
-- [ ] `(frontend)`: home placeholder, pricing page reading public `packages`, demo link
+- [x] `(frontend)`: home placeholder, pricing page reading public `packages`, demo link (MF-T21, PR #28)
 - [ ] `(dashboard)/[org]`: sidebar built from `my_permissions`, location switcher, setup checklist on the home page, locked-feature state from package features
 - [ ] `(superadmin)/admin`: guarded by `platform_admins`; tenants list (search, status, plan) and suspend/reactivate
-- [ ] `(storefront)/s/[tenant]`: branded placeholder page from `get_storefront`; "temporarily unavailable" for suspended orgs
+- [x] `(storefront)/s/[tenant]`: branded placeholder page from `get_storefront`; "temporarily unavailable" for suspended orgs
 
 ### 4.10 Verify
 - [ ] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all pass
@@ -418,6 +421,12 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-08 | Unknown hosts return 404 in production until custom domains exist (M7) |
 | 2026-11-08 | Seed inserts the reserved `demo` slug by disabling `organizations_slug_not_reserved` inside `seed.sql` (table owner only); no runtime bypass in the schema |
 | 2026-11-08 | Seed adds a second tenant, **Other Bistro** (`other-bistro`), as the cross-tenant target for isolation e2e tests. Seed package prices are placeholders until pricing is decided (`PROJECT.md` → Still open #1) |
+| 2026-11-08 | Further load moves from DAVIN to ADIT: MF-T08 (Arcjet/PostHog), MF-T12 (`lib/email`) and MF-T22 (super admin data; ADIT had built MF-T23 against its contract). Follow-up fixes go to whoever owns the module now (T38, T40 → ADIT). Same exception as the T10/T20 move; security-critical auth, onboarding and staff actions stay with DAVIN |
+| 2026-11-08 | Staff audit rows are written by AFTER triggers on `staff_invitations` / `organization_members` calling `private.write_audit` (MF-T17), not by a client-callable audit RPC (forgeable, not atomic) and not by the service role |
+| 2026-11-08 | PostHog: explicit events only. Autocapture, session recording and heatmaps off; query params allowlisted (`utm_*`, `ref`); `/invite/{token}` and `/t/{token}` masked in every URL property (MF-T40). The PostHog wizard PR #42 was closed (it identified users by email) |
+| 2026-11-08 | Email in production must use `EMAIL_DELIVERY=resend`; `log` mode is dev/test only (MF-T37) |
+| 2026-11-08 | `updatePassword` requires a recovery/OTP sign-in within the last 10 minutes; passwords are limited to 72 UTF-8 bytes (bcrypt) (MF-T13) |
+| 2026-11-08 | Open-redirect defence lives in the server-side `sanitizeNext` (`lib/auth/redirect.ts`); client-side checks are cosmetic and reuse the same function (MF-T39) |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -426,9 +435,8 @@ _None yet._
 
 ## 15. Next up
 
-1. Land MF-T01 (scaffold) and MF-T02 + MF-T25 (core migration + isolation suite). Everything else waits on these.
-2. DAVIN: T06 → T03 → T04 → T05 → T07; T09/T10 fill gaps while PRs wait on review.
-3. ADIT: T11 → T14 → T21 → T18 → T16/T19/T23, each against DAVIN's contracts.
-4. REYKI: T24 → T25 → T27 → T28 → T26 → T29–T31, plus PR verification.
-
-**Load note:** DAVIN owns 15 dev tasks and is the critical path; ADIT owns 8. If DAVIN falls behind, ALAN may propose (to the user) moving the pure modules MF-T09 (`money.ts`) and MF-T10 (DOKU signature) to ADIT. That needs a change to the file-ownership rules, so it isn't done without approval.
+1. **QA queue (REYKI):** #43 → #29 → #46 → #44 + #47 → #30 → #45 → #48 → #36/#37. ALAN merges each on PASS, retargeting stacked PRs first.
+2. **DAVIN:** MF-T17 (staff actions + audit triggers). Then M0 backend is complete.
+3. **ADIT:** rebase #43; B1-T01 (PostHog error tracking) while waiting; MF-T39 (wire auth pages) once #44 merges; swap #37's staff seam for `lib/staff` once T17 merges.
+4. **REYKI after the queue:** live Arcjet check (dev key now in REYKI's env) → MF-T28 → T29–T31 → T32 sign-off.
+5. **Before any deployed environment:** MF-T37 (email env) and MF-T40 (PostHog scrubbing) must be merged.
