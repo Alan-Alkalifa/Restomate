@@ -74,7 +74,7 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 
 | Task | Owner | What | Needs | Merges after |
 |---|---|---|---|---|
-| MF-T01 | ADIT | Monorepo + Next.js 16 scaffold (§4.1) | — | — |
+| MF-T01 ✅ | ADIT | Monorepo + Next.js 16 scaffold (§4.1) | — | — |
 | MF-T02 ✅ | DAVIN | `supabase init` + core migration: tenancy tables, helpers, RLS (§4.2a) | — | — |
 | MF-T03 ✅ | DAVIN | `staff_invitations` + RPCs (§4.2b) | T02 | — |
 | MF-T04 ✅ | DAVIN | Triggers: plan limits, last owner, system roles (§4.2c) | T03 | — |
@@ -83,9 +83,9 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T06 | DAVIN | `env.ts`, `.env.example`, Supabase clients, `proxy.ts` (§4.5) | T01 | — |
 | MF-T07 | DAVIN | Auth DAL: `getCurrentUser`, `getOrgContext`, `requirePermission`, … (§4.5) | T05, T06 | — |
 | MF-T08 | DAVIN | `lib/arcjet.ts` + `lib/posthog` (§4.5) | T06 | — |
-| MF-T09 | DAVIN | `lib/money.ts` + tests (§4.5) | T01 | — |
-| MF-T10 | DAVIN | DOKU Non-SNAP signature + tests (§4.5) | T01 | — |
-| MF-T11 | ADIT | `emails/StaffInvite.tsx` (§4.5) | T01 | — |
+| MF-T09 ✅ | DAVIN | `lib/money.ts` + tests (§4.5) | T01 | — |
+| MF-T10 ✅ | DAVIN | DOKU Non-SNAP signature + tests (§4.5) | T01 | — |
+| MF-T11 ✅ | ADIT | `emails/StaffInvite.tsx` (§4.5) | T01 | — |
 | MF-T12 | DAVIN | `lib/email` (Resend, log mode, `sendStaffInvite`) (§4.5) | T06, T11 | — |
 | MF-T13 | DAVIN | Auth Server Actions + `/auth/confirm` (§4.6) | T07, T08 | — |
 | MF-T14 | ADIT | Auth pages (§4.6) | T01 | T13 |
@@ -94,7 +94,7 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T17 | DAVIN | Staff actions: invite, resend, revoke, role, deactivate, accept (§4.8) | T04, T07, T12 | — |
 | MF-T18 | ADIT | Restaurant admin shell: sidebar from permissions, location switcher (§4.9) | T07, T14 | — |
 | MF-T19 | ADIT | Staff pages + `/invite/[token]` (§4.8) | T18 | T17 |
-| MF-T20 | DAVIN | Public data: `getPublicPackages`, `getStorefront`, `theme.ts` (§4.9) | T05, T06 | — |
+| MF-T20 ✅ | DAVIN | Public data: `getPublicPackages`, `getStorefront`, `theme.ts` (§4.9) | T05, T06 | — |
 | MF-T21 | ADIT | Frontend shell + pricing + storefront placeholder (§4.9) | T01 | T20, T09 |
 | MF-T22 | DAVIN | Super admin data + `setOrgStatus` (§4.9) | T07, T03 | — |
 | MF-T23 | ADIT | Super admin shell + tenants list (§4.9) | T18 | T22 |
@@ -104,7 +104,7 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T33 ✅ | DAVIN | Foundation review fixes: profile scope, no member DELETE, `platform_settings` deny policy, suspended-org membership, no self-escalation, fail-closed `has_permission` (PR #8) | T02 | — |
 | MF-T26 ✅ | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) (PRs #13, #16, #18) | T25 | T03, T04 |
 | MF-T36 ✅ | REYKI | Hardening tests for MF-T34 (PR #19) | T34 | T34 |
-| MF-T27 | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
+| MF-T27 ✅ | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
 | MF-T28 | REYKI | Playwright setup + auth e2e | T01 | T13, T14 |
 | MF-T29 | REYKI | e2e onboarding (exit criterion 1) | T28 | T15, T16 |
 | MF-T30 | REYKI | e2e staff invite as Cashier + cross-tenant (exit criteria 2–3) | T28 | T17–T19 |
@@ -113,12 +113,12 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 
 **Critical path:** T02 → T03 → T04 → T05 → T07 → T13/T15/T17 (all DAVIN). DAVIN carries 15 of the 23 dev tasks, so backend lib work is the bottleneck; see the note in §15.
 
-**Progress (2026-11-08):**
-- ✅ Database foundation complete (§4.2–4.3): MF-T02/T33 schema + RLS, MF-T03/T34 invitations + RPCs, MF-T04 triggers. 7 migrations. 1,177 pgTAP tests green under `supabase db reset && supabase test db` (REYKI, CLI).
-- ✅ MF-T24/T25/T26/T36: test plan, isolation suites, abuse and trigger tests (incl. two-session concurrency checks).
-- ✅ MF-T05: seed (PR #17). Demo Restaurant (5 staff, 2 locations), Other Bistro, placeholder-priced packages, platform admin.
-- ⏳ **MF-T01: scaffold (ADIT) is the bottleneck.** `main` holds a WIP scaffold without vitest or the §4.1 deps (`pnpm test` fails). ADIT's sandbox had slow npm downloads and a damaged local clone; the user is checking the host IP-stack setting. Blocks T06–T23, T27 (pnpm steps), T28–T31, T35.
-- ⏳ MF-T27: CI (REYKI), supabase job first.
+**Progress (2026-11-08, evening):**
+- ✅ Database foundation (§4.2–4.4) incl. seed; 1,177 pgTAP tests.
+- ✅ MF-T01 scaffold (#22), MF-T09 money (#31, 100% coverage), MF-T10 DOKU signature (#32), MF-T11 StaffInvite email (#26), MF-T20 public data + theme (#33), MF-T27 CI (#21).
+- ✅ CI on GitHub for every PR (lint, typecheck, unit, build, `supabase db reset` + pgTAP). Branch protection on `main` requires both checks and an up-to-date branch.
+- ⏳ In review: #34 env/clients/proxy (MF-T06; S3 fix requested), #27 auth pages, #28 pricing + storefront, #29 admin shell, #30 onboarding wizard. The UI PRs wait on DAVIN's MF-T07 (DAL), T13 (auth actions) and T15 (onboarding actions).
+- ⏳ DAVIN: MF-T35 (generated types) → T07 → T13 → T15. ADIT: #28 wiring → MF-T23 (super admin UI). REYKI: MF-T28 (Playwright).
 
 **Draft rule (from 2026-11-08):** every code PR is opened as a GitHub **draft**. PRs #3, #4, #10 and #11 were auto-merged 11–33 seconds after opening, before QA and review. ALAN marks a PR ready (`gh pr ready`) only after REYKI's QA report and ALAN's review. #11 put ADIT's untested WIP scaffold on `main`; MF-T01 stays open until a verified scaffold PR lands.
 
@@ -301,6 +301,8 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 ## 8. M4 — Customer site
 
 - [ ] Host routing live: `{slug}.restomate.app` (wildcard domain on Vercel)
+- [ ] Separate surfaces by host: dashboard/admin paths only on `app.`, marketing/signup only on the root domain (redirect the rest); found in the MF-T06 review
+- [ ] Seed: give Demo Restaurant an https `logo_url` so the storefront shows a logo (found in MF-T20 QA)
 - [ ] Storefront pages: menu, item detail, cart, checkout, order status, about/contact; location picker; opening hours
 - [ ] Theming from `org_branding` as CSS variables; 3 layout presets
 - [ ] QR entry `/t/{qr_token}` → table-linked cart; "call waiter" / "request bill"
@@ -407,6 +409,13 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-08 | A sole owner's account deletion is blocked by `LAST_OWNER` (safe default). M6's account-deletion flow must require an ownership transfer or organization deletion first |
 | 2026-11-08 | Integrity triggers run before RLS, so some forbidden writes return `SYSTEM_ROLE` / `PLAN_LIMIT:*` / `LAST_OWNER` (P0001) rather than 42501. App error mapping must handle both |
 | 2026-11-08 | Merges are squash merges by ALAN (`gh pr merge --squash --delete-branch`). Stacked PRs must be rebased onto `main` after their base PR is squashed |
+| 2026-11-08 | Load rebalancing (user-approved): MF-T10 (DOKU signature) and MF-T20 (public data, theme.ts, `lib/supabase/anon.ts`) moved from DAVIN to ADIT as a one-time ownership exception. Security-critical backend stays with DAVIN |
+| 2026-11-08 | Backend/UI contracts are pinned in the backend task before UI work starts (MF-T07, T09, T13, T15, T20, T22). UI codes against typed seams that are replaced by real imports before merge |
+| 2026-11-08 | 403/404 inside Suspense stream with HTTP 200 in Next 16. Requirement: the 403/404 view renders server-side and the payload contains no tenant data; authorization is enforced by `requirePermission` + RLS, not the status code |
+| 2026-11-08 | Money is never negative in `lib/money.ts`; refunds/credits/discounts are separate positive rows (M3) |
+| 2026-11-08 | Dashboard URLs: `/[org]/[location]/…` with the location id for location-scoped pages; org-level pages at `/[org]/…` |
+| 2026-11-08 | Onboarding contract: `createOrganization(input: OnboardingInput)` (typed object, server-side redirect), `checkSlug → { status }` |
+| 2026-11-08 | Unknown hosts return 404 in production until custom domains exist (M7) |
 | 2026-11-08 | Seed inserts the reserved `demo` slug by disabling `organizations_slug_not_reserved` inside `seed.sql` (table owner only); no runtime bypass in the schema |
 | 2026-11-08 | Seed adds a second tenant, **Other Bistro** (`other-bistro`), as the cross-tenant target for isolation e2e tests. Seed package prices are placeholders until pricing is decided (`PROJECT.md` → Still open #1) |
 
