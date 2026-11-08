@@ -1,6 +1,9 @@
 begin;
 select plan(31);
 
+-- unlimited plan so plan-limit triggers allow fixtures
+insert into public.packages (code, name, limits) values ('t-unl', 'Unlimited', '{}');
+
 -- fixtures (as postgres) ----------------------------------------------------
 insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@a.test','{"full_name":"Olive Owner"}',now(),now()),
@@ -12,6 +15,11 @@ insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data, c
 insert into public.organizations (id, slug, name) values
   ('10000000-0000-0000-0000-00000000000a','resto-a','Resto A'),
   ('10000000-0000-0000-0000-00000000000b','resto-b','Resto B');
+insert into public.subscriptions (organization_id, package_id, status)
+select o.id, (select id from public.packages where code = 't-unl'), 'active'
+from public.organizations o
+where not exists (select 1 from public.subscriptions s where s.organization_id = o.id);
+
 
 insert into public.roles (id, organization_id, key, name, is_system) values
   ('20000000-0000-0000-0000-0000000000a1','10000000-0000-0000-0000-00000000000a','owner','Owner',true),

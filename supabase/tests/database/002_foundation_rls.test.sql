@@ -1,11 +1,19 @@
 begin;
 select plan(11);
 
+-- unlimited plan so plan-limit triggers allow fixtures
+insert into public.packages (code, name, limits) values ('t-unl', 'Unlimited', '{}');
+
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@a.test',now(),now()),
   ('00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-000000000000','authenticated','authenticated','manager@a.test',now(),now()),
   ('00000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-000000000000','authenticated','authenticated','cashier@a.test',now(),now());
 insert into public.organizations (id, slug, name) values ('10000000-0000-0000-0000-00000000000a','resto-a','Resto A');
+insert into public.subscriptions (organization_id, package_id, status)
+select o.id, (select id from public.packages where code = 't-unl'), 'active'
+from public.organizations o
+where not exists (select 1 from public.subscriptions s where s.organization_id = o.id);
+
 insert into public.roles (id, organization_id, key, name, is_system) values
   ('20000000-0000-0000-0000-0000000000a1','10000000-0000-0000-0000-00000000000a','owner','Owner',true),
   ('20000000-0000-0000-0000-0000000000a2','10000000-0000-0000-0000-00000000000a','manager','Manager',true),
