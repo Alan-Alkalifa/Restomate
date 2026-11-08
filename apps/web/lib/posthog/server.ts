@@ -2,13 +2,14 @@ import "server-only";
 
 import { after } from "next/server";
 import { PostHog } from "posthog-node";
+import { sanitizeProperties } from "./sanitize";
 import { EVENT_NAMES, type EventName, type EventProperties } from "./events";
 
 /** Property keys that look like PII are dropped, whatever the caller passes. */
 const PII_KEY = /(e-?mail|name|phone|token|password|secret|address)/i;
 
 export function scrubProperties(props: EventProperties | undefined): EventProperties {
-  return Object.fromEntries(Object.entries(props ?? {}).filter(([k]) => !PII_KEY.test(k)));
+  return sanitizeProperties(Object.fromEntries(Object.entries(props ?? {}).filter(([k]) => !PII_KEY.test(k))));
 }
 
 let client: PostHog | null | undefined;
