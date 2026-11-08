@@ -3,7 +3,7 @@
 -- blocked = refused (42501), refused by a constraint, or filtered to 0 rows
 begin;
 \ir _helpers.inc
-select no_plan();
+select plan(146);
 
 create table tests.write_specs (ord serial, actor text, stmt text, expect text, label text);
 

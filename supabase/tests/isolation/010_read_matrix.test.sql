@@ -3,7 +3,7 @@
 -- Actor order: oa ma ca wa ka da ob out padmin anon
 begin;
 \ir _helpers.inc
-select no_plan();
+select plan(260);
 
 create table tests.read_specs (ord serial, label text, q text, exp int[]);
 

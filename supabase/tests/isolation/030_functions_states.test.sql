@@ -1,7 +1,7 @@
 -- MF-T25: helper functions, role permission sets, location scope, suspended org.
 begin;
 \ir _helpers.inc
-select no_plan();
+select plan(257);
 
 -- is_platform_admin / is_org_member / is_org_owner -------------------------------
 select is(tests.scalar(a, 'public.is_platform_admin()'), case a when 'padmin' then 'true' else 'false' end, 'is_platform_admin as ' || a)
@@ -52,7 +52,8 @@ select is(tests.scalar(a.actor, format('public.has_permission({A}, %L)', p.p)),
 select is(tests.scalar(a, format('public.has_permission({A}, %L)', p)), 'false', format('has_permission(A, %s) false as %s', p, a))
   from unnest(array['da','ob','out','padmin']) a, unnest(array['menu.manage','staff.manage','billing.manage','pos.use']) p;
 select is(tests.scalar('oa', 'public.has_permission({B}, ''menu.manage'')'), 'false', 'owner of A has no permission in B');
-select is(tests.scalar('oa', 'public.has_permission({A}, ''not.a.permission'')'), 'true', 'owner is implicit-all (documented: unknown key passes for owner)');
+select is(tests.scalar('oa', 'public.has_permission({A}, ''not.a.permission'')'), 'false', 'unknown permission key fails closed even for the owner');
+select is(tests.scalar('oa', 'public.has_permission({A}, ''menu.manage'')'), 'true', 'control: owner still has real permissions');
 select is(tests.scalar('ma', 'public.has_permission({A}, ''not.a.permission'')'), 'false', 'unknown permission fails closed for non-owner');
 
 -- my_permissions sizes ---------------------------------------------------------------
