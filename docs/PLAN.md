@@ -19,7 +19,7 @@ Last updated: 2026-11-08
 | Next.js app (`apps/web`) | ⏳ MF-T01 (ADIT). **Correction:** was marked scaffolded; not in the repo |
 | Supabase project config | ⏳ MF-T02 (DAVIN). **Correction:** was marked done; `supabase/` not in the repo |
 | Database migrations | ⏳ MF-T02 → MF-T03 → MF-T04 (DAVIN), designed in §4.2 |
-| Seed (Demo Restaurant) | ⏳ MF-T05, PR #17 (QA PASS) |
+| Seed (Demo Restaurant) | ✅ MF-T05, PR #17 |
 | App code (auth, onboarding, shells) | ⬜ MF-T06 – MF-T23 |
 | CI | ⬜ MF-T27 (REYKI) |
 | M0 task board | ✅ HQ board **MF** (M0 Foundation), 32 tasks; see §4.0 |
@@ -31,7 +31,7 @@ Last updated: 2026-11-08
 These came from the installed Next.js 16.4.5 and its bundled docs (`apps/web/node_modules/next/dist/docs/`). Apply them to `CLAUDE.md` before writing app code.
 
 - [x] **`middleware.ts` is now `proxy.ts`** (Next 16 renamed Middleware to Proxy). Update the layout tree and every mention in `CLAUDE.md`. Proxy is for optimistic checks and rewrites only: tenant host routing, session refresh, Arcjet. Never use it for authorization.
-- [x] **Cache Components is on by default** (`cacheComponents: true`, plus `partialPrefetching: true`):
+- [x] **Cache Components** (`cacheComponents: true`, plus `partialPrefetching: true`). Correction from MF-T01 (PR #22): it is *not* on by default in Next 16; we enable it explicitly in `next.config.ts`. The rules below apply because we turn it on:
   - Reading `cookies()`/`headers()` (that is, the Supabase session) outside a `<Suspense>` boundary is a **build error**.
   - Layouts must not `await` the session or dynamic `params` at the top level. Pass the promise down and await it inside a Suspense-wrapped child.
   - Session lookups use `'use cache: private'`. Session-derived data is cached with plain `'use cache'` keyed by user/org ID plus `cacheTag`, and refreshed with `updateTag` in Server Actions.
@@ -78,7 +78,7 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T02 ✅ | DAVIN | `supabase init` + core migration: tenancy tables, helpers, RLS (§4.2a) | — | — |
 | MF-T03 ✅ | DAVIN | `staff_invitations` + RPCs (§4.2b) | T02 | — |
 | MF-T04 ✅ | DAVIN | Triggers: plan limits, last owner, system roles (§4.2c) | T03 | — |
-| MF-T05 | DAVIN | Seed: Demo Restaurant, Other Bistro, packages, seed users (§4.4); PR #17, QA PASS, being rebased | T04 | — |
+| MF-T05 ✅ | DAVIN | Seed: Demo Restaurant, Other Bistro, packages, seed users (§4.4) (PR #17) | T04 | — |
 | MF-T35 | DAVIN | `packages/db` generated types (§4.1), split from T05 | T01, T05 | — |
 | MF-T06 | DAVIN | `env.ts`, `.env.example`, Supabase clients, `proxy.ts` (§4.5) | T01 | — |
 | MF-T07 | DAVIN | Auth DAL: `getCurrentUser`, `getOrgContext`, `requirePermission`, … (§4.5) | T05, T06 | — |
@@ -116,7 +116,7 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 **Progress (2026-11-08):**
 - ✅ Database foundation complete (§4.2–4.3): MF-T02/T33 schema + RLS, MF-T03/T34 invitations + RPCs, MF-T04 triggers. 7 migrations. 1,177 pgTAP tests green under `supabase db reset && supabase test db` (REYKI, CLI).
 - ✅ MF-T24/T25/T26/T36: test plan, isolation suites, abuse and trigger tests (incl. two-session concurrency checks).
-- ⏳ MF-T05: seed (PR #17), QA PASS, rebasing after #15's squash.
+- ✅ MF-T05: seed (PR #17). Demo Restaurant (5 staff, 2 locations), Other Bistro, placeholder-priced packages, platform admin.
 - ⏳ **MF-T01: scaffold (ADIT) is the bottleneck.** `main` holds a WIP scaffold without vitest or the §4.1 deps (`pnpm test` fails). ADIT's sandbox had slow npm downloads and a damaged local clone; the user is checking the host IP-stack setting. Blocks T06–T23, T27 (pnpm steps), T28–T31, T35.
 - ⏳ MF-T27: CI (REYKI), supabase job first.
 
@@ -196,13 +196,13 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [x] (Used by QA: `supabase/postgres` container + psql, see docs/qa) Fallback when Docker isn't available: run migrations against plain Postgres 16 with a small `auth` schema shim (`auth.users`, `auth.uid()`, `auth.jwt()`, `anon`/`authenticated`/`service_role` roles)
 
 ### 4.4 Seed (`supabase/seed.sql`, local only)
-- [ ] Packages Starter / Growth / Pro with placeholder IDR prices, published. Growth is the trial default
-- [ ] Platform admin `admin@restomate.local`
-- [ ] **Demo Restaurant** (`demo` is reserved for the public marketing link and maps to this org):
+- [x] Packages Starter / Growth / Pro with placeholder IDR prices, published. Growth is the trial default
+- [x] Platform admin `admin@restomate.local`
+- [x] **Demo Restaurant** (`demo` is reserved for the public marketing link and maps to this org):
   - owner `owner@demo.local`, plus one manager, one cashier, one waiter and one kitchen user
   - two locations (Jakarta Selatan, Bandung)
   - branding
-- [ ] All seed passwords are local-only and documented in the README
+- [x] All seed passwords are local-only and documented in the README
 
 ### 4.5 App infrastructure (`apps/web/lib`)
 - [ ] `env.ts` (Zod-validated; fails fast on boot)
