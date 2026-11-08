@@ -25,7 +25,7 @@ function ResendHint({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-export function SignupForm({ action }: { action: AuthAction }) {
+export function SignupForm({ action, next }: { action: AuthAction; next?: string }) {
   const [state, formAction, pending] = useActionState(action, null);
   const formRef = useFocusOnError(state);
   const [dismissed, setDismissed] = useState<typeof state>(null);
@@ -45,6 +45,7 @@ export function SignupForm({ action }: { action: AuthAction }) {
 
   return (
     <form ref={formRef} action={formAction} noValidate className="flex flex-col gap-4">
+      {next && <input type="hidden" name="next" value={next} />}
       <FormAlert message={formErrorOf(state)} />
       <Field name="fullName" label="Full name" autoComplete="name" required errors={errorsFor(state, "fullName")} />
       <Field name="email" label="Email" type="email" autoComplete="email" required errors={errorsFor(state, "email")} />
