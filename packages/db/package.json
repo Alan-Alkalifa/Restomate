@@ -1,0 +1,17 @@
+{
+  "name": "@restomate/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Generated Supabase Database types. Regenerate with `pnpm db:types` after any migration.",
+  "type": "module",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
