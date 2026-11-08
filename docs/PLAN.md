@@ -14,14 +14,15 @@ Last updated: 2026-11-08
 | Area | State |
 |---|---|
 | Product spec (`PROJECT.md`) | ✅ Done (DOKU + Resend decided) |
-| Engineering rules (`CLAUDE.md`) | ✅ Done. Needs the Next.js 16 corrections in §2 |
-| Monorepo (pnpm + Turborepo) | ✅ Root `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `.gitignore` |
-| Next.js app (`apps/web`) | ✅ Scaffolded (Next 16.4.5, React 19.3, Tailwind v4, TypeScript 5). Dependencies installed |
-| Supabase project config | ✅ `supabase/config.toml`: email confirmation on, Resend SMTP block, branded confirm/reset templates |
-| Database migrations | ⏳ **Next step**, designed in §4.2 |
-| Seed (Demo Restaurant) | ⬜ Not started |
-| App code (auth, onboarding, shells) | ⬜ Not started |
-| CI | ⬜ Not started |
+| Engineering rules (`CLAUDE.md`) | ✅ Done. Next.js 16 corrections from §2 applied (pending ADIT's confirmation against the installed docs in MF-T01) |
+| Monorepo (pnpm + Turborepo) | ⏳ MF-T01 (ADIT). **Correction:** this was marked done, but `main` had no monorepo files at 2026-11-08 |
+| Next.js app (`apps/web`) | ⏳ MF-T01 (ADIT). **Correction:** was marked scaffolded; not in the repo |
+| Supabase project config | ⏳ MF-T02 (DAVIN). **Correction:** was marked done; `supabase/` not in the repo |
+| Database migrations | ⏳ MF-T02 → MF-T03 → MF-T04 (DAVIN), designed in §4.2 |
+| Seed (Demo Restaurant) | ⬜ MF-T05 |
+| App code (auth, onboarding, shells) | ⬜ MF-T06 – MF-T23 |
+| CI | ⬜ MF-T27 (REYKI) |
+| M0 task board | ✅ HQ board **MF** (M0 Foundation), 32 tasks; see §4.0 |
 
 ---
 
@@ -29,15 +30,17 @@ Last updated: 2026-11-08
 
 These came from the installed Next.js 16.4.5 and its bundled docs (`apps/web/node_modules/next/dist/docs/`). Apply them to `CLAUDE.md` before writing app code.
 
-- [ ] **`middleware.ts` is now `proxy.ts`** (Next 16 renamed Middleware to Proxy). Update the layout tree and every mention in `CLAUDE.md`. Proxy is for optimistic checks and rewrites only: tenant host routing, session refresh, Arcjet. Never use it for authorization.
-- [ ] **Cache Components is on by default** (`cacheComponents: true`, plus `partialPrefetching: true`):
+- [x] **`middleware.ts` is now `proxy.ts`** (Next 16 renamed Middleware to Proxy). Update the layout tree and every mention in `CLAUDE.md`. Proxy is for optimistic checks and rewrites only: tenant host routing, session refresh, Arcjet. Never use it for authorization.
+- [x] **Cache Components is on by default** (`cacheComponents: true`, plus `partialPrefetching: true`):
   - Reading `cookies()`/`headers()` (that is, the Supabase session) outside a `<Suspense>` boundary is a **build error**.
   - Layouts must not `await` the session or dynamic `params` at the top level. Pass the promise down and await it inside a Suspense-wrapped child.
   - Session lookups use `'use cache: private'`. Session-derived data is cached with plain `'use cache'` keyed by user/org ID plus `cacheTag`, and refreshed with `updateTag` in Server Actions.
   - Never put emails, tokens or other personal data in cache keys or tags.
   - Escape hatch for a route that isn't ready yet: `export const instant = false`. Use it sparingly and track every use in §9.
-- [ ] Next 16 writes an `AGENTS.md` in `apps/web` telling agents to read the bundled docs. Keep it committed.
-- [ ] TypeScript stays on **5.x** (what Next 16 ships with), not TypeScript 7.
+- [ ] Next 16 writes an `AGENTS.md` in `apps/web` telling agents to read the bundled docs. Keep it committed. (Rule added to `CLAUDE.md`; file lands with MF-T01)
+- [ ] TypeScript stays on **5.x** (what Next 16 ships with), not TypeScript 7. (Rule added to `CLAUDE.md`; enforced in MF-T01)
+
+The first two are now in `CLAUDE.md` → *Next.js 16 rules*. ADIT confirms all four against the installed `node_modules/next/dist/docs` in the MF-T01 PR; any mismatch gets fixed in `CLAUDE.md`.
 
 ---
 
@@ -65,15 +68,58 @@ M1 and M2 can run in parallel once M0 is done.
 - They invite a staff member as Cashier. The invitee accepts and sees only what a cashier may see.
 - A user from another restaurant cannot read any of it.
 
+### 4.0 Task map (HQ board `MF`)
+
+One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN reviews → the user merges. UI tasks code against the backend task's documented contract in parallel and **merge after** it.
+
+| Task | Owner | What | Needs | Merges after |
+|---|---|---|---|---|
+| MF-T01 | ADIT | Monorepo + Next.js 16 scaffold (§4.1) | — | — |
+| MF-T02 | DAVIN | `supabase init` + core migration: tenancy tables, helpers, RLS (§4.2a) | — | — |
+| MF-T03 | DAVIN | `staff_invitations` + RPCs (§4.2b) | T02 | — |
+| MF-T04 | DAVIN | Triggers: plan limits, last owner, system roles (§4.2c) | T03 | — |
+| MF-T05 | DAVIN | Seed (Demo Restaurant, Other Bistro, packages) + `packages/db` types (§4.4) | T04, T01 | — |
+| MF-T06 | DAVIN | `env.ts`, `.env.example`, Supabase clients, `proxy.ts` (§4.5) | T01 | — |
+| MF-T07 | DAVIN | Auth DAL: `getCurrentUser`, `getOrgContext`, `requirePermission`, … (§4.5) | T05, T06 | — |
+| MF-T08 | DAVIN | `lib/arcjet.ts` + `lib/posthog` (§4.5) | T06 | — |
+| MF-T09 | DAVIN | `lib/money.ts` + tests (§4.5) | T01 | — |
+| MF-T10 | DAVIN | DOKU Non-SNAP signature + tests (§4.5) | T01 | — |
+| MF-T11 | ADIT | `emails/StaffInvite.tsx` (§4.5) | T01 | — |
+| MF-T12 | DAVIN | `lib/email` (Resend, log mode, `sendStaffInvite`) (§4.5) | T06, T11 | — |
+| MF-T13 | DAVIN | Auth Server Actions + `/auth/confirm` (§4.6) | T07, T08 | — |
+| MF-T14 | ADIT | Auth pages (§4.6) | T01 | T13 |
+| MF-T15 | DAVIN | Onboarding actions: `checkSlug`, `createOrganization` (§4.7) | T03, T07 | — |
+| MF-T16 | ADIT | Onboarding wizard UI (§4.7) | T14 | T15 |
+| MF-T17 | DAVIN | Staff actions: invite, resend, revoke, role, deactivate, accept (§4.8) | T04, T07, T12 | — |
+| MF-T18 | ADIT | Restaurant admin shell: sidebar from permissions, location switcher (§4.9) | T07, T14 | — |
+| MF-T19 | ADIT | Staff pages + `/invite/[token]` (§4.8) | T18 | T17 |
+| MF-T20 | DAVIN | Public data: `getPublicPackages`, `getStorefront`, `theme.ts` (§4.9) | T05, T06 | — |
+| MF-T21 | ADIT | Frontend shell + pricing + storefront placeholder (§4.9) | T01 | T20, T09 |
+| MF-T22 | DAVIN | Super admin data + `setOrgStatus` (§4.9) | T07, T03 | — |
+| MF-T23 | ADIT | Super admin shell + tenants list (§4.9) | T18 | T22 |
+| MF-T24 | REYKI | M0 test plan, isolation matrix, bug + PR report templates | — | — |
+| MF-T25 | REYKI | pgTAP isolation suite, core tables (§4.3) | — | T02 |
+| MF-T26 | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) | T25 | T03, T04 |
+| MF-T27 | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
+| MF-T28 | REYKI | Playwright setup + auth e2e | T01 | T13, T14 |
+| MF-T29 | REYKI | e2e onboarding (exit criterion 1) | T28 | T15, T16 |
+| MF-T30 | REYKI | e2e staff invite as Cashier + cross-tenant (exit criteria 2–3) | T28 | T17–T19 |
+| MF-T31 | REYKI | e2e super admin, storefront, pricing | T28 | T20–T23 |
+| MF-T32 | REYKI | M0 exit sign-off report | all | — |
+
+**Critical path:** T02 → T03 → T04 → T05 → T07 → T13/T15/T17 (all DAVIN). DAVIN carries 15 of the 23 dev tasks, so backend lib work is the bottleneck; see the note in §15.
+
+**Started 2026-11-08:** T01 (ADIT), T02 (DAVIN), T24 (REYKI).
+
 ### 4.1 Repo and tooling
-- [x] pnpm workspace + Turborepo, root scripts (`dev`, `build`, `lint`, `typecheck`, `test`, `db:*`)
-- [x] Next.js app in `apps/web`; dependencies installed: `@supabase/ssr`, `@supabase/supabase-js`, `@arcjet/next`, `posthog-js`, `posthog-node`, `resend`, `@react-email/components`, `zod`, `server-only`, `vitest`
-- [x] `supabase init`, auth config, Resend SMTP block, email templates
+- [ ] pnpm workspace + Turborepo, root scripts (`dev`, `build`, `lint`, `typecheck`, `test`, `db:*`) — MF-T01 (was ticked, but not in the repo)
+- [ ] Next.js app in `apps/web`; dependencies installed: `@supabase/ssr`, `@supabase/supabase-js`, `@arcjet/next`, `posthog-js`, `posthog-node`, `resend`, `@react-email/components`, `zod`, `server-only`, `vitest` — MF-T01 (was ticked, but not in the repo)
+- [ ] `supabase init`, auth config, Resend SMTP block, email templates — MF-T02 (was ticked, but not in the repo)
 - [ ] Add `typecheck` and `test` scripts to `apps/web/package.json`
 - [ ] `packages/db` workspace package that exports the generated `Database` types
 - [ ] `.env.example` (matches `CLAUDE.md` → *Environment variables*); `lib/env.ts` validates it with Zod
 - [ ] Prettier + ESLint config; Conventional Commits
-- [ ] `git init` and first commit
+- [x] `git init` and first commit (repo `Alan-Alkalifa/Alan-HQ`)
 
 ### 4.2 Database foundation (`supabase/migrations/…_foundation.sql`)
 Conventions: text columns with `check` constraints instead of enums (easier to evolve), `created_at`/`updated_at` with a shared trigger, RLS on every table, and `(select auth.uid())` in policies for performance. Internal helper functions go in a non-exposed `private` schema.
@@ -140,7 +186,7 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [ ] Packages Starter / Growth / Pro with placeholder IDR prices, published. Growth is the trial default
 - [ ] Platform admin `admin@restomate.local`
 - [ ] **Demo Restaurant** (`demo` is reserved for the public marketing link and maps to this org):
-  - owner `owner@demo.local`, plus one cashier, one waiter and one kitchen user
+  - owner `owner@demo.local`, plus one manager, one cashier, one waiter and one kitchen user
   - two locations (Jakarta Selatan, Bandung)
   - branding
 - [ ] All seed passwords are local-only and documented in the README
@@ -331,6 +377,17 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-08 | Launch market Indonesia: IDR (no minor unit), Asia/Jakarta, PB1/PBJT + service charge configurable per location |
 | 2026-11-08 | Next.js 16.4 with Cache Components on; `proxy.ts` instead of `middleware.ts`; TypeScript 5.x |
 | 2026-11-08 | Owner role has implicit all permissions; other roles are explicit permission lists |
+| 2026-11-08 | Status snapshot corrected: the monorepo, `apps/web` and `supabase/` were marked done but weren't on `main`. Re-scheduled as MF-T01 / MF-T02 |
+| 2026-11-08 | M0 broken into 32 tasks on HQ board `MF` (§4.0). Backend delivers typed contracts; UI codes against them in parallel and merges after |
+| 2026-11-08 | Invitation preview before sign-in goes through a security-definer RPC (`get_invitation_preview`), not the service-role client, so the service role stays limited to webhooks, jobs and storefront intake |
+| 2026-11-08 | Owned-organization cap per user (abuse guard): default 3, overridable in `platform_settings` |
+| 2026-11-08 | DB error contract: triggers raise `PLAN_LIMIT:<key>`, `LAST_OWNER`, `SYSTEM_ROLE`; the app maps them to friendly messages |
+| 2026-11-08 | M0 onboarding branding takes a colour + optional logo URL; logo upload to Supabase Storage lands with M6 theme customization |
+| 2026-11-08 | Access rules (from QA's MF-T24 questions): `subscriptions` and `audit_logs` readable by the org owner + platform admins only; `audit_logs` written only by `private.write_audit`; `platform_settings` has no client access in M0; custom roles are owner-only |
+| 2026-11-08 | Suspended org: members see only a notice page; `has_permission()` false and tenant reads blocked except their own `organizations` row; storefront "temporarily unavailable". `read_only` / `past_due` behaviour comes with M6 billing |
+| 2026-11-08 | Staff: managers manage every role except owner; `max_staff` counts active members + pending invitations (not deactivated members); a duplicate pending invite is rejected ("use Resend") |
+| 2026-11-08 | HQ `list_tasks` shows teammates titles only, so every PR description must include its task's acceptance checklist |
+| 2026-11-08 | Seed adds a second tenant, **Other Bistro** (`other-bistro`), as the cross-tenant target for isolation e2e tests. Seed package prices are placeholders until pricing is decided (`PROJECT.md` → Still open #1) |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -339,7 +396,9 @@ _None yet._
 
 ## 15. Next up
 
-1. Apply the §2 corrections to `CLAUDE.md`.
-2. Write the foundation migration (§4.2) and run it against local Postgres.
-3. Seed Demo Restaurant (§4.4).
-4. Build the app infrastructure and auth pages (§4.5–4.6).
+1. Land MF-T01 (scaffold) and MF-T02 + MF-T25 (core migration + isolation suite). Everything else waits on these.
+2. DAVIN: T06 → T03 → T04 → T05 → T07; T09/T10 fill gaps while PRs wait on review.
+3. ADIT: T11 → T14 → T21 → T18 → T16/T19/T23, each against DAVIN's contracts.
+4. REYKI: T24 → T25 → T27 → T28 → T26 → T29–T31, plus PR verification.
+
+**Load note:** DAVIN owns 15 dev tasks and is the critical path; ADIT owns 8. If DAVIN falls behind, ALAN may propose (to the user) moving the pure modules MF-T09 (`money.ts`) and MF-T10 (DOKU signature) to ADIT. That needs a change to the file-ownership rules, so it isn't done without approval.
