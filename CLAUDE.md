@@ -10,7 +10,7 @@ Read this file before making changes. When something here conflicts with the cod
 
 | Concern | Choice | Notes |
 |---|---|---|
-| Framework | **Next.js** (App Router, TypeScript, Server Components / Server Actions) | Lives in `apps/web` |
+| Framework | **Next.js 16** (App Router, TypeScript 5.x, Server Components / Server Actions, Cache Components on) | Lives in `apps/web`. See *Next.js 16 rules* below |
 | Auth | **Supabase Auth** | `@supabase/ssr` cookie sessions |
 | Database | **Supabase Postgres** | RLS everywhere, Realtime for live order/KOT updates, Storage for logos and menu images |
 | Analytics | **PostHog** | Product analytics for the dashboard, grouped by organization |
@@ -42,7 +42,7 @@ apps/
       api/
         webhooks/doku/      # DOKU HTTP Notification endpoint (signature-verified, idempotent)
     lib/
-      supabase/             # server.ts, client.ts, middleware.ts, admin.ts (service role, server-only)
+      supabase/             # server.ts, client.ts, proxy.ts (session refresh), admin.ts (service role, server-only)
       auth/                 # session helpers, requirePermission()
       payments/             # PaymentProvider interface + doku/ (client, signature, notification)
       email/                # Resend client + send helpers (server-only)
@@ -54,7 +54,8 @@ apps/
       ui/                   # primitives
       pos/ kitchen/ storefront/ print/
     emails/                 # React Email templates (invite, order receipt, reservation, invoice)
-    middleware.ts           # session refresh + tenant host resolution + Arcjet
+    proxy.ts                # Next 16 Proxy (formerly middleware): session refresh + tenant host resolution + Arcjet. Never authorization
+    AGENTS.md               # written by Next 16; tells agents to read node_modules/next/dist/docs. Keep it committed
 supabase/
   migrations/               # SQL migrations — the source of truth for schema
   seed.sql
@@ -98,7 +99,7 @@ Tenants, packages, billing and platform settings. Used only by the Restomate tea
 
 ### 3. Customer site
 The public menu and ordering site each restaurant gets. **Demo Restaurant** is the seeded example tenant used for development, screenshots and the public demo link.
-- Resolved by host in `middleware.ts` (see Customer storefront and QR ordering below).
+- Resolved by host in `proxy.ts` (see Customer storefront and QR ordering below).
 - Fully branded from `org_branding`; no Restomate admin chrome.
 - Shows only published menu items that are available at the selected location and time.
 - Demo Restaurant lives in `supabase/seed.sql` with a realistic menu, areas, tables and QR tokens. Keep it working; e2e tests use it. Orders placed on the public demo must not trigger real payments (use gateway test mode or cash-only).
@@ -211,7 +212,7 @@ Staff can be limited to specific locations (`location_staff`).
 
 ## Customer storefront and QR ordering
 
-- Tenant sites resolve by host in `middleware.ts`: `{slug}.restomate.app` or a verified custom domain is rewritten to `/(storefront)/s/[tenant]`.
+- Tenant sites resolve by host in `proxy.ts`: `{slug}.restomate.app` or a verified custom domain is rewritten to `/(storefront)/s/[tenant]`.
 - A QR code encodes `/t/{qr_token}`. The token maps to a table and location. Tokens are random, can be rotated, and never expose internal IDs.
 - Storefront order intake runs server-side. Recompute prices from the database and never trust client totals. Validate item availability and location opening hours.
 - Customers may order as guests (phone/email optional). Link them to a `customers` record when they identify themselves.
@@ -342,6 +343,23 @@ APP_ENCRYPTION_KEY=             # 32-byte key for encrypting tenant gateway cred
 - Storefront: track anonymous funnel events (menu viewed, item added, checkout started, order placed). **Do not send customer PII** (names, phone numbers, emails) to PostHog.
 - Event names use `snake_case` with an object_action pattern (`order_placed`, `reservation_created`, `menu_item_updated`). Keep a list in `lib/posthog/events.ts`.
 - Use feature flags for gradual rollouts of new modules.
+
+---
+
+## Next.js 16 rules
+
+Next.js 16 changed several defaults. When these rules and older Next.js habits disagree, these rules win. When they disagree with the installed docs in `apps/web/node_modules/next/dist/docs/`, the installed docs win; flag the mismatch so this file can be updated.
+
+- **`proxy.ts`, not `middleware.ts`.** Next 16 renamed Middleware to Proxy. Use it only for optimistic checks and rewrites: tenant host routing, Supabase session refresh, Arcjet. Never make an authorization decision there; authorization happens in the DAL (`lib/auth`) and in RLS. The DOKU notification route (`/api/webhooks/doku`) is skipped by the proxy matcher.
+- **Cache Components is on** (`cacheComponents: true`, `partialPrefetching: true`).
+  - Reading `cookies()` or `headers()` (and so the Supabase session) outside a `<Suspense>` boundary is a **build error**.
+  - Layouts must not `await` the session or dynamic `params` at the top level. Pass the promise down and await it inside a Suspense-wrapped child.
+  - Session lookups (`getCurrentUser()` in `lib/auth/dal.ts`) use `'use cache: private'`.
+  - Session-derived data is cached with plain `'use cache'`, keyed by user or org ID plus a `cacheTag`, and refreshed with `updateTag` in Server Actions.
+  - Never put emails, tokens or other personal data in cache keys or tags.
+  - Escape hatch for a route that isn't ready yet: `export const instant = false`. Use it sparingly and record every use in `docs/PLAN.md` (*`instant = false` opt-outs*).
+- **TypeScript stays on 5.x** (what Next 16 ships with), not TypeScript 7.
+- Keep `apps/web/AGENTS.md` committed. Read the bundled docs before using an API you are unsure about.
 
 ---
 
