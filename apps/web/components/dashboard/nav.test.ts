@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { navHref, resolveNav } from "./nav";
+import type { PermissionKey } from "./types";
 
 const base = { package: { features: [] } as never };
 
@@ -9,7 +10,7 @@ describe("resolveNav", () => {
     expect(keys).toEqual(["pos", "orders"]);
   });
   it("locks items whose package feature is missing, and unlocks when present", () => {
-    const perms = ["reports.view"];
+    const perms: PermissionKey[] = ["reports.view"];
     expect(resolveNav({ ...base, permissions: perms })[0].locked).toBe(true);
     expect(resolveNav({ package: { features: ["advanced_reports"] } as never, permissions: perms })[0].locked).toBe(false);
   });
