@@ -186,7 +186,7 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [ ] Packages Starter / Growth / Pro with placeholder IDR prices, published. Growth is the trial default
 - [ ] Platform admin `admin@restomate.local`
 - [ ] **Demo Restaurant** (`demo` is reserved for the public marketing link and maps to this org):
-  - owner `owner@demo.local`, plus one cashier, one waiter and one kitchen user
+  - owner `owner@demo.local`, plus one manager, one cashier, one waiter and one kitchen user
   - two locations (Jakarta Selatan, Bandung)
   - branding
 - [ ] All seed passwords are local-only and documented in the README
@@ -383,6 +383,10 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-08 | Owned-organization cap per user (abuse guard): default 3, overridable in `platform_settings` |
 | 2026-11-08 | DB error contract: triggers raise `PLAN_LIMIT:<key>`, `LAST_OWNER`, `SYSTEM_ROLE`; the app maps them to friendly messages |
 | 2026-11-08 | M0 onboarding branding takes a colour + optional logo URL; logo upload to Supabase Storage lands with M6 theme customization |
+| 2026-11-08 | Access rules (from QA's MF-T24 questions): `subscriptions` and `audit_logs` readable by the org owner + platform admins only; `audit_logs` written only by `private.write_audit`; `platform_settings` has no client access in M0; custom roles are owner-only |
+| 2026-11-08 | Suspended org: members see only a notice page; `has_permission()` false and tenant reads blocked except their own `organizations` row; storefront "temporarily unavailable". `read_only` / `past_due` behaviour comes with M6 billing |
+| 2026-11-08 | Staff: managers manage every role except owner; `max_staff` counts active members + pending invitations (not deactivated members); a duplicate pending invite is rejected ("use Resend") |
+| 2026-11-08 | HQ `list_tasks` shows teammates titles only, so every PR description must include its task's acceptance checklist |
 | 2026-11-08 | Seed adds a second tenant, **Other Bistro** (`other-bistro`), as the cross-tenant target for isolation e2e tests. Seed package prices are placeholders until pricing is decided (`PROJECT.md` → Still open #1) |
 
 ### `instant = false` opt-outs
