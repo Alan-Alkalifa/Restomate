@@ -19,7 +19,7 @@ Last updated: 2026-11-08
 | Next.js app (`apps/web`) | ⏳ MF-T01 (ADIT). **Correction:** was marked scaffolded; not in the repo |
 | Supabase project config | ⏳ MF-T02 (DAVIN). **Correction:** was marked done; `supabase/` not in the repo |
 | Database migrations | ⏳ MF-T02 → MF-T03 → MF-T04 (DAVIN), designed in §4.2 |
-| Seed (Demo Restaurant) | ⬜ MF-T05 |
+| Seed (Demo Restaurant) | ✅ MF-T05, PR #17 |
 | App code (auth, onboarding, shells) | ⬜ MF-T06 – MF-T23 |
 | CI | ⬜ MF-T27 (REYKI) |
 | M0 task board | ✅ HQ board **MF** (M0 Foundation), 32 tasks; see §4.0 |
@@ -31,7 +31,7 @@ Last updated: 2026-11-08
 These came from the installed Next.js 16.4.5 and its bundled docs (`apps/web/node_modules/next/dist/docs/`). Apply them to `CLAUDE.md` before writing app code.
 
 - [x] **`middleware.ts` is now `proxy.ts`** (Next 16 renamed Middleware to Proxy). Update the layout tree and every mention in `CLAUDE.md`. Proxy is for optimistic checks and rewrites only: tenant host routing, session refresh, Arcjet. Never use it for authorization.
-- [x] **Cache Components is on by default** (`cacheComponents: true`, plus `partialPrefetching: true`):
+- [x] **Cache Components** (`cacheComponents: true`, plus `partialPrefetching: true`). Correction from MF-T01 (PR #22): it is *not* on by default in Next 16; we enable it explicitly in `next.config.ts`. The rules below apply because we turn it on:
   - Reading `cookies()`/`headers()` (that is, the Supabase session) outside a `<Suspense>` boundary is a **build error**.
   - Layouts must not `await` the session or dynamic `params` at the top level. Pass the promise down and await it inside a Suspense-wrapped child.
   - Session lookups use `'use cache: private'`. Session-derived data is cached with plain `'use cache'` keyed by user/org ID plus `cacheTag`, and refreshed with `updateTag` in Server Actions.
@@ -77,8 +77,9 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T01 | ADIT | Monorepo + Next.js 16 scaffold (§4.1) | — | — |
 | MF-T02 ✅ | DAVIN | `supabase init` + core migration: tenancy tables, helpers, RLS (§4.2a) | — | — |
 | MF-T03 ✅ | DAVIN | `staff_invitations` + RPCs (§4.2b) | T02 | — |
-| MF-T04 | DAVIN | Triggers: plan limits, last owner, system roles (§4.2c) | T03 | — |
-| MF-T05 | DAVIN | Seed (Demo Restaurant, Other Bistro, packages) + `packages/db` types (§4.4) | T04, T01 | — |
+| MF-T04 ✅ | DAVIN | Triggers: plan limits, last owner, system roles (§4.2c) | T03 | — |
+| MF-T05 ✅ | DAVIN | Seed: Demo Restaurant, Other Bistro, packages, seed users (§4.4) (PR #17) | T04 | — |
+| MF-T35 | DAVIN | `packages/db` generated types (§4.1), split from T05 | T01, T05 | — |
 | MF-T06 | DAVIN | `env.ts`, `.env.example`, Supabase clients, `proxy.ts` (§4.5) | T01 | — |
 | MF-T07 | DAVIN | Auth DAL: `getCurrentUser`, `getOrgContext`, `requirePermission`, … (§4.5) | T05, T06 | — |
 | MF-T08 | DAVIN | `lib/arcjet.ts` + `lib/posthog` (§4.5) | T06 | — |
@@ -99,9 +100,10 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T23 | ADIT | Super admin shell + tenants list (§4.9) | T18 | T22 |
 | MF-T24 ✅ | REYKI | M0 test plan, isolation matrix, bug + PR report templates (PR #2) | — | — |
 | MF-T25 ✅ | REYKI | pgTAP isolation suite, core tables (§4.3) (PRs #4, #7) | — | T02 |
-| MF-T34 | DAVIN | Invitation + branding review fixes: explicit `all_locations`, `org_branding.logo_url` https-only, invite expiry cap (S3 ×3) | T03 | — |
+| MF-T34 ✅ | DAVIN | Invitation + branding review fixes: explicit `all_locations`, `org_branding.logo_url` https-only, invite expiry cap (S3 ×3) | T03 | — |
 | MF-T33 ✅ | DAVIN | Foundation review fixes: profile scope, no member DELETE, `platform_settings` deny policy, suspended-org membership, no self-escalation, fail-closed `has_permission` (PR #8) | T02 | — |
-| MF-T26 | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) | T25 | T03, T04 |
+| MF-T26 ✅ | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) (PRs #13, #16, #18) | T25 | T03, T04 |
+| MF-T36 ✅ | REYKI | Hardening tests for MF-T34 (PR #19) | T34 | T34 |
 | MF-T27 | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
 | MF-T28 | REYKI | Playwright setup + auth e2e | T01 | T13, T14 |
 | MF-T29 | REYKI | e2e onboarding (exit criterion 1) | T28 | T15, T16 |
@@ -112,13 +114,11 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 **Critical path:** T02 → T03 → T04 → T05 → T07 → T13/T15/T17 (all DAVIN). DAVIN carries 15 of the 23 dev tasks, so backend lib work is the bottleneck; see the note in §15.
 
 **Progress (2026-11-08):**
-- ✅ MF-T24: test plan (PR #2).
-- ✅ MF-T02 + MF-T33: foundation schema, helpers and RLS (PRs #3, #5, #8). 16 tables, 9 helpers.
-- ✅ MF-T25: isolation suite (PRs #4, #7). 737 pgTAP assertions green (QA: REYKI on PR #8).
-- ⏳ MF-T01: scaffold (ADIT, `feat/m0-scaffold`). It unblocks T06, T09–T11, T14, T21, T27, T28.
-- ⏳ MF-T03: invitations + RPCs (DAVIN).
-- ⏳ MF-T26: abuse tests for invitations, RPCs and triggers (REYKI, written against the specs).
-- Known gap: REYKI's sandbox can't run the Supabase CLI stack, so QA uses a plain `supabase/postgres` container + psql. CI (MF-T27) will give a real `supabase test db` on every PR.
+- ✅ Database foundation complete (§4.2–4.3): MF-T02/T33 schema + RLS, MF-T03/T34 invitations + RPCs, MF-T04 triggers. 7 migrations. 1,177 pgTAP tests green under `supabase db reset && supabase test db` (REYKI, CLI).
+- ✅ MF-T24/T25/T26/T36: test plan, isolation suites, abuse and trigger tests (incl. two-session concurrency checks).
+- ✅ MF-T05: seed (PR #17). Demo Restaurant (5 staff, 2 locations), Other Bistro, placeholder-priced packages, platform admin.
+- ⏳ **MF-T01: scaffold (ADIT) is the bottleneck.** `main` holds a WIP scaffold without vitest or the §4.1 deps (`pnpm test` fails). ADIT's sandbox had slow npm downloads and a damaged local clone; the user is checking the host IP-stack setting. Blocks T06–T23, T27 (pnpm steps), T28–T31, T35.
+- ⏳ MF-T27: CI (REYKI), supabase job first.
 
 **Draft rule (from 2026-11-08):** every code PR is opened as a GitHub **draft**. PRs #3, #4, #10 and #11 were auto-merged 11–33 seconds after opening, before QA and review. ALAN marks a PR ready (`gh pr ready`) only after REYKI's QA report and ALAN's review. #11 put ADIT's untested WIP scaffold on `main`; MF-T01 stays open until a verified scaffold PR lands.
 
@@ -150,7 +150,7 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [x] `roles` (per org, `is_system`), `role_permissions`
 - [x] `organization_members`: org, user, role, status (`active | deactivated`), `all_locations`
 - [x] `location_staff`: member ↔ location
-- [ ] `staff_invitations`: org, email, role, location IDs, `token_hash` (SHA-256), `expires_at`, `accepted_at`, `revoked_at`
+- [x] `staff_invitations`: org, email, role, location IDs, `token_hash` (SHA-256), `expires_at`, `accepted_at`, `revoked_at`
 - [x] `org_branding`: logo, colors, font, theme jsonb
 - [x] `audit_logs`: org (nullable for platform actions), actor, action, entity, metadata
 - [x] `platform_settings`: key/value jsonb
@@ -175,34 +175,34 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [x] `private.org_limit(org, key)`, `private.write_audit(...)`
 
 **RPCs**
-- [ ] `is_slug_available(slug)`: anon + authenticated
-- [ ] `create_organization(name, slug, location…, package_code?)`: **one transaction** creates the org, system roles and permissions, owner membership, first location, branding row, trialing subscription on the default package, and an audit entry. Caps owned organizations per user (abuse guard)
-- [ ] `accept_invitation(token)`: hash matches, not expired or revoked, invitee's email matches `auth.jwt() ->> 'email'`
-- [ ] `get_storefront(slug)`: public info, branding and active locations of an **active** org only. Anon
-- [ ] `admin_set_org_status(org, status, reason)`: platform admin only, audited
+- [x] `is_slug_available(slug)`: anon + authenticated
+- [x] `create_organization(name, slug, location…, package_code?)`: **one transaction** creates the org, system roles and permissions, owner membership, first location, branding row, trialing subscription on the default package, and an audit entry. Caps owned organizations per user (abuse guard)
+- [x] `accept_invitation(token)`: hash matches, not expired or revoked, invitee's email matches `auth.jwt() ->> 'email'`
+- [x] `get_storefront(slug)`: public info, branding and active locations of an **active** org only. Anon
+- [x] `admin_set_org_status(org, status, reason)`: platform admin only, audited
 
 **Triggers**
-- [ ] Package limits on insert into `locations`, `organization_members` and `staff_invitations` (raise `PLAN_LIMIT:<key>`)
-- [ ] The last active owner of an organization cannot be removed, deactivated or demoted
-- [ ] System roles cannot be deleted, and the owner role's permissions cannot be edited
+- [x] Package limits on insert into `locations`, `organization_members` and `staff_invitations` (raise `PLAN_LIMIT:<key>`)
+- [x] The last active owner of an organization cannot be removed, deactivated or demoted
+- [x] System roles cannot be deleted, and the owner role's permissions cannot be edited
 - [x] `updated_at` maintenance; email sync from `auth.users` to `profiles`
 
 ### 4.3 Database tests
 - [x] Use `supabase test db` (pgTAP) in `supabase/tests/`
 - [x] Org A member cannot select/insert/update org B rows (every table)
 - [x] Cashier cannot manage staff; Manager cannot manage billing (MF-T25 write matrix + role permission sets)
-- [ ] Removing the last owner fails; limits trigger at the package cap
-- [ ] `accept_invitation` rejects a wrong email, an expired token and a reused token
+- [x] Removing the last owner fails; limits trigger at the package cap
+- [x] `accept_invitation` rejects a wrong email, an expired token and a reused token
 - [x] (Used by QA: `supabase/postgres` container + psql, see docs/qa) Fallback when Docker isn't available: run migrations against plain Postgres 16 with a small `auth` schema shim (`auth.users`, `auth.uid()`, `auth.jwt()`, `anon`/`authenticated`/`service_role` roles)
 
 ### 4.4 Seed (`supabase/seed.sql`, local only)
-- [ ] Packages Starter / Growth / Pro with placeholder IDR prices, published. Growth is the trial default
-- [ ] Platform admin `admin@restomate.local`
-- [ ] **Demo Restaurant** (`demo` is reserved for the public marketing link and maps to this org):
+- [x] Packages Starter / Growth / Pro with placeholder IDR prices, published. Growth is the trial default
+- [x] Platform admin `admin@restomate.local`
+- [x] **Demo Restaurant** (`demo` is reserved for the public marketing link and maps to this org):
   - owner `owner@demo.local`, plus one manager, one cashier, one waiter and one kitchen user
   - two locations (Jakarta Selatan, Bandung)
   - branding
-- [ ] All seed passwords are local-only and documented in the README
+- [x] All seed passwords are local-only and documented in the README
 
 ### 4.5 App infrastructure (`apps/web/lib`)
 - [ ] `env.ts` (Zod-validated; fails fast on boot)
@@ -403,6 +403,10 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-08 | Review of PR #3: co-member profile reads (email, phone) limited to `staff.manage` holders; no client DELETE on `organization_members` (removal = deactivate); tables with no client access get an explicit restrictive `using (false)` policy so the RLS guard test stays strict |
 | 2026-11-08 | `has_permission` fails closed for keys not in `permissions` (owners included). Non-owners can't change their own membership or `location_staff` rows. Members of a suspended org read only the `organizations` row (S2/S3 findings from the MF-T25 suite, fixed in MF-T33) |
 | 2026-11-08 | Invitations carry an explicit `all_locations` flag (an empty location list never means "all"). The onboarding logo goes in `org_branding.logo_url` (https only); `logo_path` is reserved for Storage objects (M6). Client-set invite expiry is capped at 30 days (MF-T34) |
+| 2026-11-08 | `org_branding.logo_path` is server-only (no client writes, not returned by `get_storefront`); clients and the storefront use only the https-only `logo_url` (S2 found by QA on PR #15) |
+| 2026-11-08 | A sole owner's account deletion is blocked by `LAST_OWNER` (safe default). M6's account-deletion flow must require an ownership transfer or organization deletion first |
+| 2026-11-08 | Integrity triggers run before RLS, so some forbidden writes return `SYSTEM_ROLE` / `PLAN_LIMIT:*` / `LAST_OWNER` (P0001) rather than 42501. App error mapping must handle both |
+| 2026-11-08 | Merges are squash merges by ALAN (`gh pr merge --squash --delete-branch`). Stacked PRs must be rebased onto `main` after their base PR is squashed |
 | 2026-11-08 | Seed inserts the reserved `demo` slug by disabling `organizations_slug_not_reserved` inside `seed.sql` (table owner only); no runtime bypass in the schema |
 | 2026-11-08 | Seed adds a second tenant, **Other Bistro** (`other-bistro`), as the cross-tenant target for isolation e2e tests. Seed package prices are placeholders until pricing is decided (`PROJECT.md` → Still open #1) |
 

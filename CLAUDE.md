@@ -351,7 +351,7 @@ APP_ENCRYPTION_KEY=             # 32-byte key for encrypting tenant gateway cred
 Next.js 16 changed several defaults. When these rules and older Next.js habits disagree, these rules win. When they disagree with the installed docs in `apps/web/node_modules/next/dist/docs/`, the installed docs win; flag the mismatch so this file can be updated.
 
 - **`proxy.ts`, not `middleware.ts`.** Next 16 renamed Middleware to Proxy. Use it only for optimistic checks and rewrites: tenant host routing, Supabase session refresh, Arcjet. Never make an authorization decision there; authorization happens in the DAL (`lib/auth`) and in RLS. The DOKU notification route (`/api/webhooks/doku`) is skipped by the proxy matcher.
-- **Cache Components is on** (`cacheComponents: true`, `partialPrefetching: true`).
+- **Cache Components is on** (`cacheComponents: true`, `partialPrefetching: true`, set explicitly in `apps/web/next.config.ts`; it is **not** the Next 16 default, per the installed docs `01-app/03-api-reference/05-config/01-next-config-js/cacheComponents.md`). Don't remove it.
   - Reading `cookies()` or `headers()` (and so the Supabase session) outside a `<Suspense>` boundary is a **build error**.
   - Layouts must not `await` the session or dynamic `params` at the top level. Pass the promise down and await it inside a Suspense-wrapped child.
   - Session lookups (`getCurrentUser()` in `lib/auth/dal.ts`) use `'use cache: private'`.
