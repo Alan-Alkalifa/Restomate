@@ -1,6 +1,10 @@
 begin;
 select plan(32);
 
+-- independent of seed.sql: clear seeded plans/subscriptions (rolled back with the transaction)
+delete from public.subscriptions;
+delete from public.packages;
+
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, created_at, updated_at)
 select ('00000000-0000-0000-0000-0000000000d' || n)::uuid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
        'u' || n || '@x.test', now(), now(), now()
