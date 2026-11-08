@@ -1,14 +1,19 @@
 "use client";
 
-import { useActionState } from "react";
+import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import type { AuthAction } from "./types";
 
-/** For the dashboard header. `action` is MF-T13's `signOut` (redirects to /login on success). */
-export function SignOutButton({ action }: { action: AuthAction }) {
-  const [, formAction, pending] = useActionState(action, null);
+/** For the dashboard header. `action` is MF-T13's `signOut(): Promise<void>` (redirects to /login). */
+export function SignOutButton({ action }: { action: () => Promise<void> }) {
+  const [pending, startTransition] = useTransition();
   return (
-    <form action={formAction}>
+    <form
+      action={() => {
+        startTransition(async () => {
+          await action();
+        });
+      }}
+    >
       <Button type="submit" pending={pending} className="bg-transparent text-inherit ring-1 ring-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
         {pending ? "Signing out…" : "Sign out"}
       </Button>
