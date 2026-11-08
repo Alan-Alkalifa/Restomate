@@ -404,6 +404,9 @@ isOneToOne: false
                            },
 "my_permissions":
 { Args: { "org": string }; Returns: (string)[]
+                           },
+"set_member_locations":
+{ Args: { "all_locations": boolean,"location_ids"?: (string)[],"member": string }; Returns: Json
                            }
           }
           Enums: {

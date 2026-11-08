@@ -200,13 +200,24 @@ describe("member changes", () => {
     member("user-self", "owner");
     expect(await deactivateMember("demo", null, form([["memberId", SELF_MEMBER]]))).toMatchObject({ ok: false, code: "FORBIDDEN" });
   });
-  it("setMemberLocations validates the ids and applies a minimal diff", async () => {
+  it("setMemberLocations makes ONE rpc call (atomic) and tags the member", async () => {
     member("u-other", "waiter");
-    results["locations.select"] = { data: [{ id: LOC, name: "Main" }] };
-    results["location_staff.select"] = { data: [] };
-    expect(await setMemberLocations("demo", null, form([["memberId", MEMBER], ["allLocations", "false"], ["locationIds", LOC]]))).toEqual({ ok: true });
-    expect(sent("location_staff.insert")[0]!.payload).toEqual([{ member_id: MEMBER, location_id: LOC, organization_id: ORG }]);
-    expect(sent("organization_members.update")).toHaveLength(1);
+    rpc.mockResolvedValue({ data: { changed: true }, error: null });
+    expect(await setMemberLocations("demo", null, form([["memberId", MEMBER], ["allLocations", "false"], ["locationIds", LOC], ["locationIds", LOC]]))).toEqual({ ok: true });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("set_member_locations", { member: MEMBER, all_locations: false, location_ids: [LOC] });
+    expect(sent("location_staff.insert")).toHaveLength(0);
+    expect(sent("organization_members.update")).toHaveLength(0);
+    expect(updateTag).toHaveBeenCalledWith(`member:u-other:${ORG}`);
+  });
+  it("setMemberLocations maps INVALID_LOCATION and 42501, and does not tag on failure", async () => {
+    member("u-other", "waiter");
+    rpc.mockResolvedValue({ data: null, error: { message: "INVALID_LOCATION", code: "P0001" } });
+    const fd = () => form([["memberId", MEMBER], ["allLocations", "false"], ["locationIds", LOC]]);
+    expect(await setMemberLocations("demo", null, fd())).toMatchObject({ ok: false, fieldErrors: { locationIds: [expect.any(String)] } });
+    rpc.mockResolvedValue({ data: null, error: { message: "FORBIDDEN", code: "42501" } });
+    expect(await setMemberLocations("demo", null, fd())).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(updateTag).not.toHaveBeenCalled();
   });
 });
 

@@ -21,6 +21,7 @@ export function mapStaffError(error: { message?: string; code?: string } | null 
   if (error?.code === "42501" || m.toLowerCase().includes("row-level security")) {
     return { ok: false, code: "FORBIDDEN", formError: "You don't have permission to do that." };
   }
+  if (m.includes("INVALID_LOCATION")) return { ok: false, fieldErrors: { locationIds: ["Choose locations from the list."] } };
   if (m.includes("INVALID_INVITATION")) return invalidInvitation();
   return { ok: false, formError: GENERIC };
 }
