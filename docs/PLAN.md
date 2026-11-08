@@ -97,7 +97,7 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T21 | ADIT | Frontend shell + pricing + storefront placeholder (§4.9) | T01 | T20, T09 |
 | MF-T22 | DAVIN | Super admin data + `setOrgStatus` (§4.9) | T07, T03 | — |
 | MF-T23 | ADIT | Super admin shell + tenants list (§4.9) | T18 | T22 |
-| MF-T24 | REYKI | M0 test plan, isolation matrix, bug + PR report templates | — | — |
+| MF-T24 ✅ | REYKI | M0 test plan, isolation matrix, bug + PR report templates (PR #2) | — | — |
 | MF-T25 | REYKI | pgTAP isolation suite, core tables (§4.3) | — | T02 |
 | MF-T26 | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) | T25 | T03, T04 |
 | MF-T27 | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
@@ -109,7 +109,13 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 
 **Critical path:** T02 → T03 → T04 → T05 → T07 → T13/T15/T17 (all DAVIN). DAVIN carries 15 of the 23 dev tasks, so backend lib work is the bottleneck; see the note in §15.
 
-**Started 2026-11-08:** T01 (ADIT), T02 (DAVIN), T24 (REYKI).
+**Progress (2026-11-08):**
+- ✅ MF-T24: test plan merged (PR #2). `docs/qa/M0-test-plan.md` is the reference for every M0 PR.
+- ⏳ MF-T02: core migration merged as WIP in PR #3 (before QA/review). Tests and fixes are in PR #5; the task stays open until PR #5 passes QA and review.
+- ⏳ MF-T25: RLS guard test merged in PR #4 (before review). It correctly fails on `main` until PR #5 adds the `platform_settings` deny policy. Per-table isolation tests in progress.
+- ⏳ MF-T01: scaffold (ADIT), not yet pushed.
+
+**Merge rule:** please merge a PR only after ALAN comments "ready to merge" on it (after REYKI's QA report). PRs #3 and #4 were merged before that. No harm done, since nothing has been deployed, but the follow-up fixes now have to go in new migrations.
 
 ### 4.1 Repo and tooling
 - [ ] pnpm workspace + Turborepo, root scripts (`dev`, `build`, `lint`, `typecheck`, `test`, `db:*`) — MF-T01 (was ticked, but not in the repo)
@@ -387,6 +393,8 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-08 | Suspended org: members see only a notice page; `has_permission()` false and tenant reads blocked except their own `organizations` row; storefront "temporarily unavailable". `read_only` / `past_due` behaviour comes with M6 billing |
 | 2026-11-08 | Staff: managers manage every role except owner; `max_staff` counts active members + pending invitations (not deactivated members); a duplicate pending invite is rejected ("use Resend") |
 | 2026-11-08 | HQ `list_tasks` shows teammates titles only, so every PR description must include its task's acceptance checklist |
+| 2026-11-08 | Review of PR #3: co-member profile reads (email, phone) limited to `staff.manage` holders; no client DELETE on `organization_members` (removal = deactivate); tables with no client access get an explicit restrictive `using (false)` policy so the RLS guard test stays strict |
+| 2026-11-08 | Seed inserts the reserved `demo` slug by disabling `organizations_slug_not_reserved` inside `seed.sql` (table owner only); no runtime bypass in the schema |
 | 2026-11-08 | Seed adds a second tenant, **Other Bistro** (`other-bistro`), as the cross-tenant target for isolation e2e tests. Seed package prices are placeholders until pricing is decided (`PROJECT.md` → Still open #1) |
 
 ### `instant = false` opt-outs
