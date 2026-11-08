@@ -1,0 +1,146 @@
+{
+  "project": {
+    "id": "alan-hq",
+    "name": "Alan-HQ",
+    "repo": "Alan-Alkalifa/Alan-HQ",
+    "hqPort": 7420,
+    "officeName": "Alan-HQ",
+    "path": ""
+  },
+  "team": [
+    {
+      "id": "alan",
+      "name": "ALAN",
+      "role": "Lead",
+      "isLead": true,
+      "cli": "claude",
+      "model": "opus",
+      "mode": "sandbox",
+      "color": "#ff77a8",
+      "skills": [],
+      "roleMd": "You are ALAN, the lead. You plan and assign work. You never write app code.",
+      "sandbox": {
+        "resources": {
+          "cpus": null,
+          "memoryGb": null
+        },
+        "allow": [
+          "supabase.com",
+          "*.supabase.co",
+          "posthog.com",
+          "us.i.posthog.com",
+          "eu.i.posthog.com",
+          "us-assets.i.posthog.com",
+          "docs.arcjet.com",
+          "decide.arcjet.com",
+          "nextjs.org"
+        ],
+        "deny": []
+      },
+      "workspacePath": null,
+      "mcp": []
+    },
+    {
+      "id": "davin",
+      "name": "DAVIN",
+      "role": "Developer",
+      "isLead": false,
+      "cli": "claude",
+      "model": "sonnet",
+      "mode": "sandbox",
+      "color": "#29adff",
+      "skills": [],
+      "roleMd": "You are DAVIN, a developer on the team. You build the tasks assigned to you.",
+      "sandbox": {
+        "resources": {
+          "cpus": null,
+          "memoryGb": null
+        },
+        "allow": [
+          "supabase.com",
+          "*.supabase.co",
+          "posthog.com",
+          "us.i.posthog.com",
+          "eu.i.posthog.com",
+          "us-assets.i.posthog.com",
+          "docs.arcjet.com",
+          "decide.arcjet.com",
+          "nextjs.org"
+        ],
+        "deny": []
+      },
+      "workspacePath": null,
+      "mcp": []
+    },
+    {
+      "id": "adit",
+      "name": "ADIT",
+      "role": "Developer",
+      "isLead": false,
+      "cli": "claude",
+      "model": "",
+      "mode": "sandbox",
+      "color": "#ffd23a",
+      "skills": [],
+      "roleMd": "You are ADIT, a developer on the team. You build the tasks assigned to you.",
+      "sandbox": {
+        "resources": {
+          "cpus": null,
+          "memoryGb": null
+        },
+        "allow": [
+          "supabase.com",
+          "*.supabase.co",
+          "posthog.com",
+          "us.i.posthog.com",
+          "eu.i.posthog.com",
+          "us-assets.i.posthog.com",
+          "docs.arcjet.com",
+          "decide.arcjet.com",
+          "nextjs.org"
+        ],
+        "deny": []
+      },
+      "workspacePath": null,
+      "mcp": []
+    }
+  ],
+  "workflow": {
+    "review": {
+      "enabled": true,
+      "tool": "coderabbit",
+      "command": ""
+    },
+    "merge": {
+      "by": "human"
+    },
+    "deploy": {
+      "enabled": false,
+      "tool": "instacloud",
+      "command": "",
+      "perAgentEnvironments": false
+    }
+  },
+  "stack": {
+    "frameworks": [
+      {
+        "id": "nextjs",
+        "where": "apps/web"
+      }
+    ],
+    "tools": {
+      "auth": {
+        "id": "supabase-auth"
+      },
+      "database": {
+        "id": "supabase"
+      },
+      "analytics": {
+        "id": "posthog"
+      },
+      "security": {
+        "id": "arcjet"
+      }
+    }
+  }
+}
