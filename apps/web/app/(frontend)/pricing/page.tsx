@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { PricingGrid } from "@/components/frontend/PricingGrid";
-import { formatMoney, getPublicPackages } from "../_data";
+import { formatMoney } from "@/lib/money";
+import { getPublicPackages } from "@/lib/public/packages";
 
 export const metadata: Metadata = {
   title: "Pricing · Restomate",

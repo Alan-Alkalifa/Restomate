@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { StorefrontHome, StorefrontUnavailable } from "@/components/storefront/StorefrontHome";
-import { brandingToCssVars, getStorefront } from "../_data";
+import { getStorefront } from "@/lib/storefront/get-storefront";
+import { brandingToCssVars } from "@/lib/theme";
 
 async function StorefrontContent({ params }: { params: PageProps<"/s/[tenant]">["params"] }) {
   const { tenant } = await params;
