@@ -13,7 +13,7 @@ select tests.mkinv('A', 'x1@iso.test', 'cashier', array['A1'], 'tok-valid-x1-000
 select tests.mkinv('A', 'x2@iso.test', 'cashier', array['A1'], 'tok-expired-x2-00000000', interval '-1 minute');
 select tests.mkinv('A', 'x3@iso.test', 'cashier', array['A1'], 'tok-revoked-x3-00000000', interval '7 days', true);
 select tests.mkinv('A', 'x4@iso.test', 'waiter',  array['A1','A2'], 'tok-valid-x4-0000000000');
-select tests.mkinv('A', 'x6@iso.test', 'kitchen', array[]::text[], 'tok-alllocs-x6-0000000');
+select tests.mkinv('A', 'x6@iso.test', 'kitchen', array['A1','A2'], 'tok-alllocs-x6-0000000');
 select tests.mkinv('A', 'x7@iso.test', 'cashier', array['A1'], 'tok-unconfirmed-x7-0000');
 select tests.mkinv('A', 'x8@iso.test', 'cashier', array['A1'], 'tok-accepted-x8-000000', interval '7 days', false, true);
 select tests.mkinv('A', 'oa@iso.test', 'cashier', array['A1'], 'tok-for-owner-oa-000000');
@@ -38,7 +38,7 @@ select is(tests.errmsg('x1', $$public.accept_invitation(upper('tok-valid-x1-0000
 select is(tests.errmsg('x1', $$public.accept_invitation(encode(extensions.digest('tok-valid-x1-0000000000','sha256'),'hex'))$$), 'INVALID_INVITATION|P0001', 'the stored hash is not a usable token');
 select is(tests.errmsg('anon', $$public.accept_invitation('tok-valid-x1-0000000000')$$), 'permission denied for function accept_invitation|42501', 'anon cannot call accept_invitation');
 select is((select count(*)::int from public.organization_members where user_id in (select uid from tests.actors where name in ('x2','x3','x5','x7','x8'))), 0, 'no failed attempt created a membership');
-select is((select count(*)::int from public.staff_invitations where accepted_at is not null), 1, 'failed attempts consumed nothing (only the pre-accepted fixture)');
+select is((select count(*)::int from public.staff_invitations where accepted_at is not null and organization_id in (select id from tests.ids where name in ('A','B'))), 1, 'failed attempts consumed nothing (only the pre-accepted fixture)');
 
 -- 2. a wrong user does not burn the token; the right user gets exactly the invited role/locations
 select is(tests.errmsg('x5', $$public.accept_invitation('tok-valid-x4-0000000000')$$), 'INVALID_INVITATION|P0001', 'x5 tries x4 token again');
@@ -56,8 +56,8 @@ select is((select count(*)::int from public.location_staff ls join public.organi
 select is(tests.scalar('x1', 'public.has_location_access({A2})'), 'false', 'x1 cannot reach A2');
 select is(tests.scalar('x1', 'public.has_permission({A}, ''staff.manage'')'), 'false', 'x1 has no staff.manage');
 select is((select count(*)::int from public.audit_logs where action = 'invitation.accepted' and actor_id = (select uid from tests.actors where name = 'x1')), 1, 'acceptance audited');
-select alike(tests.errmsg('x6', $$public.accept_invitation('tok-alllocs-x6-0000000')$$), 'OK:%', 'x6 accepts all-locations invitation');
-select is((select m.all_locations from public.organization_members m where m.user_id = (select uid from tests.actors where name = 'x6')), true, 'empty location list = all locations');
+select alike(tests.errmsg('x6', $$public.accept_invitation('tok-alllocs-x6-0000000')$$), 'OK:%', 'x6 accepts a two-location invitation');
+select is((select count(*)::int from public.location_staff ls join public.organization_members m on m.id = ls.member_id where m.user_id = (select uid from tests.actors where name = 'x6')), 2, 'x6 got exactly the two invited locations');
 
 -- suspended org: invitation unusable
 update public.organizations set status = 'suspended' where id = (select id from tests.ids where name = 'B');
@@ -93,8 +93,8 @@ select is(tests.scalar('oa', $$select count(*) from public.staff_invitations whe
 
 -- 5. staff_invitations: writes -----------------------------------------------------------------
 create function tests.ins_inv(org text, em text, role_key text, by_actor text, extra_cols text default '', extra_vals text default '') returns text language sql as $$
-  select format('insert into public.staff_invitations (organization_id, email, role_id, token_hash, invited_by%s) values ({%s}, %L, tests.role_id(%L,%L), %L, {u%s}%s)',
-                extra_cols, org, em, org, role_key, encode(extensions.digest(gen_random_uuid()::text, 'sha256'), 'hex'), by_actor, extra_vals)
+  select format('insert into public.staff_invitations (organization_id, email, role_id, token_hash, invited_by, location_ids%s) values ({%s}, %L, tests.role_id(%L,%L), %L, {u%s}, array[{%s1}]%s)',
+                extra_cols, org, em, org, role_key, encode(extensions.digest(gen_random_uuid()::text, 'sha256'), 'hex'), by_actor, org, extra_vals)
 $$;
 grant execute on function tests.ins_inv(text,text,text,text,text,text) to public;
 
@@ -112,8 +112,8 @@ select cmp_ok(tests.aff('ma', tests.ins_inv('A','n8@iso.test','cashier','ma', ',
 select cmp_ok(tests.aff('ma', tests.ins_inv('A','N1@ISO.TEST','cashier','ma')), '<=', 0::bigint, 'duplicate pending invite (case-insensitive) rejected');
 select cmp_ok(tests.aff('ma', tests.ins_inv('A','n1@iso.test','cashier','ma')), '<=', 0::bigint, 'duplicate pending invite rejected');
 select cmp_ok(tests.aff('ma', tests.ins_inv('A','not-an-email','cashier','ma')), '<=', 0::bigint, 'invalid email rejected');
-select cmp_ok(tests.aff('ma', format('insert into public.staff_invitations (organization_id, email, role_id, token_hash, invited_by) values ({A}, ''n9@iso.test'', tests.role_id(''B'',''cashier''), %L, {uma})', repeat('a',64))), '<=', 0::bigint, 'role from another org rejected');
-select cmp_ok(tests.aff('ma', format('insert into public.staff_invitations (organization_id, email, role_id, token_hash, invited_by) values ({A}, ''n9@iso.test'', tests.role_id(''A'',''cashier''), %L, {uma})', 'plain-text-token')), '<=', 0::bigint, 'token_hash must be a sha256 hex string');
+select cmp_ok(tests.aff('ma', format('insert into public.staff_invitations (organization_id, email, role_id, token_hash, invited_by, location_ids) values ({A}, ''n9@iso.test'', tests.role_id(''B'',''cashier''), %L, {uma}, array[{A1}])', repeat('a',64))), '<=', 0::bigint, 'role from another org rejected');
+select cmp_ok(tests.aff('ma', format('insert into public.staff_invitations (organization_id, email, role_id, token_hash, invited_by, location_ids) values ({A}, ''n9@iso.test'', tests.role_id(''A'',''cashier''), %L, {uma}, array[{A1}])', 'plain-text-token')), '<=', 0::bigint, 'token_hash must be a sha256 hex string');
 select cmp_ok(tests.aff('anon', tests.ins_inv('A','n5@iso.test','cashier','ma')), '<=', 0::bigint, 'anon cannot invite');
 -- updates
 select is(tests.aff('ma', 'update public.staff_invitations set revoked_at = now() where email = ''n1@iso.test'''), 1::bigint, 'manager revokes an invitation');
@@ -133,7 +133,7 @@ select is(tests.errmsg('x5', $$public.get_invitation_preview('x')$$), 'OK:NULL',
 
 -- 6. owner only via an owner invitation; reactivation through an invitation
 select tests.mkuser('x10');
-select tests.mkinv('A', 'x10@iso.test', 'owner', array[]::text[], 'tok-owner-x10-0000000');
+select tests.mkinv('A', 'x10@iso.test', 'owner', array['A1'], 'tok-owner-x10-0000000');
 select tests.mkinv('A', 'da@iso.test', 'waiter', array['A1'], 'tok-reactivate-da-0000');
 select alike(tests.errmsg('x10', $$public.accept_invitation('tok-owner-x10-0000000')$$), 'OK:%', 'an owner invitation yields an owner');
 select is((select r.key from public.organization_members m join public.roles r on r.id = m.role_id where m.user_id = (select uid from tests.actors where name = 'x10')), 'owner', 'x10 is owner only because invited as owner');

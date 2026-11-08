@@ -43,7 +43,7 @@ insert into public.platform_admins (user_id) select uid from tests.actors where 
 -- packages: pub (public+active), old (archived, A's plan), priv (active, not public)
 insert into public.packages (code, name, is_active, is_public, limits, features) values
   ('iso-pub',  'Iso Public',  true,  true,  '{"max_locations":3,"max_staff":25,"max_tables":100}', '{}'),
-  ('iso-old',  'Iso Archived', false, true, '{"max_locations":1,"max_staff":5,"max_tables":20}',  '{}'),
+  ('iso-old',  'Iso Archived', false, true, '{"max_locations":10,"max_staff":50,"max_tables":100}',  '{}'),
   ('iso-priv', 'Iso Private', true,  false, '{}', '{}');
 
 insert into public.organizations (id, slug, name) values
@@ -156,7 +156,9 @@ end $$;
 grant execute on function tests.cnt(text, text) to public;
 
 -- rows changed by a write; -1 = refused with 42501 (no grant / RLS check),
--- -2 = refused by a constraint (FK/check/unique). 0 = silently filtered by RLS.
+-- -2 = refused by a constraint (FK/check/unique), -3 = refused by a trigger (P0001).
+-- 0 = silently filtered by RLS. BEFORE ROW triggers run before INSERT RLS checks, so an
+-- insert can be refused by a trigger first.
 create function tests.aff(actor text, stmt text) returns bigint language plpgsql as $$
 declare n bigint;
 begin
@@ -167,6 +169,7 @@ begin
   exception
     when insufficient_privilege then n := -1;
     when foreign_key_violation or check_violation or unique_violation or not_null_violation then n := -2;
+    when raise_exception then n := -3;   -- refused by an integrity trigger (PLAN_LIMIT, LAST_OWNER, SYSTEM_ROLE, ...)
   end;
   reset role;
   return n;
