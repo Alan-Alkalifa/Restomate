@@ -37,7 +37,8 @@ describe("StaffInvite", () => {
   it("shows the accept link as button and text, plus expiry", async () => {
     const html = await render(<StaffInvite {...base} />);
     expect(html.split(base.acceptUrl).length - 1).toBeGreaterThanOrEqual(2);
-    expect(html).toContain("1 December 2026");
+    expect(html).toContain("1 December 2026")
+    expect(html).toContain("17:00");
   });
 
   it("has a readable plain-text version", async () => {
@@ -52,5 +53,16 @@ describe("StaffInvite", () => {
     );
     expect(html).toContain("All locations");
     expect(html).toContain("You&#x27;ve been invited");
+  });
+
+  it("formats expiry in the given time zone, crossing midnight", async () => {
+    // 20:00 UTC on 1 Dec is 03:00 on 2 Dec in Jakarta (UTC+7).
+    const props = { ...base, expiresAt: "2026-12-01T20:00:00.000Z" };
+    const jakarta = await render(<StaffInvite {...props} />);
+    expect(jakarta).toContain("2 December 2026");
+    expect(jakarta).toContain("03:00");
+    const utc = await render(<StaffInvite {...props} timeZone="UTC" />);
+    expect(utc).toContain("1 December 2026");
+    expect(utc).toContain("20:00");
   });
 });
