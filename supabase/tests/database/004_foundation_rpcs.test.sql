@@ -79,8 +79,8 @@ create temp table ctx as select
   (select l.id from public.locations l join public.organizations o on o.id=l.organization_id where o.slug='first-resto') as loc;
 grant select on ctx to public;
 
-insert into public.staff_invitations (organization_id, email, role_id, location_ids, token_hash, invited_by, expires_at, revoked_at)
-select org, e, cashier, case when e='invitee@x.test' then array[loc] else '{}'::uuid[] end,
+insert into public.staff_invitations (organization_id, email, role_id, location_ids, all_locations, token_hash, invited_by, expires_at, revoked_at)
+select org, e, cashier, case when e='invitee@x.test' then array[loc] else '{}'::uuid[] end, e<>'invitee@x.test',
        encode(extensions.digest(t, 'sha256'), 'hex'), '00000000-0000-0000-0000-0000000000c1',
        case when e='expired@x.test' then now() - interval '1 day' else now() + interval '7 days' end,
        case when e='revoked@x.test' then now() else null end

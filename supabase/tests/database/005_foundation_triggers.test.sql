@@ -47,13 +47,13 @@ reset role;
 -- max_staff: members + pending, non-expired invitations ------------------------------
 insert into public.organization_members (organization_id, user_id, role_id)
 values (pg_temp.org('cap-one'), pg_temp.uid(4), pg_temp.role('cap-one', 'cashier'));
-insert into public.staff_invitations (organization_id, email, role_id, token_hash, invited_by)
-values (pg_temp.org('cap-one'), 'pending@x.test', pg_temp.role('cap-one', 'cashier'), repeat('a', 64), pg_temp.uid(1));
-select throws_ok($$insert into public.staff_invitations (organization_id, email, role_id, token_hash) values (pg_temp.org('cap-one'), 'more@x.test', pg_temp.role('cap-one','cashier'), repeat('b', 64))$$, 'P0001', 'PLAN_LIMIT:max_staff', '1 owner + 1 member + 1 pending = cap; another invitation fails');
+insert into public.staff_invitations (organization_id, email, role_id, all_locations, token_hash, invited_by)
+values (pg_temp.org('cap-one'), 'pending@x.test', pg_temp.role('cap-one', 'cashier'), true, repeat('a', 64), pg_temp.uid(1));
+select throws_ok($$insert into public.staff_invitations (organization_id, email, role_id, all_locations, token_hash) values (pg_temp.org('cap-one'), 'more@x.test', pg_temp.role('cap-one','cashier'), true, repeat('b', 64))$$, 'P0001', 'PLAN_LIMIT:max_staff', '1 owner + 1 member + 1 pending = cap; another invitation fails');
 select throws_ok($$insert into public.organization_members (organization_id, user_id, role_id) values (pg_temp.org('cap-one'), pg_temp.uid(5), pg_temp.role('cap-one','cashier'))$$, 'P0001', 'PLAN_LIMIT:max_staff', 'pending invitation counts: member insert fails at cap');
 update public.staff_invitations set revoked_at = now() where email = 'pending@x.test';
 select lives_ok($$insert into public.organization_members (organization_id, user_id, role_id) values (pg_temp.org('cap-one'), pg_temp.uid(5), pg_temp.role('cap-one','cashier'))$$, 'revoked invitation does not count');
-select lives_ok($$insert into public.staff_invitations (organization_id, email, role_id, token_hash, invited_by, expires_at) values (pg_temp.org('cap-one'), 'old@x.test', pg_temp.role('cap-one','cashier'), repeat('c', 64), pg_temp.uid(1), now() - interval '1 day')$$, 'expired invitation does not count (3/3 active members)');
+select lives_ok($$insert into public.staff_invitations (organization_id, email, role_id, all_locations, token_hash, invited_by, expires_at) values (pg_temp.org('cap-one'), 'old@x.test', pg_temp.role('cap-one','cashier'), true, repeat('c', 64), pg_temp.uid(1), now() - interval '1 day')$$, 'expired invitation does not count (3/3 active members)');
 select throws_ok($$update public.staff_invitations set expires_at = now() + interval '1 day' where email = 'old@x.test'$$, 'P0001', 'PLAN_LIMIT:max_staff', 'un-expiring an invitation above the cap fails');
 select lives_ok($$insert into public.organization_members (organization_id, user_id, role_id, status) values (pg_temp.org('cap-one'), pg_temp.uid(6), pg_temp.role('cap-one', 'cashier'), 'deactivated')$$, 'deactivated members are not counted on insert');
 select throws_ok($$update public.organization_members set status = 'active' where user_id = pg_temp.uid(6)$$, 'P0001', 'PLAN_LIMIT:max_staff', 'reactivating a member above the cap fails');
@@ -61,8 +61,8 @@ select throws_ok($$update public.organization_members set status = 'active' wher
 -- accepting an invitation exactly at the cap succeeds (no double count) ------------------
 insert into public.organization_members (organization_id, user_id, role_id)
 values (pg_temp.org('cap-two'), pg_temp.uid(7), pg_temp.role('cap-two', 'cashier'));
-insert into public.staff_invitations (organization_id, email, role_id, token_hash, invited_by)
-values (pg_temp.org('cap-two'), 'u8@x.test', pg_temp.role('cap-two', 'cashier'),
+insert into public.staff_invitations (organization_id, email, role_id, all_locations, token_hash, invited_by)
+values (pg_temp.org('cap-two'), 'u8@x.test', pg_temp.role('cap-two', 'cashier'), true,
         encode(extensions.digest('tok-cap-two-0123456789abcdef', 'sha256'), 'hex'), pg_temp.uid(2));
 select pg_temp.act_as(pg_temp.uid(8), 'u8@x.test');
 select lives_ok($$select public.accept_invitation('tok-cap-two-0123456789abcdef')$$, 'accept at exactly the cap succeeds');
