@@ -154,7 +154,6 @@ declare
   v_pkg        public.packages%rowtype;
   v_org        uuid;
   v_owner_role uuid;
-  v_member     uuid;
 begin
   if v_uid is null then
     raise exception 'NOT_AUTHENTICATED' using errcode = 'P0001';
@@ -279,8 +278,7 @@ begin
   from public.roles r where r.organization_id = v_org and r.key = 'owner';
 
   insert into public.organization_members (organization_id, user_id, role_id, status, all_locations)
-  values (v_org, v_uid, v_owner_role, 'active', true)
-  returning id into v_member;
+  values (v_org, v_uid, v_owner_role, 'active', true);
 
   insert into public.locations (organization_id, name, address, city, phone, timezone, currency,
                                 tax_rate_bps, service_charge_bps, tax_on_service_charge)
@@ -323,7 +321,6 @@ declare
   v_inv        public.staff_invitations%rowtype;
   v_org        public.organizations%rowtype;
   v_member     uuid;
-  v_cur_role   uuid;
   v_cur_owner  boolean;
   v_all        boolean;
 begin
@@ -359,8 +356,8 @@ begin
 
   v_all := cardinality(v_inv.location_ids) = 0;
 
-  select m.id, m.role_id, (r.is_system and r.key = 'owner')
-    into v_member, v_cur_role, v_cur_owner
+  select m.id, (r.is_system and r.key = 'owner')
+    into v_member, v_cur_owner
   from public.organization_members m
   join public.roles r on r.id = m.role_id and r.organization_id = m.organization_id
   where m.organization_id = v_inv.organization_id and m.user_id = v_uid;
