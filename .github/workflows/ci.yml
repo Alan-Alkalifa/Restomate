@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Build (fake public env only; no secrets in CI)
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_APP_URL: https://app.example.test
+          NEXT_PUBLIC_ROOT_DOMAIN: example.test
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: fake-anon-key-for-ci-build-only
+          NEXT_PUBLIC_POSTHOG_KEY: phc_fake_ci_only
+          NEXT_PUBLIC_POSTHOG_HOST: https://posthog.example.test
+
+  database:
+    name: Supabase db reset + pgTAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0 # pinned; bump deliberately
+      # Only Postgres is needed: migrations, seed and pgTAP run against it.
+      - name: Start local database
+        run: |
+          supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: Reset (migrations + seed)
+        run: supabase db reset
+      - name: pgTAP (supabase/tests/**)
+        # Fails the job on any failed or missing test; do not add continue-on-error.
+        run: supabase test db 2>&1 | tee pgtap.log
+        shell: bash -o pipefail {0}
+      - name: Assert tests actually ran
+        run: grep -E "^Result[:] PASS" pgtap.log
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pgtap-log
+          path: pgtap.log
+          if-no-files-found: ignore
+
+  e2e:
+    name: Playwright (disabled until MF-T28)
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Enabled by MF-T28"
