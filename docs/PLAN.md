@@ -75,7 +75,7 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | Task | Owner | What | Needs | Merges after |
 |---|---|---|---|---|
 | MF-T01 | ADIT | Monorepo + Next.js 16 scaffold (§4.1) | — | — |
-| MF-T02 | DAVIN | `supabase init` + core migration: tenancy tables, helpers, RLS (§4.2a) | — | — |
+| MF-T02 ✅ | DAVIN | `supabase init` + core migration: tenancy tables, helpers, RLS (§4.2a) | — | — |
 | MF-T03 | DAVIN | `staff_invitations` + RPCs (§4.2b) | T02 | — |
 | MF-T04 | DAVIN | Triggers: plan limits, last owner, system roles (§4.2c) | T03 | — |
 | MF-T05 | DAVIN | Seed (Demo Restaurant, Other Bistro, packages) + `packages/db` types (§4.4) | T04, T01 | — |
@@ -98,7 +98,8 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T22 | DAVIN | Super admin data + `setOrgStatus` (§4.9) | T07, T03 | — |
 | MF-T23 | ADIT | Super admin shell + tenants list (§4.9) | T18 | T22 |
 | MF-T24 ✅ | REYKI | M0 test plan, isolation matrix, bug + PR report templates (PR #2) | — | — |
-| MF-T25 | REYKI | pgTAP isolation suite, core tables (§4.3) | — | T02 |
+| MF-T25 ✅ | REYKI | pgTAP isolation suite, core tables (§4.3) (PRs #4, #7) | — | T02 |
+| MF-T33 ✅ | DAVIN | Foundation review fixes: profile scope, no member DELETE, `platform_settings` deny policy, suspended-org membership, no self-escalation, fail-closed `has_permission` (PR #8) | T02 | — |
 | MF-T26 | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) | T25 | T03, T04 |
 | MF-T27 | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
 | MF-T28 | REYKI | Playwright setup + auth e2e | T01 | T13, T14 |
@@ -110,17 +111,20 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 **Critical path:** T02 → T03 → T04 → T05 → T07 → T13/T15/T17 (all DAVIN). DAVIN carries 15 of the 23 dev tasks, so backend lib work is the bottleneck; see the note in §15.
 
 **Progress (2026-11-08):**
-- ✅ MF-T24: test plan merged (PR #2). `docs/qa/M0-test-plan.md` is the reference for every M0 PR.
-- ⏳ MF-T02: core migration merged as WIP in PR #3 (before QA/review). Tests and fixes are in PR #5; the task stays open until PR #5 passes QA and review.
-- ⏳ MF-T25: RLS guard test merged in PR #4 (before review). It correctly fails on `main` until PR #5 adds the `platform_settings` deny policy. Per-table isolation tests in progress.
-- ⏳ MF-T01: scaffold (ADIT), not yet pushed.
+- ✅ MF-T24: test plan (PR #2).
+- ✅ MF-T02 + MF-T33: foundation schema, helpers and RLS (PRs #3, #5, #8). 16 tables, 9 helpers.
+- ✅ MF-T25: isolation suite (PRs #4, #7). 737 pgTAP assertions green (QA: REYKI on PR #8).
+- ⏳ MF-T01: scaffold (ADIT, `feat/m0-scaffold`). It unblocks T06, T09–T11, T14, T21, T27, T28.
+- ⏳ MF-T03: invitations + RPCs (DAVIN).
+- ⏳ MF-T26: abuse tests for invitations, RPCs and triggers (REYKI, written against the specs).
+- Known gap: REYKI's sandbox can't run the Supabase CLI stack, so QA uses a plain `supabase/postgres` container + psql. CI (MF-T27) will give a real `supabase test db` on every PR.
 
 **Merge rule:** please merge a PR only after ALAN comments "ready to merge" on it (after REYKI's QA report). PRs #3 and #4 were merged before that. No harm done, since nothing has been deployed, but the follow-up fixes now have to go in new migrations.
 
 ### 4.1 Repo and tooling
 - [ ] pnpm workspace + Turborepo, root scripts (`dev`, `build`, `lint`, `typecheck`, `test`, `db:*`) — MF-T01 (was ticked, but not in the repo)
 - [ ] Next.js app in `apps/web`; dependencies installed: `@supabase/ssr`, `@supabase/supabase-js`, `@arcjet/next`, `posthog-js`, `posthog-node`, `resend`, `@react-email/components`, `zod`, `server-only`, `vitest` — MF-T01 (was ticked, but not in the repo)
-- [ ] `supabase init`, auth config, Resend SMTP block, email templates — MF-T02 (was ticked, but not in the repo)
+- [x] `supabase init`, auth config, Resend SMTP block, email templates (MF-T02, PR #3)
 - [ ] Add `typecheck` and `test` scripts to `apps/web/package.json`
 - [ ] `packages/db` workspace package that exports the generated `Database` types
 - [ ] `.env.example` (matches `CLAUDE.md` → *Environment variables*); `lib/env.ts` validates it with Zod
@@ -131,22 +135,22 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 Conventions: text columns with `check` constraints instead of enums (easier to evolve), `created_at`/`updated_at` with a shared trigger, RLS on every table, and `(select auth.uid())` in policies for performance. Internal helper functions go in a non-exposed `private` schema.
 
 **Tables**
-- [ ] `profiles`: id = `auth.users.id`, full name, email copy, phone. Auto-created by a trigger on `auth.users`
-- [ ] `platform_admins`: user_id. Only the service role writes it
-- [ ] `packages`: code, name, monthly/yearly price (IDR), trial days, `limits` jsonb (`max_locations`, `max_staff`, `max_tables`), `features` text[], `is_active`, `is_public`, `is_default`
-- [ ] `organizations`: slug (3–40 characters, `[a-z0-9-]`), name, status (`active | suspended | past_due | read_only`), default currency `IDR`, timezone `Asia/Jakarta`, contact email
-- [ ] `reserved_slugs`: `www, app, admin, api, demo, mail, …`
-- [ ] `subscriptions`: org ↔ package, status (`trialing | active | past_due | canceled`), period, `trial_ends_at`, `current_period_end`
-- [ ] `locations`: org, name, address, city, phone, timezone, currency, `tax_rate_bps` (1000 = 10%), `service_charge_bps`, `tax_on_service_charge`, `is_active`
-- [ ] `permissions`: catalog of permission keys
-- [ ] `default_role_permissions`: template for the system roles
-- [ ] `roles` (per org, `is_system`), `role_permissions`
-- [ ] `organization_members`: org, user, role, status (`active | deactivated`), `all_locations`
-- [ ] `location_staff`: member ↔ location
+- [x] `profiles`: id = `auth.users.id`, full name, email copy, phone. Auto-created by a trigger on `auth.users`
+- [x] `platform_admins`: user_id. Only the service role writes it
+- [x] `packages`: code, name, monthly/yearly price (IDR), trial days, `limits` jsonb (`max_locations`, `max_staff`, `max_tables`), `features` text[], `is_active`, `is_public`, `is_default`
+- [x] `organizations`: slug (3–40 characters, `[a-z0-9-]`), name, status (`active | suspended | past_due | read_only`), default currency `IDR`, timezone `Asia/Jakarta`, contact email
+- [x] `reserved_slugs`: `www, app, admin, api, demo, mail, …`
+- [x] `subscriptions`: org ↔ package, status (`trialing | active | past_due | canceled`), period, `trial_ends_at`, `current_period_end`
+- [x] `locations`: org, name, address, city, phone, timezone, currency, `tax_rate_bps` (1000 = 10%), `service_charge_bps`, `tax_on_service_charge`, `is_active`
+- [x] `permissions`: catalog of permission keys
+- [x] `default_role_permissions`: template for the system roles
+- [x] `roles` (per org, `is_system`), `role_permissions`
+- [x] `organization_members`: org, user, role, status (`active | deactivated`), `all_locations`
+- [x] `location_staff`: member ↔ location
 - [ ] `staff_invitations`: org, email, role, location IDs, `token_hash` (SHA-256), `expires_at`, `accepted_at`, `revoked_at`
-- [ ] `org_branding`: logo, colors, font, theme jsonb
-- [ ] `audit_logs`: org (nullable for platform actions), actor, action, entity, metadata
-- [ ] `platform_settings`: key/value jsonb
+- [x] `org_branding`: logo, colors, font, theme jsonb
+- [x] `audit_logs`: org (nullable for platform actions), actor, action, entity, metadata
+- [x] `platform_settings`: key/value jsonb
 
 **Permission catalog (v1)**
 `menu.manage · orders.view · orders.create · orders.void · pos.use · pos.discount · kitchen.view · kitchen.update · tables.view · tables.manage · reservations.view · reservations.manage · payments.view · payments.take · payments.refund · customers.view · customers.manage · reports.view · staff.manage · locations.manage · settings.manage · settings.branding · billing.manage`
@@ -160,12 +164,12 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 | Kitchen | `kitchen.view, kitchen.update, orders.view` |
 
 **Helper functions** (security definer, `search_path = ''`, stable)
-- [ ] `is_platform_admin()`
-- [ ] `is_org_member(org)`
-- [ ] `has_permission(org, perm)`
-- [ ] `has_location_access(location)`
-- [ ] `my_permissions(org) → text[]` (for the UI)
-- [ ] `private.org_limit(org, key)`, `private.write_audit(...)`
+- [x] `is_platform_admin()`
+- [x] `is_org_member(org)`
+- [x] `has_permission(org, perm)`
+- [x] `has_location_access(location)`
+- [x] `my_permissions(org) → text[]` (for the UI)
+- [x] `private.org_limit(org, key)`, `private.write_audit(...)`
 
 **RPCs**
 - [ ] `is_slug_available(slug)`: anon + authenticated
@@ -178,15 +182,15 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [ ] Package limits on insert into `locations`, `organization_members` and `staff_invitations` (raise `PLAN_LIMIT:<key>`)
 - [ ] The last active owner of an organization cannot be removed, deactivated or demoted
 - [ ] System roles cannot be deleted, and the owner role's permissions cannot be edited
-- [ ] `updated_at` maintenance; email sync from `auth.users` to `profiles`
+- [x] `updated_at` maintenance; email sync from `auth.users` to `profiles`
 
 ### 4.3 Database tests
-- [ ] Use `supabase test db` (pgTAP) in `supabase/tests/`
-- [ ] Org A member cannot select/insert/update org B rows (every table)
-- [ ] Cashier cannot manage staff; Manager cannot manage billing
+- [x] Use `supabase test db` (pgTAP) in `supabase/tests/`
+- [x] Org A member cannot select/insert/update org B rows (every table)
+- [x] Cashier cannot manage staff; Manager cannot manage billing (MF-T25 write matrix + role permission sets)
 - [ ] Removing the last owner fails; limits trigger at the package cap
 - [ ] `accept_invitation` rejects a wrong email, an expired token and a reused token
-- [ ] Fallback when Docker isn't available: run migrations against plain Postgres 16 with a small `auth` schema shim (`auth.users`, `auth.uid()`, `auth.jwt()`, `anon`/`authenticated`/`service_role` roles)
+- [x] (Used by QA: `supabase/postgres` container + psql, see docs/qa) Fallback when Docker isn't available: run migrations against plain Postgres 16 with a small `auth` schema shim (`auth.users`, `auth.uid()`, `auth.jwt()`, `anon`/`authenticated`/`service_role` roles)
 
 ### 4.4 Seed (`supabase/seed.sql`, local only)
 - [ ] Packages Starter / Growth / Pro with placeholder IDR prices, published. Growth is the trial default
@@ -394,6 +398,7 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-08 | Staff: managers manage every role except owner; `max_staff` counts active members + pending invitations (not deactivated members); a duplicate pending invite is rejected ("use Resend") |
 | 2026-11-08 | HQ `list_tasks` shows teammates titles only, so every PR description must include its task's acceptance checklist |
 | 2026-11-08 | Review of PR #3: co-member profile reads (email, phone) limited to `staff.manage` holders; no client DELETE on `organization_members` (removal = deactivate); tables with no client access get an explicit restrictive `using (false)` policy so the RLS guard test stays strict |
+| 2026-11-08 | `has_permission` fails closed for keys not in `permissions` (owners included). Non-owners can't change their own membership or `location_staff` rows. Members of a suspended org read only the `organizations` row (S2/S3 findings from the MF-T25 suite, fixed in MF-T33) |
 | 2026-11-08 | Seed inserts the reserved `demo` slug by disabling `organizations_slug_not_reserved` inside `seed.sql` (table owner only); no runtime bypass in the schema |
 | 2026-11-08 | Seed adds a second tenant, **Other Bistro** (`other-bistro`), as the cross-tenant target for isolation e2e tests. Seed package prices are placeholders until pricing is decided (`PROJECT.md` → Still open #1) |
 
