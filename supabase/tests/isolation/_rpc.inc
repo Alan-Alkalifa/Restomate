@@ -23,6 +23,7 @@ begin
   insert into auth.users (id, email, aud, role, email_confirmed_at)
   values (v, nm || '@iso.test', 'authenticated', 'authenticated', case when confirmed then now() end);
   insert into tests.actors values (nm, v, 100 + (select count(*) from tests.actors)::int);
+  insert into tests.ids values ('u' || nm, v);
 end $$;
 
 -- invitation fixture (run as postgres). token_hash = sha256(token)
@@ -45,3 +46,18 @@ end $$;
 update auth.users set email_confirmed_at = now() where email like '%@iso.test';
 update public.packages set is_default = false where is_default;
 update public.packages set is_default = true, trial_days = 14 where code = 'iso-pub';
+
+-- run a statement as an actor (or as 'postgres' = no role switch); 'OK' or '<message>|<sqlstate>'
+create function tests.stmt(actor text, q text) returns text language plpgsql as $$
+declare v text := 'OK';
+begin
+  if actor = 'postgres' then reset role; else perform tests.become(actor); end if;
+  begin
+    execute tests.sub(q);
+  exception when others then
+    v := sqlerrm || '|' || sqlstate;
+  end;
+  reset role;
+  return v;
+end $$;
+grant execute on function tests.stmt(text, text) to public;
