@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+// These tests exercise host routing, not Arcjet: no key, so the shield is a no-op (the full production env is not set here).
+vi.mock("@/lib/env.server", () => ({ serverEnv: { ARCJET_KEY: undefined } }));
 vi.mock("@/lib/supabase/proxy", () => ({ updateSession: vi.fn(async () => new Response(null, { status: 200 })) }));
 
 const env = {
@@ -61,5 +64,23 @@ describe("proxy", () => {
   it("static assets pass straight through", async () => {
     const res = await run("production", "bistro.example.com", "/logo.png");
     expect(res.status).toBe(200);
+  });
+
+  it("arcjet shield: denied public/tenant requests get 403; app areas and the webhook are never shielded", async () => {
+    vi.resetModules();
+    const shieldRequest = vi.fn(async () => new Response("Forbidden", { status: 403 }));
+    vi.doMock("@/lib/arcjet", async () => ({ ...(await vi.importActual<object>("@/lib/arcjet")), shieldRequest }));
+    vi.stubEnv("NODE_ENV", "production");
+    for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
+    const { proxy, config } = await import("./proxy");
+    expect((await proxy(req("restomate.app", "/login"))).status).toBe(403);
+    expect((await proxy(req("demo.restomate.app", "/"))).status).toBe(403);
+    expect(shieldRequest).toHaveBeenCalledTimes(2);
+    shieldRequest.mockClear();
+    expect((await proxy(req("app.restomate.app", "/demo/pos"))).status).toBe(200);
+    expect(shieldRequest).not.toHaveBeenCalled();
+    // The DOKU webhook is excluded by the matcher, so the proxy never runs for it.
+    expect(new RegExp(`^${config.matcher[0]}$`).test("/api/webhooks/doku")).toBe(false);
+    vi.doUnmock("@/lib/arcjet");
   });
 });
