@@ -76,7 +76,7 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 |---|---|---|---|---|
 | MF-T01 | ADIT | Monorepo + Next.js 16 scaffold (§4.1) | — | — |
 | MF-T02 ✅ | DAVIN | `supabase init` + core migration: tenancy tables, helpers, RLS (§4.2a) | — | — |
-| MF-T03 | DAVIN | `staff_invitations` + RPCs (§4.2b) | T02 | — |
+| MF-T03 ✅ | DAVIN | `staff_invitations` + RPCs (§4.2b) | T02 | — |
 | MF-T04 | DAVIN | Triggers: plan limits, last owner, system roles (§4.2c) | T03 | — |
 | MF-T05 | DAVIN | Seed (Demo Restaurant, Other Bistro, packages) + `packages/db` types (§4.4) | T04, T01 | — |
 | MF-T06 | DAVIN | `env.ts`, `.env.example`, Supabase clients, `proxy.ts` (§4.5) | T01 | — |
@@ -99,6 +99,7 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 | MF-T23 | ADIT | Super admin shell + tenants list (§4.9) | T18 | T22 |
 | MF-T24 ✅ | REYKI | M0 test plan, isolation matrix, bug + PR report templates (PR #2) | — | — |
 | MF-T25 ✅ | REYKI | pgTAP isolation suite, core tables (§4.3) (PRs #4, #7) | — | T02 |
+| MF-T34 | DAVIN | Invitation + branding review fixes: explicit `all_locations`, `org_branding.logo_url` https-only, invite expiry cap (S3 ×3) | T03 | — |
 | MF-T33 ✅ | DAVIN | Foundation review fixes: profile scope, no member DELETE, `platform_settings` deny policy, suspended-org membership, no self-escalation, fail-closed `has_permission` (PR #8) | T02 | — |
 | MF-T26 | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) | T25 | T03, T04 |
 | MF-T27 | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
@@ -118,6 +119,8 @@ One task = one branch = one PR. Flow: developer PR → REYKI verifies → ALAN r
 - ⏳ MF-T03: invitations + RPCs (DAVIN).
 - ⏳ MF-T26: abuse tests for invitations, RPCs and triggers (REYKI, written against the specs).
 - Known gap: REYKI's sandbox can't run the Supabase CLI stack, so QA uses a plain `supabase/postgres` container + psql. CI (MF-T27) will give a real `supabase test db` on every PR.
+
+**Draft rule (from 2026-11-08):** every code PR is opened as a GitHub **draft**. PRs #3, #4, #10 and #11 were auto-merged 11–33 seconds after opening, before QA and review. ALAN marks a PR ready (`gh pr ready`) only after REYKI's QA report and ALAN's review. #11 put ADIT's untested WIP scaffold on `main`; MF-T01 stays open until a verified scaffold PR lands.
 
 **Merge rule:** please merge a PR only after ALAN comments "ready to merge" on it (after REYKI's QA report). PRs #3 and #4 were merged before that. No harm done, since nothing has been deployed, but the follow-up fixes now have to go in new migrations.
 
@@ -399,6 +402,7 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-08 | HQ `list_tasks` shows teammates titles only, so every PR description must include its task's acceptance checklist |
 | 2026-11-08 | Review of PR #3: co-member profile reads (email, phone) limited to `staff.manage` holders; no client DELETE on `organization_members` (removal = deactivate); tables with no client access get an explicit restrictive `using (false)` policy so the RLS guard test stays strict |
 | 2026-11-08 | `has_permission` fails closed for keys not in `permissions` (owners included). Non-owners can't change their own membership or `location_staff` rows. Members of a suspended org read only the `organizations` row (S2/S3 findings from the MF-T25 suite, fixed in MF-T33) |
+| 2026-11-08 | Invitations carry an explicit `all_locations` flag (an empty location list never means "all"). The onboarding logo goes in `org_branding.logo_url` (https only); `logo_path` is reserved for Storage objects (M6). Client-set invite expiry is capped at 30 days (MF-T34) |
 | 2026-11-08 | Seed inserts the reserved `demo` slug by disabling `organizations_slug_not_reserved` inside `seed.sql` (table owner only); no runtime bypass in the schema |
 | 2026-11-08 | Seed adds a second tenant, **Other Bistro** (`other-bistro`), as the cross-tenant target for isolation e2e tests. Seed package prices are placeholders until pricing is decided (`PROJECT.md` → Still open #1) |
 
