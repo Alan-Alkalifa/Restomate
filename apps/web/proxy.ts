@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isShieldedPath, shieldRequest } from "@/lib/arcjet";
 import { publicEnv } from "@/lib/env";
 import { parseTenantOverride, resolveHost, tenantPath } from "@/lib/routing/host";
 import { updateSession } from "@/lib/supabase/proxy";
 
 /**
  * Next 16 Proxy (formerly middleware). Optimistic only: tenant host routing + session refresh.
- * Authorization lives in the DAL (lib/auth) and RLS, never here. Arcjet is added in MF-T08.
+ * Authorization lives in the DAL (lib/auth) and RLS, never here. Arcjet shield (lib/arcjet) covers public + auth routes only.
  */
 const STATIC_ASSET = /\.(?:svg|png|jpe?g|gif|webp|avif|ico|css|js|map|txt|xml|woff2?)$/i;
 
@@ -15,6 +16,13 @@ export async function proxy(request: NextRequest) {
   // Only the Host header is trusted. X-Forwarded-Host is client-controllable and ignored.
   const surface = resolveHost(request.headers.get("host"), publicEnv.NEXT_PUBLIC_ROOT_DOMAIN, { allowLocalhost });
   const { pathname } = request.nextUrl;
+
+  // Arcjet shield on public and auth surfaces (tenant hosts, marketing, auth). Never on the DOKU webhook
+  // (excluded by the matcher below) and never on the authenticated app/admin areas.
+  if (surface.kind === "tenant" || isShieldedPath(pathname)) {
+    const denied = await shieldRequest(request);
+    if (denied) return denied as NextResponse;
+  }
 
   if (surface.kind === "tenant") {
     // Public storefront: no session refresh (guest ordering, cache friendly).
