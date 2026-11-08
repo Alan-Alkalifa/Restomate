@@ -17,6 +17,7 @@ Runs on every pull request and on push to `main`. One run per PR at a time (olde
 On failure the pgTAP log is uploaded as the `pgtap-log` artifact.
 
 Notes
+- Supabase CLI is pinned in the workflow (3.0.0); bump it deliberately.
 - Node version comes from `.nvmrc`, pnpm from `packageManager` in `package.json`.
 - A changed `package.json` without an updated `pnpm-lock.yaml` fails the install step (lockfile drift).
 - If a build needs a real env value, add a fake one to the workflow; never a real secret.
