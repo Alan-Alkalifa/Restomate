@@ -1,5 +1,5 @@
 begin;
-select plan(10);
+select plan(18);
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@a.test',now(),now()),
@@ -19,6 +19,17 @@ insert into public.organization_members (id, organization_id, user_id, role_id, 
   ('40000000-0000-0000-0000-0000000000a2','10000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-0000000000a2','20000000-0000-0000-0000-0000000000a2',true),
   ('40000000-0000-0000-0000-0000000000a3','10000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-0000000000a3','20000000-0000-0000-0000-0000000000a3',false);
 
+-- restricted manager (not all_locations) and a location, for self-escalation tests
+insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
+  ('00000000-0000-0000-0000-0000000000a5','00000000-0000-0000-0000-000000000000','authenticated','authenticated','rmanager@a.test',now(),now());
+insert into public.locations (id, organization_id, name) values
+  ('30000000-0000-0000-0000-0000000000a1','10000000-0000-0000-0000-00000000000a','Main'),
+  ('30000000-0000-0000-0000-0000000000a2','10000000-0000-0000-0000-00000000000a','Branch');
+insert into public.organization_members (id, organization_id, user_id, role_id, all_locations) values
+  ('40000000-0000-0000-0000-0000000000a5','10000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-0000000000a5','20000000-0000-0000-0000-0000000000a2',false);
+insert into public.location_staff (member_id, location_id, organization_id) values
+  ('40000000-0000-0000-0000-0000000000a5','30000000-0000-0000-0000-0000000000a1','10000000-0000-0000-0000-00000000000a');
+
 -- org B with its own owner (cross-org probe)
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
   ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@b.test',now(),now());
@@ -33,6 +44,23 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', uid, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
 end $$;
+create function pg_temp.set_all_locations(mid uuid) returns int language plpgsql as $$
+declare n int;
+begin
+  update public.organization_members set all_locations = true where id = mid;
+  get diagnostics n = row_count; return n;
+end $$;
+create function pg_temp.add_location_staff(mid uuid, loc uuid) returns void language plpgsql as $$
+begin
+  insert into public.location_staff (member_id, location_id, organization_id)
+  values (mid, loc, '10000000-0000-0000-0000-00000000000a');
+end $$;
+create function pg_temp.del_location_staff(mid uuid, loc uuid) returns int language plpgsql as $$
+declare n int;
+begin
+  delete from public.location_staff where member_id = mid and location_id = loc;
+  get diagnostics n = row_count; return n;
+end $$;
 create function pg_temp.try_delete_member() returns int language plpgsql as $$
 declare n int;
 begin
@@ -44,9 +72,9 @@ end $$;
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a3');
 select is((select count(*)::int from public.profiles), 1, 'cashier sees only own profile');
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a2');
-select is((select count(*)::int from public.profiles), 3, 'manager (staff.manage) sees all co-member profiles');
+select is((select count(*)::int from public.profiles), 4, 'manager (staff.manage) sees all co-member profiles');
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a1');
-select is((select count(*)::int from public.profiles), 3, 'owner sees all co-member profiles');
+select is((select count(*)::int from public.profiles), 4, 'owner sees all co-member profiles');
 
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from public.profiles), 1, 'owner of org B cannot read org A profiles');
@@ -56,6 +84,17 @@ select pg_temp.act_as('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$select pg_temp.try_delete_member()$$, '42501', null, 'owner cannot delete a member');
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a2');
 select throws_ok($$select pg_temp.try_delete_member()$$, '42501', null, 'manager cannot delete a member');
+
+-- self-escalation
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000a5');
+select is(pg_temp.set_all_locations('40000000-0000-0000-0000-0000000000a5'), 0, 'restricted manager cannot set own all_locations');
+select throws_ok($$select pg_temp.add_location_staff('40000000-0000-0000-0000-0000000000a5','30000000-0000-0000-0000-0000000000a2')$$, '42501', null, 'restricted manager cannot add own location_staff');
+select is(pg_temp.del_location_staff('40000000-0000-0000-0000-0000000000a5','30000000-0000-0000-0000-0000000000a1'), 0, 'restricted manager cannot remove own location_staff');
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000a2');
+select lives_ok($$select pg_temp.add_location_staff('40000000-0000-0000-0000-0000000000a5','30000000-0000-0000-0000-0000000000a2')$$, 'another staff.manage holder can add location_staff for them');
+select is(pg_temp.set_all_locations('40000000-0000-0000-0000-0000000000a5'), 1, 'another staff.manage holder can set all_locations for them');
+select pg_temp.act_as('00000000-0000-0000-0000-0000000000a1');
+select is(pg_temp.set_all_locations('40000000-0000-0000-0000-0000000000a1'), 1, 'owner can still change own membership');
 
 -- platform_settings explicit deny
 select ok(exists(select 1 from pg_policies where schemaname='public' and tablename='platform_settings' and policyname='platform_settings_no_client_access'), 'platform_settings has explicit deny policy');
@@ -68,6 +107,8 @@ select ok(not public.is_org_member('10000000-0000-0000-0000-00000000000a'), 'sus
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a3');
 select ok(not public.has_permission('10000000-0000-0000-0000-00000000000a','pos.use') and not public.has_location_access('30000000-0000-0000-0000-0000000000a1'), 'suspended: cashier has no permission or location access');
 select is(public.my_permissions('10000000-0000-0000-0000-00000000000a'), '{}'::text[], 'suspended: my_permissions empty');
+select is((select count(*)::int from public.organization_members where organization_id='10000000-0000-0000-0000-00000000000a'), 0, 'suspended: member reads 0 membership rows (own included)');
+select is((select status from public.organizations where id='10000000-0000-0000-0000-00000000000a'), 'suspended', 'suspended: organizations row still readable');
 
 select * from finish();
 rollback;
