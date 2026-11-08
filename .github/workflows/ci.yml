@@ -58,7 +58,7 @@ jobs:
         run: supabase test db 2>&1 | tee pgtap.log
         shell: bash -o pipefail {0}
       - name: Assert tests actually ran
-        run: grep -E "^Result: PASS" pgtap.log
+        run: grep -E "^Result[:] PASS" pgtap.log
       - name: Upload report on failure
         if: failure()
         uses: actions/upload-artifact@v4
