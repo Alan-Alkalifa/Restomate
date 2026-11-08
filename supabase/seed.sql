@@ -1,0 +1,172 @@
+-- Restomate LOCAL seed. Never run against a production project.
+-- Applied by `supabase db reset` after the migrations. Safe to re-run.
+--
+-- Contents: packages, platform admin, "Demo Restaurant" (slug `demo`) with its staff,
+-- and a second tenant "Other Bistro" (the cross-tenant target).
+-- All seed users share one LOCAL-ONLY password, documented in README.md.
+--
+-- Order matters with the integrity triggers: the subscription is created BEFORE
+-- locations and members (private.org_limit is 0 without a live subscription).
+
+-- ---------------------------------------------------------------------------
+-- Packages. PLACEHOLDER prices: pricing is an open product question.
+-- ---------------------------------------------------------------------------
+insert into public.packages
+  (code, name, description, price_monthly, price_yearly, trial_days, limits, features,
+   is_active, is_public, is_default, sort_order)
+values
+  -- PLACEHOLDER prices (IDR) below
+  ('starter', 'Starter', 'One location, small team',        100000, 1000000, 14,
+    '{"max_locations":1,"max_staff":5,"max_tables":20}',   '{}',                                                     true, true, false, 1),
+  ('growth',  'Growth',  'Multiple locations, QR ordering', 250000, 2500000, 14,
+    '{"max_locations":3,"max_staff":15,"max_tables":60}',  '{qr_ordering,reservations}',                             true, true, true,  2),
+  ('pro',     'Pro',     'Larger groups, custom domain',    500000, 5000000, 14,
+    '{"max_locations":10,"max_staff":100,"max_tables":500}', '{qr_ordering,reservations,custom_domain,advanced_reports}', true, true, false, 3)
+on conflict (code) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Auth users (confirmed emails, shared local-only password; see README.md)
+-- ---------------------------------------------------------------------------
+create temp table seed_users (id uuid, email text, full_name text);
+insert into seed_users values
+  ('a0000000-0000-4000-8000-000000000001', 'admin@restomate.local',   'Platform Admin'),
+  ('a0000000-0000-4000-8000-000000000011', 'owner@demo.local',        'Demo Owner'),
+  ('a0000000-0000-4000-8000-000000000012', 'manager@demo.local',      'Demo Manager'),
+  ('a0000000-0000-4000-8000-000000000013', 'cashier@demo.local',      'Demo Cashier'),
+  ('a0000000-0000-4000-8000-000000000014', 'waiter@demo.local',       'Demo Waiter'),
+  ('a0000000-0000-4000-8000-000000000015', 'kitchen@demo.local',      'Demo Kitchen'),
+  ('a0000000-0000-4000-8000-000000000021', 'owner@other.local',       'Other Owner');
+
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, phone_change, phone_change_token
+)
+select u.id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', u.email,
+       extensions.crypt('restomate-local-dev', extensions.gen_salt('bf')), now(),
+       '{"provider":"email","providers":["email"]}'::jsonb,
+       jsonb_build_object('full_name', u.full_name, 'email_verified', true),
+       now(), now(), '', '', '', '', '', '', '', ''
+from seed_users u
+on conflict (id) do nothing;
+
+insert into auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)
+select gen_random_uuid(), u.id, u.id::text, 'email',
+       jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true, 'phone_verified', false),
+       now(), now(), now()
+from seed_users u
+on conflict (provider_id, provider) do nothing;
+
+insert into public.platform_admins (user_id)
+values ('a0000000-0000-4000-8000-000000000001')
+on conflict (user_id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Tenants
+-- ---------------------------------------------------------------------------
+create function pg_temp.seed_system_roles(org uuid) returns void language sql as $$
+  insert into public.roles (organization_id, key, name, description, is_system)
+  select org, k.key, k.name, k.descr, true
+  from (values
+    ('owner',   'Owner',   'Full access, including billing'),
+    ('manager', 'Manager', 'Runs day-to-day operations'),
+    ('cashier', 'Cashier', 'Takes orders and payments'),
+    ('waiter',  'Waiter',  'Takes and serves orders'),
+    ('kitchen', 'Kitchen', 'Prepares orders')
+  ) as k (key, name, descr);
+  insert into public.role_permissions (role_id, organization_id, permission_key)
+  select r.id, org, d.permission_key
+  from public.roles r join public.default_role_permissions d on d.role_key = r.key
+  where r.organization_id = org;
+$$;
+
+create function pg_temp.seed_member(org uuid, uid uuid, role_key text, all_locs boolean) returns uuid language sql as $$
+  insert into public.organization_members (organization_id, user_id, role_id, status, all_locations)
+  select org, uid, r.id, 'active', all_locs
+  from public.roles r where r.organization_id = org and r.key = role_key
+  returning id;
+$$;
+
+do $seed$
+declare
+  demo   constant uuid := 'de000000-0000-4000-8000-000000000001';
+  other  constant uuid := 'de000000-0000-4000-8000-000000000002';
+  v_cashier_member uuid;
+  v_jaksel uuid;
+begin
+  -- ---- Demo Restaurant ------------------------------------------------------
+  if not exists (select 1 from public.organizations where id = demo) then
+    -- `demo` is a reserved slug; this seeded org owns it. Bypass only for this insert.
+    alter table public.organizations disable trigger organizations_slug_not_reserved;
+    insert into public.organizations (id, slug, name, currency, timezone, contact_email, created_by)
+    values (demo, 'demo', 'Demo Restaurant', 'IDR', 'Asia/Jakarta', 'owner@demo.local',
+            'a0000000-0000-4000-8000-000000000011');
+    alter table public.organizations enable trigger organizations_slug_not_reserved;
+
+    -- subscription first (limit triggers read it)
+    insert into public.subscriptions (organization_id, package_id, status, billing_period,
+                                      trial_ends_at, current_period_start, current_period_end)
+    select demo, p.id, 'trialing', 'monthly', now() + make_interval(days => p.trial_days),
+           now(), now() + make_interval(days => p.trial_days)
+    from public.packages p where p.code = 'growth';
+
+    perform pg_temp.seed_system_roles(demo);
+
+    insert into public.locations (id, organization_id, name, address, city, phone, timezone, currency,
+                                  tax_rate_bps, service_charge_bps, tax_on_service_charge)
+    values
+      ('de000000-0000-4000-8000-0000000000a1', demo, 'Jakarta Selatan', 'Jl. Senopati No. 10', 'Jakarta Selatan',
+       '+62 21 5550 0101', 'Asia/Jakarta', 'IDR', 1000, 500, true),
+      ('de000000-0000-4000-8000-0000000000a2', demo, 'Bandung', 'Jl. Braga No. 25', 'Bandung',
+       '+62 22 5550 0202', 'Asia/Jakarta', 'IDR', 1000, 500, true);
+    v_jaksel := 'de000000-0000-4000-8000-0000000000a1';
+
+    perform pg_temp.seed_member(demo, 'a0000000-0000-4000-8000-000000000011', 'owner',   true);
+    perform pg_temp.seed_member(demo, 'a0000000-0000-4000-8000-000000000012', 'manager', true);
+    v_cashier_member := pg_temp.seed_member(demo, 'a0000000-0000-4000-8000-000000000013', 'cashier', false);
+    perform pg_temp.seed_member(demo, 'a0000000-0000-4000-8000-000000000014', 'waiter',  true);
+    perform pg_temp.seed_member(demo, 'a0000000-0000-4000-8000-000000000015', 'kitchen', true);
+
+    -- the cashier works at Jakarta Selatan only
+    insert into public.location_staff (member_id, location_id, organization_id)
+    values (v_cashier_member, v_jaksel, demo);
+
+    insert into public.org_branding (organization_id, primary_color, secondary_color, font, theme)
+    values (demo, '#c2410c', '#1c1917', 'Inter', '{"radius":"md"}');
+
+    perform private.write_audit(demo, 'a0000000-0000-4000-8000-000000000011', 'organization.seeded',
+                                'organization', demo::text, '{"seed":true}');
+  end if;
+
+  -- ---- Other Bistro (cross-tenant target) -------------------------------------
+  if not exists (select 1 from public.organizations where id = other) then
+    insert into public.organizations (id, slug, name, currency, timezone, contact_email, created_by)
+    values (other, 'other-bistro', 'Other Bistro', 'IDR', 'Asia/Jakarta', 'owner@other.local',
+            'a0000000-0000-4000-8000-000000000021');
+
+    insert into public.subscriptions (organization_id, package_id, status, billing_period,
+                                      trial_ends_at, current_period_start, current_period_end)
+    select other, p.id, 'trialing', 'monthly', now() + make_interval(days => p.trial_days),
+           now(), now() + make_interval(days => p.trial_days)
+    from public.packages p where p.code = 'starter';
+
+    perform pg_temp.seed_system_roles(other);
+
+    insert into public.locations (id, organization_id, name, address, city, timezone, currency,
+                                  tax_rate_bps, service_charge_bps, tax_on_service_charge)
+    values ('de000000-0000-4000-8000-0000000000b1', other, 'Bistro Main', 'Jl. Tebet Raya No. 5', 'Jakarta Selatan',
+            'Asia/Jakarta', 'IDR', 1000, 0, true);
+
+    perform pg_temp.seed_member(other, 'a0000000-0000-4000-8000-000000000021', 'owner', true);
+
+    insert into public.org_branding (organization_id, primary_color, secondary_color, font, theme)
+    values (other, '#0f766e', '#042f2e', 'Inter', '{}');
+
+    perform private.write_audit(other, 'a0000000-0000-4000-8000-000000000021', 'organization.seeded',
+                                'organization', other::text, '{"seed":true}');
+  end if;
+end
+$seed$;
+
+drop table seed_users;
