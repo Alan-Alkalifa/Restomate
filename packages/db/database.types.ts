@@ -369,6 +369,9 @@ isOneToOne: false
 "get_invitation_preview":
 { Args: { "token": string }; Returns: Json
                            },
+"get_org_package":
+{ Args: { "org": string }; Returns: Json
+                           },
 "get_storefront":
 { Args: { "slug": string }; Returns: Json
                            },
