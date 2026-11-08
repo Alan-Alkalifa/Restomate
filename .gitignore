@@ -1,0 +1,25 @@
+node_modules
+.next
+out
+build
+coverage
+.turbo
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+*.pem
+.vercel
+
+# env: never commit, except the template
+.env*
+!.env.example
+
+# supabase
+supabase/.temp
+
+# playwright
+playwright-report
+test-results
+
+npm-debug.log*
+.pnpm-debug.log*
