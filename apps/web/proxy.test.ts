@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// These tests exercise host routing, not Arcjet: no key, so the shield is a no-op (the full production env is not set here).
+vi.mock("@/lib/env.server", () => ({ serverEnv: { ARCJET_KEY: undefined } }));
 vi.mock("@/lib/supabase/proxy", () => ({ updateSession: vi.fn(async () => new Response(null, { status: 200 })) }));
 
 const env = {

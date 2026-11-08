@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// Stand-in for the validated env: like the real one, it throws in production when the key is missing.
+vi.mock("@/lib/env.server", () => ({
+  serverEnv: {
+    get ARCJET_KEY() {
+      const k = process.env.ARCJET_KEY;
+      if (!k && process.env.NODE_ENV === "production") throw new Error("Invalid environment: ARCJET_KEY: missing");
+      return k || undefined;
+    },
+  },
+}));
 
 const calls = { arcjet: [] as unknown[], rules: [] as unknown[] };
 const protectFn = vi.fn();
@@ -104,6 +114,16 @@ describe("protect", () => {
     expect(await m.protect(m.ajAuth)).toEqual({ allowed: true });
     protectFn.mockRejectedValueOnce(new Error("network"));
     expect(await m.protect(m.ajAuth)).toEqual({ allowed: true });
+  });
+});
+
+describe("production misconfiguration", () => {
+  it("fails fast when ARCJET_KEY is missing in production (no silent allow)", async () => {
+    vi.stubEnv("ARCJET_KEY", "");
+    vi.stubEnv("NODE_ENV", "production");
+    const m = await load();
+    await expect(m.protect(m.ajAuth)).rejects.toThrow(/ARCJET_KEY/);
+    await expect(m.shieldRequest({})).rejects.toThrow(/ARCJET_KEY/);
   });
 });
 

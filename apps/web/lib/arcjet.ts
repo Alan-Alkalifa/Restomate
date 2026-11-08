@@ -1,5 +1,6 @@
 import "server-only";
 
+import { serverEnv } from "@/lib/env.server";
 import arcjet, {
   detectBot,
   request as arcjetRequest,
@@ -16,8 +17,10 @@ import arcjet, {
  * rate limit (and email validation for signup).
  *
  * - Mode: DRY_RUN outside production (decisions are logged, never enforced), LIVE in production.
- * - ARCJET_KEY missing: `protect()` returns `{ allowed: true }` and logs once, so local dev and CI
- *   run without the key. (ARCJET_KEY is required in production by lib/env.server.ts.)
+ * - ARCJET_KEY missing outside production: `protect()` returns `{ allowed: true }` and logs once, so
+ *   local dev and CI run without the key. In production the key is read through the validated env
+ *   (`serverEnv`), which throws when it is missing: a misconfiguration fails fast instead of silently
+ *   running unprotected.
  * - Arcjet fails open on its own errors by design; an errored decision is treated as allowed.
  * - Never exclude-by-accident: the DOKU webhook is skipped in proxy.ts and never calls protect().
  */
@@ -39,7 +42,7 @@ export const ajAuth: ArcjetPreset = { name: "auth", limit: { interval: "1m", max
 export const ajSignup: ArcjetPreset = { name: "signup", limit: { interval: "10m", max: 5 }, validatesEmail: true };
 /** storefront / reservation / feedback forms */
 export const ajPublicForm: ArcjetPreset = { name: "publicForm", limit: { interval: "1m", max: 20 }, validatesEmail: false };
-/** probe endpoints (checkSlug, getInvitationPreview): tighter, they leak existence */
+/** probe endpoints (checkSlug, getInvitationPreview): they leak existence, but checkSlug runs per debounced keystroke, so 20/min (not tighter than auth) */
 export const ajProbe: ArcjetPreset = { name: "probe", limit: { interval: "1m", max: 20 }, validatesEmail: false };
 
 const mode = () => (process.env.NODE_ENV === "production" ? "LIVE" : "DRY_RUN") as "LIVE" | "DRY_RUN";
@@ -58,7 +61,8 @@ let baseInstance: WithRule | null | undefined;
 /** Shared base: shield only. null when ARCJET_KEY is unset. */
 function base(): WithRule | null {
   if (baseInstance !== undefined) return baseInstance;
-  const key = process.env.ARCJET_KEY;
+  // Production: validated env (throws if ARCJET_KEY is missing). Elsewhere: optional, so dev needs no other vars.
+  const key = process.env.NODE_ENV === "production" ? serverEnv.ARCJET_KEY : process.env.ARCJET_KEY;
   if (!key) {
     warnOnce("ARCJET_KEY is not set; requests are not protected by Arcjet.");
     return (baseInstance = null);
