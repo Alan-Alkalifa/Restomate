@@ -2,7 +2,7 @@
 begin;
 \ir _helpers.inc
 \ir _rpc.inc
-select plan(117);
+select plan(118);
 
 select tests.mkuser('y1'); select tests.mkuser('y2'); select tests.mkuser('y3'); select tests.mkuser('y4');
 select tests.mkuser('y5'); select tests.mkuser('y6', false);
@@ -154,6 +154,7 @@ select is((select status from public.organizations where slug = 'iso-org-a'), 's
 select is((select count(*)::int from public.audit_logs where action = 'organization.status_changed' and organization_id = (select id from tests.ids where name = 'A')), 3, 'admin_set_org_status: repeated suspend wrote no audit');
 select is(tests.scalar('padmin', $$public.admin_set_org_status({A}, 'active', repeat('r', 500))$$), 'true', 'admin_set_org_status: 500-char reason accepted');
 select is((select count(*)::int from public.audit_logs where action = 'organization.status_changed' and organization_id = (select id from tests.ids where name = 'A')), 4, 'admin_set_org_status: audit rows after boundary reasons');
+select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', repeat('r', 501))$$), 'INVALID_REASON|P0001', 'admin_set_org_status: 501-char reason rejected next to the 500 accept');
 
 select * from finish();
 rollback;
