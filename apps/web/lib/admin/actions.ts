@@ -8,10 +8,23 @@ import { createClient } from "@/lib/supabase/server";
 import { callAdminListTenants, toRpcArgs } from "./tenants";
 import type { ActionResult } from "@/lib/auth/schemas";
 
+// Same character class as admin_set_org_status in SQL: \s, NBSP, Unicode spaces and zero-width characters.
+const WS = "[\\s\\u00a0\\u1680\\u2000-\\u200f\\u2028\\u2029\\u202f\\u205f\\u2060\\u3000\\ufeff]";
+const stripEdges = (s: string) => s.replace(new RegExp(`^${WS}+|${WS}+$`, "gu"), "");
+const visibleLength = (s: string) => s.replace(new RegExp(`${WS}+`, "gu"), "").length;
+
 const setOrgStatusSchema = z.object({
   orgId: z.uuid(),
   status: z.enum(["active", "suspended"]),
-  reason: z.string().trim().min(5, "Enter at least 5 characters.").max(500, "Keep it under 500 characters."),
+  reason: z
+    .string()
+    .transform(stripEdges)
+    .pipe(
+      z
+        .string()
+        .max(500, "Keep it under 500 characters.")
+        .refine((s) => visibleLength(s) >= 5, "Enter at least 5 characters."),
+    ),
 });
 
 /**
