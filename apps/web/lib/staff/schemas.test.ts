@@ -37,6 +37,22 @@ describe("other schemas", () => {
     expect(parseForm(changeRoleSchema, form([["memberId", U1], ["roleId", U2]])).success).toBe(true);
     expect(parseForm(changeRoleSchema, form([["memberId", U1]])).success).toBe(false);
   });
+  it("missing allLocations means false (unchecked checkbox)", () => {
+    const r = parseForm(inviteStaffSchema, form([["email", "a@b.test"], ["roleId", U1], ["locationIds", U1]]), ["locationIds"]);
+    expect(r.success && r.data).toMatchObject({ allLocations: false, locationIds: [U1] });
+    const s = parseForm(setLocationsSchema, form([["memberId", U1], ["locationIds", U2]]), ["locationIds"]);
+    expect(s.success && s.data).toMatchObject({ allLocations: false, locationIds: [U2] });
+  });
+  it("missing allLocations and no locationIds -> locationIds error", () => {
+    const r = parseForm(inviteStaffSchema, form([["email", "a@b.test"], ["roleId", U1]]), ["locationIds"]);
+    expect(!r.success && r.error.issues.map((i) => i.path[0])).toEqual(["locationIds"]);
+    const s = parseForm(setLocationsSchema, form([["memberId", U1]]), ["locationIds"]);
+    expect(s.success).toBe(false);
+  });
+  it("allLocations=true selects all locations", () => {
+    const s = parseForm(setLocationsSchema, form([["memberId", U1], ["allLocations", "true"]]), ["locationIds"]);
+    expect(s.success && s.data).toMatchObject({ allLocations: true, locationIds: [] });
+  });
   it("setLocations enforces scope", () => {
     expect(parseForm(setLocationsSchema, form([["memberId", U1], ["allLocations", "false"]]), ["locationIds"]).success).toBe(false);
   });
