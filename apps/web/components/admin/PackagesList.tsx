@@ -47,7 +47,8 @@ export function PackagesList({ packages, archive, setDefault }: { packages: Admi
             <div className="flex flex-wrap items-start gap-2">
               <Link href={`/admin/packages/${p.id}`} className="flex min-h-12 items-center rounded-lg px-3 text-sm font-medium ring-1 ring-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">Edit</Link>
               {p.isActive && !p.isDefault ? <SetDefaultButton action={setDefault} packageId={p.id} /> : null}
-              <ArchiveDialog action={archive} packageId={p.id} name={p.name} restore={!p.isActive} />
+              {/* The default plan cannot be archived: set another default first. */}
+              {p.isDefault ? null : <ArchiveDialog action={archive} packageId={p.id} name={p.name} restore={!p.isActive} />}
             </div>
           </article>
         </li>

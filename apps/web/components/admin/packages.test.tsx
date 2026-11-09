@@ -6,7 +6,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} 
 
 import { PackageForm } from "./PackageForm";
 import { PackagesList } from "./PackagesList";
-import { failureMessage, fromMinorUnits, toMinorUnitsString } from "./package-form-utils";
+import { failureMessage, fromMinorUnits, previewMoney, toMinorUnitsString } from "./package-form-utils";
 import type { AdminPackage } from "@/lib/admin/packages";
 
 const noop = async () => ({ ok: true as const });
@@ -34,6 +34,35 @@ describe("price conversion", () => {
     expect(fromMinorUnits(250000, "IDR")).toBe("250000");
     expect(fromMinorUnits(1250, "USD")).toBe("12.50");
     expect(fromMinorUnits(5, "USD")).toBe("0.05");
+  });
+});
+
+describe("price conversion: ambiguous input is never guessed", () => {
+  it("accepts plain digits and correct thousand groups, dropping a trailing .00/,00", () => {
+    expect(toMinorUnitsString("25.000", "IDR")).toBe("25000");
+    expect(toMinorUnitsString("25,000", "IDR")).toBe("25000");
+    expect(toMinorUnitsString("1.250.000", "IDR")).toBe("1250000");
+    expect(toMinorUnitsString("25.000,00", "IDR")).toBe("25000");
+    expect(toMinorUnitsString("1,000.00", "IDR")).toBe("1000");
+  });
+  it("sends everything else raw so the server returns a field error", () => {
+    for (const bad of ["25.000,50", "2.50", "25.00.0", "1.2.3", "1,000.000,000", "1.000,000", "25 000", "1234.567", ".000", "25.0000"]) {
+      expect(toMinorUnitsString(bad, "IDR")).toBe(bad);
+    }
+  });
+  it("applies the same grouping rule to the USD whole part", () => {
+    expect(toMinorUnitsString("1,000.50", "USD")).toBe("100050");
+    expect(toMinorUnitsString("1.000,50", "USD")).toBe("100050");
+    expect(toMinorUnitsString("1,000", "USD")).toBe("100000");
+    expect(toMinorUnitsString("1,00,0.50", "USD")).toBe("1,00,0.50");
+    expect(toMinorUnitsString("12.345", "USD")).toBe("1234500");
+    expect(toMinorUnitsString("1 000.50", "USD")).toBe("1 000.50");
+  });
+  it("previews what will be saved", () => {
+    expect(previewMoney("25.000", "IDR")).toMatch(/25\.000/);
+    expect(previewMoney("25.000,00", "IDR")).toMatch(/25\.000$/);
+    expect(previewMoney("25.000,50", "IDR")).toBeNull();
+    expect(previewMoney("abc", "IDR")).toBeNull();
   });
 });
 

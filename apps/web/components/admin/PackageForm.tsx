@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { FormAlert } from "@/components/ui/form-alert";
 import { currencyExponent } from "@/lib/money";
-import { fromMinorUnits, failureMessage, toMinorUnitsString } from "./package-form-utils";
+import { fromMinorUnits, failureMessage, previewMoney, toMinorUnitsString } from "./package-form-utils";
 import {
   CURRENCIES, FEATURE_KEYS, FEATURE_LABELS, LIMIT_KEYS, LIMIT_LABELS,
   type FeatureKey, type LimitKey,
@@ -98,14 +98,25 @@ export function PackageForm({ action, pkg }: { action: AuthAction; pkg?: AdminPa
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
-        {(["priceMonthly", "priceYearly"] as const).map((k) => (
-          <div key={k}>
-            <Field name={`${k}_input`} label={`${k === "priceMonthly" ? "Monthly" : "Yearly"} price (${prefix})`} inputMode="decimal"
-              value={v[k]} onChange={(e) => set(k, e.target.value)} errors={fe(k)} hint={priceHint} autoComplete="off" required />
-            {/* The server parses and validates this; the visible field is only for typing. */}
-            <input type="hidden" name={k} value={toMinorUnitsString(v[k], v.currency)} />
-          </div>
-        ))}
+        {(["priceMonthly", "priceYearly"] as const).map((k) => {
+          const id = `field-${k}`;
+          const errs = fe(k);
+          const preview = v[k].trim() === "" ? null : previewMoney(v[k], v.currency);
+          return (
+            <div key={k} className="flex flex-col gap-1.5">
+              <label htmlFor={id} className="text-sm font-medium">{k === "priceMonthly" ? "Monthly" : "Yearly"} price ({prefix})</label>
+              {/* No name: only the hidden minor-units input below is submitted. The server parses and validates it. */}
+              <input id={id} inputMode="decimal" autoComplete="off" required value={v[k]} onChange={(e) => set(k, e.target.value)}
+                aria-invalid={errs?.length ? true : undefined} aria-describedby={`${id}-preview${errs?.length ? ` ${id}-error` : ""}`}
+                className="min-h-12 rounded-lg border border-neutral-400 bg-transparent px-3 text-base aria-[invalid=true]:border-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700" />
+              <input type="hidden" name={k} value={toMinorUnitsString(v[k], v.currency)} />
+              <p id={`${id}-preview`} aria-live="polite" className="text-xs text-neutral-600 dark:text-neutral-400">
+                {v[k].trim() === "" ? priceHint : preview ? `Saves as ${preview}` : "Can't read this amount. Use digits, e.g. 250000 or 250.000."}
+              </p>
+              {errs?.length ? <p id={`${id}-error`} className="text-sm text-red-700 dark:text-red-400">{errs.join(" ")}</p> : null}
+            </div>
+          );
+        })}
       </div>
       <p className="-mt-3 text-xs text-neutral-600 dark:text-neutral-400">Price changes apply to future invoices only.</p>
 

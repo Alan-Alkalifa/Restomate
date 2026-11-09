@@ -1,10 +1,20 @@
-import { currencyExponent } from "@/lib/money";
+import { currencyExponent, formatMoney } from "@/lib/money";
 import type { ActionResult } from "@/components/auth/types";
+
+/** Plain digits, or 1–3 digits followed by 3-digit groups that all use the same separator (. or ,). */
+function parseWhole(text: string): string | null {
+  if (/^\d+$/.test(text)) return text;
+  const m = /^(\d{1,3})((?:([.,])\d{3})(?:\3\d{3})*)$/.exec(text);
+  return m ? m[1] + m[2].replace(/[.,]/g, "") : null;
+}
+
+const stripZeros = (d: string) => d.replace(/^0+(?=\d)/, "");
 
 /**
  * Converts what the admin typed (Rp 250.000, or 12.50 for USD) into digits-only minor units for the
- * server to parse and validate. Returns the raw text when it cannot be read, so the server rejects it
- * with a field error. The result is never trusted: the server is the authority.
+ * server to parse and validate. Only plain digits or correct 3-digit thousand groups are converted
+ * (a trailing ,00 / .00 is dropped for whole-unit currencies). Anything ambiguous is returned raw so
+ * the server answers with a field error instead of saving a wrong amount. The server stays the authority.
  */
 export function toMinorUnitsString(input: string, currency: string): string {
   const raw = input.trim();
@@ -16,16 +26,24 @@ export function toMinorUnitsString(input: string, currency: string): string {
     return raw;
   }
   if (exp === 0) {
-    // Dots, commas and spaces are thousand separators for whole-unit currencies.
-    const digits = raw.replace(/[.,\s]/g, "");
-    return /^\d+$/.test(digits) ? digits.replace(/^0+(?=\d)/, "") : raw;
+    const whole = parseWhole(raw.replace(/[.,]00$/, ""));
+    return whole === null ? raw : stripZeros(whole);
   }
-  const m = /^(\d[\d.,\s]*?)(?:[.,](\d{1,2}))?$/.exec(raw);
-  if (!m) return raw;
-  const whole = m[1].replace(/[.,\s]/g, "");
-  const frac = (m[2] ?? "").padEnd(exp, "0");
-  if (!/^\d+$/.test(whole)) return raw;
-  return `${whole}${frac}`.replace(/^0+(?=\d)/, "");
+  const m = /^(.*?)(?:[.,](\d{1,2}))?$/.exec(raw);
+  const whole = m ? parseWhole(m[1]) : null;
+  if (!m || whole === null) return raw;
+  return stripZeros(whole + (m[2] ?? "").padEnd(exp, "0"));
+}
+
+/** "Rp 25.000" for what will be saved, or null when the text cannot be read as an amount. */
+export function previewMoney(input: string, currency: string): string | null {
+  const minor = toMinorUnitsString(input, currency);
+  if (!/^\d+$/.test(minor) || !Number.isSafeInteger(Number(minor))) return null;
+  try {
+    return formatMoney(Number(minor), currency);
+  } catch {
+    return null;
+  }
 }
 
 /** Prefill for the edit form: minor units back to what an admin would type. */
