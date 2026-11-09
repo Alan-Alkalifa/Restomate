@@ -424,6 +424,11 @@ isOneToOne: false
 "get_storefront":
 { Args: { "slug": string }; Returns: Json
                            },
+"get_table_qr_tokens":
+{ Args: { "location_id": string,"table_ids"?: (string)[] }; Returns: {
+              "area_name": string,"label": string,"qr_token": string,"table_id": string
+            }[]
+                           },
 "has_location_access":
 { Args: { "location": string }; Returns: boolean
                            },

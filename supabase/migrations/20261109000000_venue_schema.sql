@@ -118,6 +118,26 @@ $$;
 create trigger tables_enforce_limit before insert or update on public.tables
   for each row execute function private.enforce_table_limit();
 
+-- An active table cannot point at an inactive area (insert, reactivation, or moving it to an inactive area).
+create or replace function private.guard_table_area()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.is_active
+     and (tg_op = 'INSERT' or not old.is_active or new.area_id is distinct from old.area_id)
+     and not exists (select 1 from public.areas a where a.id = new.area_id and a.is_active) then
+    raise exception 'AREA_INACTIVE' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+-- named so it fires before tables_enforce_limit (triggers run alphabetically)
+create trigger tables_check_area before insert or update on public.tables
+  for each row execute function private.guard_table_area();
+
 -- An area that still has active tables cannot be deactivated.
 create or replace function private.guard_area_deactivate()
 returns trigger
@@ -235,7 +255,12 @@ create policy tables_update on public.tables
   with check (public.has_permission(organization_id, 'tables.manage') and public.has_location_access(location_id));
 
 -- Column grants: location_id/organization_id are insert-only; qr_token and qr_rotated_at are never client-writable.
-grant select on public.areas, public.tables to authenticated;
+grant select on public.areas to authenticated;
+-- qr_token is deliberately NOT selectable: only get_table_qr_tokens() (tables.manage) hands tokens out.
+-- Clients must therefore list columns; `select *` on public.tables is denied.
+grant select (id, organization_id, location_id, area_id, label, capacity, status, pos_x, pos_y, shape, is_active,
+              qr_rotated_at, created_at, updated_at)
+  on public.tables to authenticated;
 grant insert (organization_id, location_id, name, sort_order, is_active) on public.areas to authenticated;
 grant update (name, sort_order, is_active) on public.areas to authenticated;
 grant insert (organization_id, location_id, area_id, label, capacity, status, pos_x, pos_y, shape, is_active)
@@ -295,7 +320,38 @@ as $$
   limit 1;
 $$;
 
-revoke execute on function public.rotate_table_qr_token(uuid), public.resolve_table_qr(text) from public, anon, authenticated;
+-- get_table_qr_tokens(location_id, table_ids) -> tokens for active tables. The only way to read qr_token.
+create or replace function public.get_table_qr_tokens(location_id uuid, table_ids uuid[] default null)
+returns table (table_id uuid, label text, area_name text, qr_token text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_loc uuid := get_table_qr_tokens.location_id;
+  v_ids uuid[] := get_table_qr_tokens.table_ids;
+  v_org uuid;
+begin
+  select l.organization_id into v_org from public.locations l where l.id = v_loc;
+  -- Unknown location and no-permission look the same.
+  if v_org is null
+     or not public.has_permission(v_org, 'tables.manage')
+     or not public.has_location_access(v_loc) then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+  return query
+    select t.id, t.label, a.name, t.qr_token
+    from public.tables t
+    join public.areas a on a.id = t.area_id
+    where t.location_id = v_loc and t.is_active
+      and (v_ids is null or t.id = any (v_ids))
+    order by a.sort_order, a.name, t.label;
+end;
+$$;
+
+revoke execute on function public.rotate_table_qr_token(uuid), public.resolve_table_qr(text), public.get_table_qr_tokens(uuid, uuid[]) from public, anon, authenticated;
+grant execute on function public.get_table_qr_tokens(uuid, uuid[]) to authenticated;
 grant execute on function public.rotate_table_qr_token(uuid) to authenticated;
 grant execute on function public.resolve_table_qr(text) to anon, authenticated;
 -- private.* functions stay uncallable by clients (default privileges revoke execute).

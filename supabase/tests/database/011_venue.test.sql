@@ -1,6 +1,6 @@
 -- MVM-T01: areas, tables, QR tokens — isolation, permissions, integrity, limit, RPCs, audit.
 begin;
-select plan(79);
+select plan(95);
 
 insert into public.packages (code, name, limits) values ('t-ven', 'Venue limits', '{"max_tables":4}');
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, created_at, updated_at)
@@ -243,6 +243,41 @@ select is(pg_temp.audits('table.deactivated'), 1, 'audit: table.deactivated');
 select is(pg_temp.audits('table.qr_rotated'), 1, 'audit: table.qr_rotated');
 select is((select actor_id from public.audit_logs where action = 'table.qr_rotated'), pg_temp.uid(2), 'audit: rotation records the actor');
 select is((select count(*)::int from public.audit_logs where metadata::text like '%' || (select t from new_tok) || '%' or metadata::text like '%' || (select qr_token from old_tok) || '%'), 0, 'audit: token values are never logged');
+
+-- ---- get_table_qr_tokens: tokens are tables.manage-only -----------------------------------------------------------
+select pg_temp.act_as(pg_temp.uid(3));
+select throws_ok($$select qr_token from public.tables$$, '42501', null, 'cashier cannot select qr_token directly');
+select lives_ok($$select id, label, status from public.tables$$, 'cashier can still select the other table columns');
+select throws_ok(format($$select * from public.get_table_qr_tokens(%L)$$, pg_temp.loc('ven-a','L1')), '42501', 'FORBIDDEN', 'cashier cannot call get_table_qr_tokens');
+reset role;
+select pg_temp.act_as(pg_temp.uid(2));
+select throws_ok($$select qr_token from public.tables$$, '42501', null, 'even a manager cannot select qr_token directly');
+select throws_ok(format($$select * from public.get_table_qr_tokens(%L)$$, pg_temp.loc('ven-b','L1')), '42501', 'FORBIDDEN', 'manager A cannot read B''s tokens');
+select throws_ok($$select * from public.get_table_qr_tokens(gen_random_uuid())$$, '42501', 'FORBIDDEN', 'unknown location looks the same as forbidden');
+select ok((select count(*) from public.get_table_qr_tokens(pg_temp.loc('ven-a','L1'))) > 0
+  and (select bool_and(qr_token ~ '^[A-Za-z0-9_-]{32}$' and area_name is not null and label is not null) from public.get_table_qr_tokens(pg_temp.loc('ven-a','L1'))),
+  'manager gets tokens with label and area for the location');
+select is((select count(*)::int from public.get_table_qr_tokens(pg_temp.loc('ven-a','L1'), array[pg_temp.tbl('A1')])), 1, 'table_ids narrows the result');
+select is((select count(*)::int from public.get_table_qr_tokens(pg_temp.loc('ven-a','L1'), array[pg_temp.tbl('A3')])), 0, 'inactive tables are not returned');
+select is((select count(*)::int from public.get_table_qr_tokens(pg_temp.loc('ven-a','L1'), array[pg_temp.tbl('H1')])), 0, 'another org''s table id returns nothing');
+reset role;
+select pg_temp.act_as(pg_temp.uid(7));
+select throws_ok(format($$select * from public.get_table_qr_tokens(%L)$$, pg_temp.loc('ven-a','L1')), '42501', 'FORBIDDEN', 'manager scoped to L2 cannot read L1 tokens');
+reset role;
+set local role anon;
+select throws_ok(format($$select * from public.get_table_qr_tokens(%L)$$, pg_temp.loc('ven-a','L1')), '42501', null, 'anon cannot call get_table_qr_tokens');
+reset role;
+
+-- ---- AREA_INACTIVE: no active table in an inactive area -------------------------------------------------------------
+insert into public.areas (organization_id, location_id, name, is_active) values (pg_temp.org('ven-a'), pg_temp.loc('ven-a','L1'), 'Closed', false);
+select pg_temp.act_as(pg_temp.uid(2));
+select throws_ok(format($$insert into public.tables (organization_id, location_id, area_id, label, capacity) values (%L, %L, %L, 'C1', 2)$$,
+  pg_temp.org('ven-a'), pg_temp.loc('ven-a','L1'), pg_temp.area('Closed')), 'P0001', 'AREA_INACTIVE', 'cannot add an active table to an inactive area');
+select lives_ok(format($$insert into public.tables (organization_id, location_id, area_id, label, capacity, is_active) values (%L, %L, %L, 'C2', 2, false)$$,
+  pg_temp.org('ven-a'), pg_temp.loc('ven-a','L1'), pg_temp.area('Closed')), 'an inactive table may sit in an inactive area');
+select throws_ok($$update public.tables set is_active = true where label = 'C2'$$, 'P0001', 'AREA_INACTIVE', 'cannot reactivate a table whose area is inactive');
+select throws_ok(format($$update public.tables set area_id = %L where id = %L$$, pg_temp.area('Closed'), pg_temp.tbl('A1')), 'P0001', 'AREA_INACTIVE', 'cannot move an active table into an inactive area');
+reset role;
 
 select * from finish();
 rollback;
