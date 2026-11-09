@@ -23,7 +23,27 @@ export type Database = {
           }
         },"public": {
           Tables: {
-            "audit_logs": {
+            "areas": {
+                  Row: {
+                    "created_at": string,"id": string,"is_active": boolean,"location_id": string,"name": string,"organization_id": string,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"location_id": string,"name": string,"organization_id": string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"location_id"?: string,"name"?: string,"organization_id"?: string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "areas_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"audit_logs": {
                   Row: {
                     "action": string,"actor_id": string | null,"created_at": string,"entity_id": string | null,"entity_type": string | null,"id": number,"metadata": NonNullable<Json>,"organization_id": string | null
                   }
@@ -351,6 +371,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"tables": {
+                  Row: {
+                    "area_id": string,"capacity": number,"created_at": string,"id": string,"is_active": boolean,"label": string,"location_id": string,"organization_id": string,"pos_x": number | null,"pos_y": number | null,"qr_rotated_at": string | null,"qr_token": string,"shape": string,"status": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "area_id": string,"capacity": number,"created_at"?: string,"id"?: string,"is_active"?: boolean,"label": string,"location_id": string,"organization_id": string,"pos_x"?: number | null,"pos_y"?: number | null,"qr_rotated_at"?: string | null,"qr_token": string,"shape"?: string,"status"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "area_id"?: string,"capacity"?: number,"created_at"?: string,"id"?: string,"is_active"?: boolean,"label"?: string,"location_id"?: string,"organization_id"?: string,"pos_x"?: number | null,"pos_y"?: number | null,"qr_rotated_at"?: string | null,"qr_token"?: string,"shape"?: string,"status"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "tables_area_location_fk"
+      columns: ["area_id","location_id"]
+isOneToOne: false
+      referencedRelation: "areas"
+      referencedColumns: ["id","location_id"]
+    },{
+      foreignKeyName: "tables_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 }
           }
           Views: {
@@ -407,6 +453,14 @@ isOneToOne: false
                            },
 "my_permissions":
 { Args: { "org": string }; Returns: (string)[]
+                           },
+"resolve_table_qr":
+{ Args: { "token": string }; Returns: {
+              "label": string,"location_id": string,"org_slug": string,"table_id": string
+            }[]
+                           },
+"rotate_table_qr_token":
+{ Args: { "table_id": string }; Returns: string
                            },
 "set_member_locations":
 { Args: { "all_locations": boolean,"location_ids"?: (string)[],"member": string }; Returns: Json
