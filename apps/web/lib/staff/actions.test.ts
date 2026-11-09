@@ -109,6 +109,7 @@ describe("inviteStaff", () => {
     expect(arg).toMatchObject({ sendCount: 1, to: "new@x.test", replyTo: "hello@demo.test" });
     expect(arg.props.timeZone).toBe("Asia/Jakarta");
     expect(updateTag).toHaveBeenCalledWith(`org:${ORG}`);
+    expect(updateTag).toHaveBeenCalledWith(`setup-progress:${ORG}`);
     expect(capture).toHaveBeenCalledWith("staff_invited", expect.objectContaining({ organizationId: ORG }));
     expect(JSON.stringify(capture.mock.calls)).not.toContain("x.test");
   });
@@ -174,6 +175,7 @@ describe("resend / revoke", () => {
     results["staff_invitations.select"] = { data: { id: INV, role_id: ROLE_CASHIER } };
     expect(await revokeInvitation("demo", null, form([["invitationId", INV]]))).toEqual({ ok: true });
     expect(sent("staff_invitations.update")[0]!.payload).toHaveProperty("revoked_at");
+    expect(updateTag).toHaveBeenCalledWith(`setup-progress:${ORG}`);
   });
 });
 
@@ -187,6 +189,7 @@ describe("member changes", () => {
     expect(await changeMemberRole("demo", null, form([["memberId", MEMBER], ["roleId", ROLE_CASHIER]]))).toEqual({ ok: true });
     expect(updateTag).toHaveBeenCalledWith(`member:u-other:${ORG}`);
     expect(updateTag).toHaveBeenCalledWith(`org:${ORG}`);
+    expect(updateTag).toHaveBeenCalledWith(`setup-progress:${ORG}`);
   });
   it("cannot change your own role", async () => {
     member("user-self", "manager");
@@ -207,6 +210,7 @@ describe("member changes", () => {
     member("u-owner2", "owner");
     results["organization_members.update"] = { error: { message: "LAST_OWNER", code: "P0001" } };
     expect(await deactivateMember("demo", null, form([["memberId", MEMBER]]))).toMatchObject({ ok: false, code: "LAST_OWNER" });
+    expect(updateTag).not.toHaveBeenCalledWith(`setup-progress:${ORG}`); // a failed write refreshes nothing
     member("user-self", "owner");
     expect(await deactivateMember("demo", null, form([["memberId", SELF_MEMBER]]))).toMatchObject({ ok: false, code: "FORBIDDEN" });
   });
@@ -242,6 +246,7 @@ describe("acceptInvitation / preview", () => {
     rpc.mockResolvedValue({ data: { organization_id: ORG, slug: "demo" }, error: null });
     await expect(acceptInvitation(null, form([["token", "t".repeat(43)]]))).rejects.toMatchObject({ url: "/demo" });
     expect(updateTag).toHaveBeenCalledWith(`member:user-self:${ORG}`);
+    expect(updateTag).toHaveBeenCalledWith(`setup-progress:${ORG}`);
     expect(capture).toHaveBeenCalledWith("invitation_accepted", expect.objectContaining({ organizationId: ORG }));
   });
   it("any failure (wrong email, expired, revoked, reused) is the same generic error", async () => {

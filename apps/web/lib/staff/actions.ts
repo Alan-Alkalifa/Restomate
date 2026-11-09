@@ -7,7 +7,7 @@ import { ajProbe, protect } from "@/lib/arcjet";
 import { requireOrgContext, requirePermission, requireUser, type OrgContext } from "@/lib/auth/dal";
 import { publicEnv } from "@/lib/env";
 import type { ActionResult } from "@/lib/auth/schemas";
-import { memberTag, orgTag } from "@/lib/auth/tags";
+import { memberTag, orgTag, setupProgressTag } from "@/lib/auth/tags";
 import { sendStaffInvite } from "@/lib/email/staff-invite";
 import { EVENTS } from "@/lib/posthog/events";
 import { captureServer } from "@/lib/posthog/server";
@@ -66,6 +66,7 @@ async function loadMember(supabase: Supabase, orgId: string, memberId: string) {
 function bumpMember(userId: string, orgId: string) {
   updateTag(memberTag(userId, orgId));
   updateTag(orgTag(orgId));
+  updateTag(setupProgressTag(orgId)); // the staff step counts active members
 }
 
 async function queueInviteEmail(ctx: OrgContext, args: {
@@ -140,6 +141,7 @@ export const inviteStaff: StaffAction = async (orgSlug, _prev, formData) => {
   });
   captureServer(EVENTS.staffInvited, { distinctId: user.id, organizationId: orgId, properties: { role_key: role.key } });
   updateTag(orgTag(orgId));
+  updateTag(setupProgressTag(orgId)); // the staff step counts pending invitations
   return OK;
 };
 
@@ -171,6 +173,7 @@ export const resendInvitation: StaffAction = async (orgSlug, _prev, formData) =>
     roleName: role.name, locationNames: locs.map((l) => l.name), inviterName: await inviterName(supabase, user.id),
   });
   updateTag(orgTag(orgId));
+  updateTag(setupProgressTag(orgId)); // the staff step counts pending invitations
   return OK;
 };
 
@@ -190,6 +193,7 @@ export const revokeInvitation: StaffAction = async (orgSlug, _prev, formData) =>
     .eq("organization_id", orgId).eq("id", inv.id).is("accepted_at", null).is("revoked_at", null);
   if (error) return mapStaffError(error);
   updateTag(orgTag(orgId));
+  updateTag(setupProgressTag(orgId)); // the staff step counts pending invitations
   return OK;
 };
 
