@@ -10,6 +10,9 @@ export const EVENTS = {
   areaCreated: "area_created",
   tableCreated: "table_created",
   tableQrRotated: "table_qr_rotated",
+  menuItemCreated: "menu_item_created",
+  menuItemUpdated: "menu_item_updated",
+  menuItemSoldOutToggled: "menu_item_sold_out_toggled",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
