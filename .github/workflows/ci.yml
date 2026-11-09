@@ -68,12 +68,17 @@ jobs:
           version: 3.0.0
       - name: Supabase CLI is installed
         run: supabase --version
-      # Only Postgres is needed: migrations, seed and pgTAP run against it.
+      # Postgres plus storage-api: storage-api creates the `storage` schema, which the
+      # storage policy tests (e.g. migration 014_menu_images_storage) need (B1-T13).
       - name: Start local database
         run: |
-          supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+          supabase start -x gotrue,realtime,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
       - name: Reset (migrations + seed)
         run: supabase db reset
+      - name: Storage schema is present
+        run: |
+          docker ps --format '{{.Names}}	{{.Status}}' | grep storage
+          docker exec "$(docker ps --format '{{.Names}}' | grep '^supabase_db_')" psql -U postgres -tAc "select count(*) from storage.buckets"
       - name: pgTAP (supabase/tests/**)
         # Fails the job on any failed or missing test; do not add continue-on-error.
         run: supabase test db 2>&1 | tee pgtap.log
