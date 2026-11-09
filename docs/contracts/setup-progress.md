@@ -43,7 +43,7 @@ export function getSetupProgress(ctx: OrgContext): Promise<SetupProgress>;
 | `tables` | ≥ 1 **active** table in any active location | `{firstActiveLocationId}/tables` |
 | `menu` | ≥ 1 **available** menu item (`menu_items`, from MVM-T06). Until #73 merges, `false` | `menu` |
 | `staff` | ≥ 1 active member other than the owner(s), **or** ≥ 1 pending invitation | `staff` |
-| `branding` | `org_branding.logo_path` is set **or** `primary_color` is set and differs (case-insensitively) from the onboarding default `#0f766e` (`DEFAULT_PRIMARY` in `lib/theme.ts`) | `settings` |
+| `branding` | `org_branding.logo_url` (the https-only column onboarding writes) or `logo_path` (Storage uploads, later) is set **or** `primary_color` is set and differs (case-insensitively) from the onboarding default `#0f766e` (`DEFAULT_PRIMARY` in `lib/theme.ts`) | `settings` |
 
 The exact column names come from the migrations on `main`. Because the reads go through RLS, a step is judged on what the **user can see**: a user limited to some locations sees only those locations and their tables, and pending invitations are visible only with `staff.manage` (without it, only active members count for the staff step). If a rule can't be expressed with existing columns, DAVIN says so before implementing it, and the table is updated here first.
 
