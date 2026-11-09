@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { gunzipSync } from "node:zlib";
 import { extractLink, waitForEmail } from "./support/mailpit";
-import { auditActions, invitationsFor, locationsOf, memberCount, memberOf, patchRest, roleIdOf } from "./support/db";
+import { auditActions, invitationsFor, locationsOf, memberCount, memberOf, patchRest, rest, roleIdOf } from "./support/db";
 import { open, pageText, sidebarLabels, signInAs } from "./support/flows";
 import { inviteUrlOf, waitForSentMail } from "./support/resend-mock";
 import { SEED_PASSWORD, seedUsers, uniqueEmail } from "./support/users";
@@ -99,15 +99,35 @@ test.describe("Cashier lifecycle (exit criterion 2)", () => {
     await ctx.close();
   });
 
-  // Reported as an S2 by QA: the UI cannot send a location-scoped invitation because an unchecked "All locations"
-  // checkbox submits no field and the schema requires "true"|"false"; the dialog also hides field errors.
-  // Un-fixme when fixed.
-  test.fixme("owner invites a Cashier for ONE location through the invite dialog (BUG: allLocations validation, silent failure)", async ({ page }) => {
+  // Was an S2 (B1-T09 + B1-T10): an unchecked "All locations" box sent no field and the dialog hid the error.
+  test("owner invites a Cashier for ONE location through the invite dialog", async ({ page }) => {
     await signInAs(page, seedUsers.owner);
     const email = uniqueEmail("ui-one-loc");
     const [first] = await locationsOf("demo");
     await ownerInvites(page, email, "Cashier", { locationName: first.name });
     await expect.poll(async () => (await invitationsFor("demo", email)).length, { timeout: 30_000 }).toBe(1);
+    const [inv] = await rest<{ all_locations: boolean; location_ids: string[] }>(
+      `staff_invitations?email=eq.${encodeURIComponent(email)}&select=all_locations,location_ids`,
+    );
+    expect(inv.all_locations).toBe(false);
+    expect(inv.location_ids).toEqual([first.id]);
+  });
+
+  test("uncheck All locations without choosing one: a visible message, the typed email and role are kept, nothing is created", async ({ page }) => {
+    await signInAs(page, seedUsers.owner);
+    await open(page, "/demo/staff");
+    const email = uniqueEmail("ui-no-loc");
+    await page.getByRole("button", { name: "Invite staff" }).click();
+    const dialog = page.locator("dialog[open]");
+    await dialog.getByLabel("Email").fill(email);
+    await dialog.getByLabel("Role").selectOption({ label: "Kitchen" });
+    await dialog.getByLabel("All locations").uncheck();
+    await dialog.getByRole("button", { name: "Send invitation" }).click();
+    await expect(dialog.getByText(/choose at least one location/i).first()).toBeVisible();
+    await expect(dialog.getByLabel("Email")).toHaveValue(email);
+    await expect(dialog.getByLabel("Role")).toHaveValue(await roleIdOf("demo", "kitchen"));
+    await new Promise((r) => setTimeout(r, 2000));
+    expect(await invitationsFor("demo", email)).toHaveLength(0);
   });
 
   test("signed-out preview masks the email; invitee signs up from the link, confirms, accepts, lands in /demo as Cashier", async ({ browser }) => {
@@ -193,6 +213,34 @@ test.describe("Cashier lifecycle (exit criterion 2)", () => {
     expect(await invitationsFor("demo", evil)).toHaveLength(0);
     await oCtx.close();
     await cCtx.close();
+  });
+
+  test("owner re-scopes the Cashier through the Locations dialog: other location, then all locations", async ({ browser }) => {
+    const [bandung, jakarta] = await locationsOf("demo");
+    const ctx = await browser.newContext();
+    const owner = await ctx.newPage();
+    await signInAs(owner, seedUsers.owner);
+    await open(owner, "/demo/staff");
+    const row = () => owner.locator("tr", { hasText: cashierEmail }).first();
+
+    await row().getByRole("button", { name: "Locations" }).click();
+    let dialog = owner.locator("dialog[open]");
+    await dialog.getByLabel(bandung.name).uncheck();
+    await dialog.getByLabel(jakarta.name).check();
+    await dialog.getByRole("button", { name: "Save locations" }).click();
+    await expect.poll(async () => {
+      const [m] = await rest<{ id: string }>(`profiles?email=eq.${encodeURIComponent(cashierEmail)}&select=id`);
+      const ls = await rest<{ location_id: string }>(`location_staff?select=location_id,organization_members!inner(user_id)&organization_members.user_id=eq.${m.id}`);
+      return ls.map((l) => l.location_id);
+    }, { timeout: 30_000 }).toEqual([jakarta.id]);
+
+    await open(owner, "/demo/staff");
+    await row().getByRole("button", { name: "Locations" }).click();
+    dialog = owner.locator("dialog[open]");
+    await dialog.getByLabel("All locations").check();
+    await dialog.getByRole("button", { name: "Save locations" }).click();
+    await expect.poll(async () => (await memberOf("demo", cashierEmail))?.allLocations, { timeout: 30_000 }).toBe(true);
+    await ctx.close();
   });
 
   test("owner changes the Cashier to Waiter: an already-open Cashier session sees the new sidebar on next navigation", async ({ browser }) => {
