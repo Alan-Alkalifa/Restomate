@@ -360,8 +360,11 @@ isOneToOne: false
             "accept_invitation":
 { Args: { "token": string }; Returns: Json
                            },
+"admin_list_tenants":
+{ Args: { "org_id"?: string,"package_code"?: string,"page_offset"?: number,"page_size"?: number,"q"?: string,"status_filter"?: string }; Returns: Json
+                           },
 "admin_set_org_status":
-{ Args: { "org": string,"reason": string,"status": string }; Returns: undefined
+{ Args: { "org": string,"reason": string,"status": string }; Returns: boolean
                            },
 "create_organization":
 { Args: { "branding"?: Json,"location": Json,"name": string,"package_code"?: string,"slug": string }; Returns: Json

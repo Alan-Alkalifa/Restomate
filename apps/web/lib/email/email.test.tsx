@@ -69,10 +69,10 @@ describe("send (resend mode)", () => {
   it("passes the idempotency key and strips CR/LF from headers", async () => {
     sendMock.mockResolvedValue({ data: { id: "em_1" }, error: null });
     const r = await send({
-      to: "a@b.c",
+      to: "a@b.co",
       subject: "Hi\r\nBcc: evil@x.com",
       react,
-      replyTo: "r@b.c\nBcc: evil@x.com",
+      replyTo: "r@b.co\nBcc: evil@x.com",
       idempotencyKey: "staff-invite/i1/1",
     });
     expect(r).toEqual({ ok: true, id: "em_1" });
@@ -85,7 +85,7 @@ describe("send (resend mode)", () => {
   it("returns ok:false on API error without leaking the key", async () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     sendMock.mockResolvedValue({ data: null, error: { name: "rate_limit", message: "slow down" } });
-    const r = await send({ to: "a@b.c", subject: "s", react, idempotencyKey: "k" });
+    const r = await send({ to: "a@b.co", subject: "s", react, idempotencyKey: "k" });
     expect(r).toEqual({ ok: false, error: "slow down" });
     expect(err.mock.calls.join(" ")).not.toContain("re_secret_key");
   });
@@ -93,7 +93,7 @@ describe("send (resend mode)", () => {
   it("never throws when the SDK rejects", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     sendMock.mockRejectedValue(new Error("network down"));
-    await expect(send({ to: "a@b.c", subject: "s", react, idempotencyKey: "k" })).resolves.toEqual({
+    await expect(send({ to: "a@b.co", subject: "s", react, idempotencyKey: "k" })).resolves.toEqual({
       ok: false,
       error: "network down",
     });
@@ -102,8 +102,30 @@ describe("send (resend mode)", () => {
   it("never throws when the API key is missing", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     env.RESEND_API_KEY = undefined;
-    const r = await send({ to: "a@b.c", subject: "s", react, idempotencyKey: "k" });
+    const r = await send({ to: "a@b.co", subject: "s", react, idempotencyKey: "k" });
     expect(r.ok).toBe(false);
+  });
+});
+
+describe("recipient validation", () => {
+  const bad = ["a@b.co, c@d.eu", "a@b.co;c@d.eu", '"x" <a@b.co>', "X <a@b.co>", "", "   ", "not-an-email", "a@b", "a@b.co c@d.eu", "a@b.co\r\nBcc: c@d.eu"];
+  it.each(["log", "resend"] as const)("rejects non-single addresses in %s mode without sending or throwing", async (mode) => {
+    env.EMAIL_DELIVERY = mode;
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const to of bad) {
+      await expect(send({ to, subject: "s", react, idempotencyKey: "k" })).resolves.toEqual({ ok: false, error: "invalid recipient" });
+    }
+    expect(sendMock).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+    const logged = err.mock.calls.join(" ");
+    expect(logged).not.toContain("c@d.eu");
+    expect(logged).not.toContain("a@b.co");
+  });
+  it("still sends a normal single address", async () => {
+    env.EMAIL_DELIVERY = "resend";
+    sendMock.mockResolvedValue({ data: { id: "em_9" }, error: null });
+    await expect(send({ to: "guest+tag@example.com", subject: "s", react, idempotencyKey: "k" })).resolves.toEqual({ ok: true, id: "em_9" });
   });
 });
 

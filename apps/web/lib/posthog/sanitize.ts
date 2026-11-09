@@ -6,7 +6,10 @@
 const ALLOWED_PARAM = /^(utm_[a-z0-9_]+|ref)$/i;
 
 /** Path segments whose next segment is a secret/capability token: /invite/{token}, /t/{qr_token} (also /s/{tenant}/t/{token}). */
-const TOKEN_PATH = /\/(invite|t)\/[^/]+/gi;
+const TOKEN_PATH = /\/(invite|t)\/+[^/]+/gi;
+
+/** Property keys that hold exception data ($exception_list, $exception_message, ...). */
+const EXCEPTION_KEY = /^\$exception/i;
 
 /** Property keys that hold a URL or path. */
 const URL_KEY = /url|pathname|referrer|href/i;
@@ -55,11 +58,42 @@ export function sanitizeUrl(input: string): string {
   return absolute ? url.toString() : `${url.pathname}${url.search}`;
 }
 
+const TEXT_URL = /https?:\/\/[^\s"'<>)\]]+/gi;
+const TEXT_EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const TEXT_JWT = /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g;
+const TEXT_PHONE = /\+?\d[\d\s().-]{6,}\d/g;
+const TEXT_OPAQUE = /\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{24,}\b/g;
+
+/**
+ * Scrub free text (exception messages, stack traces): URLs go through sanitizeUrl, then emails, JWTs,
+ * phone-like digit runs and long opaque tokens are redacted, and /invite|t/{x} paths are masked.
+ */
+export function sanitizeText(input: string): string {
+  return input
+    .replace(TEXT_URL, (u) => sanitizeUrl(u))
+    .replace(TOKEN_PATH, (_m, seg: string) => `/${seg.toLowerCase()}/[token]`)
+    .replace(TEXT_EMAIL, "[email]")
+    .replace(TEXT_JWT, "[token]")
+    .replace(TEXT_PHONE, "[number]")
+    .replace(TEXT_OPAQUE, "[token]");
+}
+
+/** Deep-scrub every string in an exception payload (message, type, stack frames, filenames). */
+function scrubDeep(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeText(value);
+  if (Array.isArray(value)) return value.map(scrubDeep);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubDeep(v)]));
+  }
+  return value;
+}
+
 /** Sanitise every URL-like property (key matches /url|pathname|referrer|href/i), recursing into plain objects such as $set. */
 export function sanitizeProperties<T extends Record<string, unknown>>(props: T): T {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(props)) {
-    if (typeof v === "string" && URL_KEY.test(k)) out[k] = v ? sanitizeUrl(v) : v;
+    if (EXCEPTION_KEY.test(k)) out[k] = scrubDeep(v);
+    else if (typeof v === "string" && URL_KEY.test(k)) out[k] = v ? sanitizeUrl(v) : v;
     else if (v && typeof v === "object" && !Array.isArray(v)) out[k] = sanitizeProperties(v as Record<string, unknown>);
     else out[k] = v;
   }
