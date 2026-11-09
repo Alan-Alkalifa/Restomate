@@ -2,7 +2,12 @@
  * Environment validation (Zod). Client-safe: this file only ever touches NEXT_PUBLIC_* values.
  * Server-only variables live in `lib/env.server.ts` (`import 'server-only'`) and reuse the schema below.
  *
- * Validation is lazy (first property access), so `next build` does not need runtime secrets.
+ * Validation is lazy (first property access), so `next build` does not need runtime secrets. In production
+ * `instrumentation.ts` validates the WHOLE server env once at boot (`validateServerEnv`), so a misconfigured
+ * deployment fails fast and loudly instead of inside an `after()` callback.
+ *
+ * Server variables are grouped into SLICES (ENV_SLICES). A module reading `serverEnv.X` validates only the slice
+ * X belongs to, so e.g. the email path never fails because of DOKU_* or APP_ENCRYPTION_KEY.
  * Failures list variable NAMES and a short reason only, never values.
  */
 import { z } from "zod";
@@ -79,6 +84,36 @@ export const PRODUCTION_REQUIRED = [
 export const serverEnvSchema = withClientKey(serverBase.extend(publicBase.shape));
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
+/**
+ * Which variables are validated together. `public` (NEXT_PUBLIC_*, plus the derived `supabasePublishableKey`) is
+ * needed by every request path. The others are independent: a bad DOKU_ENV must not break email or Supabase admin.
+ */
+export const ENV_SLICES = {
+  public: [...Object.keys(publicBase.shape), "supabasePublishableKey"],
+  email: ["EMAIL_FROM", "EMAIL_DELIVERY", "RESEND_API_KEY"],
+  supabaseAdmin: ["SUPABASE_SERVICE_ROLE_KEY"],
+  arcjet: ["ARCJET_KEY"],
+  doku: ["DOKU_ENV", "DOKU_CLIENT_ID", "DOKU_SECRET_KEY"],
+  encryption: ["APP_ENCRYPTION_KEY"],
+} as const satisfies Record<string, readonly string[]>;
+export type EnvSliceName = keyof typeof ENV_SLICES;
+
+export const envSliceSchemas = {
+  public: publicEnvSchema,
+  email: serverBase.pick({ EMAIL_FROM: true, EMAIL_DELIVERY: true, RESEND_API_KEY: true }),
+  supabaseAdmin: serverBase.pick({ SUPABASE_SERVICE_ROLE_KEY: true }),
+  arcjet: serverBase.pick({ ARCJET_KEY: true }),
+  doku: serverBase.pick({ DOKU_ENV: true, DOKU_CLIENT_ID: true, DOKU_SECRET_KEY: true }),
+  encryption: serverBase.pick({ APP_ENCRYPTION_KEY: true }),
+} as const;
+
+export type EnvSlice<N extends EnvSliceName> = z.infer<(typeof envSliceSchemas)[N]>;
+
+/** Env slice a server variable belongs to (undefined for names that are not env variables). */
+export function sliceOfEnvKey(key: string): EnvSliceName | undefined {
+  return (Object.keys(ENV_SLICES) as EnvSliceName[]).find((n) => (ENV_SLICES[n] as readonly string[]).includes(key));
+}
+
 export class EnvError extends Error {
   constructor(readonly names: string[], detail: string) {
     super(`Invalid environment: ${detail}`);
@@ -90,7 +125,7 @@ export class EnvError extends Error {
 export function parseEnv<S extends z.ZodType>(
   schema: S,
   source: Record<string, string | undefined>,
-  options: { production?: boolean; requireInProduction?: readonly string[] } = {},
+  options: { production?: boolean; requireInProduction?: readonly string[]; emailRules?: boolean } = {},
 ): z.infer<S> {
   // Treat empty strings (e.g. `FOO=` in a dotenv file) as unset.
   const cleaned = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== undefined && v !== ""));
@@ -108,12 +143,14 @@ export function parseEnv<S extends z.ZodType>(
       if (!(name in cleaned)) problems.set(name, "required in production");
     }
   }
+  // The two email rules below apply to the full server env and the email slice; other slices skip them.
+  const emailRules = options.emailRules ?? true;
   // Log mode prints rendered email bodies (invite tokens included) and sends nothing: never acceptable in production.
-  if (options.production && cleaned.EMAIL_DELIVERY !== undefined && cleaned.EMAIL_DELIVERY !== "resend") {
+  if (emailRules && options.production && cleaned.EMAIL_DELIVERY !== undefined && cleaned.EMAIL_DELIVERY !== "resend") {
     problems.set("EMAIL_DELIVERY", 'must be "resend" in production');
   }
   // Real delivery needs credentials and a sender in every environment (EMAIL_FROM has a dev default, so check it is explicit).
-  if (cleaned.EMAIL_DELIVERY === "resend") {
+  if (emailRules && cleaned.EMAIL_DELIVERY === "resend") {
     for (const name of ["RESEND_API_KEY", "EMAIL_FROM"]) {
       if (!(name in cleaned)) problems.set(name, 'required when EMAIL_DELIVERY is "resend"');
     }
