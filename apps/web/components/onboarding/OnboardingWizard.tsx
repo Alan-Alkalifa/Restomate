@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { FormAlert } from "@/components/ui/form-alert";
 import { percentToBps } from "./bps";
-import { suggestSlug } from "./slug";
+import { suggestSlug } from "@/lib/onboarding/slug";
 import { clear, getServerSnapshot, getSnapshot, parse, save, subscribe } from "./wizard-store";
-import type { OnboardingActions, SlugStatus, WizardState } from "./types";
+import type { OnboardingActions, OnboardingOptions, SlugStatus, WizardState } from "./types";
 
 const ROOT = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "restomate.app";
 const STEPS = ["Restaurant", "Location", "Branding"] as const;
-const TIMEZONES = ["Asia/Jakarta", "Asia/Makassar", "Asia/Jayapura", "Asia/Singapore", "UTC"];
-const CURRENCIES = ["IDR", "USD", "SGD", "MYR"];
+/** Tax and service charge are capped at 25% (2500 bps) by lib/onboarding's schema. */
+const MAX_RATE_BPS = 2500;
 
 const SLUG_MESSAGES: Record<SlugStatus, string> = {
   available: "This address is available.",
@@ -21,7 +21,7 @@ const SLUG_MESSAGES: Record<SlugStatus, string> = {
   invalid: "Use 3-40 lowercase letters, numbers or hyphens.",
 };
 
-export function OnboardingWizard({ actions }: { actions: OnboardingActions }) {
+export function OnboardingWizard({ actions, options }: { actions: OnboardingActions; options: OnboardingOptions }) {
   const raw = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const state = useMemo(() => parse(raw), [raw]);
   const set = (patch: Partial<WizardState>) => save({ ...state, ...patch });
@@ -54,8 +54,11 @@ export function OnboardingWizard({ actions }: { actions: OnboardingActions }) {
   const slugStatus = slugResult?.slug === state.slug ? slugResult.status : null;
   const slugChecking = !!state.slug && slugStatus === null;
 
-  const tax = percentToBps(state.taxPercent);
-  const service = percentToBps(state.servicePercent);
+  // A value saved in sessionStorage by an older build may no longer be allowed: fall back to the default.
+  const timezone = options.timezones.find((z) => z === state.timezone) ?? options.timezones[0];
+  const currency = options.currencies.find((c) => c === state.currency) ?? options.currencies[0];
+  const tax = percentToBps(state.taxPercent, MAX_RATE_BPS);
+  const service = percentToBps(state.servicePercent, MAX_RATE_BPS);
   const colorOk = /^#[0-9a-fA-F]{6}$/.test(state.primaryColor);
   const logoOk = state.logoUrl === "" || /^https:\/\/\S+$/.test(state.logoUrl);
 
@@ -77,8 +80,8 @@ export function OnboardingWizard({ actions }: { actions: OnboardingActions }) {
           address: state.address.trim(),
           city: state.city.trim(),
           phone: state.phone.trim(),
-          timezone: state.timezone,
-          currency: state.currency,
+          timezone,
+          currency,
           taxRateBps: tax.bps,
           serviceChargeBps: service.bps,
           taxOnServiceCharge: state.taxOnServiceCharge,
@@ -128,13 +131,13 @@ export function OnboardingWizard({ actions }: { actions: OnboardingActions }) {
           <Field name="phone" label="Phone" type="tel" value={state.phone} autoComplete="tel" onChange={(e) => set({ phone: e.target.value })} />
           <div className="grid grid-cols-2 gap-4">
             <label className="flex flex-col gap-1.5 text-sm font-medium">Timezone
-              <select value={state.timezone} onChange={(e) => set({ timezone: e.target.value })} className="min-h-12 rounded-lg border border-neutral-400 bg-transparent px-2 font-normal">
-                {TIMEZONES.map((z) => <option key={z}>{z}</option>)}
+              <select value={timezone} onChange={(e) => set({ timezone: e.target.value })} className="min-h-12 rounded-lg border border-neutral-400 bg-transparent px-2 font-normal">
+                {options.timezones.map((z) => <option key={z}>{z}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1.5 text-sm font-medium">Currency
-              <select value={state.currency} onChange={(e) => set({ currency: e.target.value })} className="min-h-12 rounded-lg border border-neutral-400 bg-transparent px-2 font-normal">
-                {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+              <select value={currency} onChange={(e) => set({ currency: e.target.value })} className="min-h-12 rounded-lg border border-neutral-400 bg-transparent px-2 font-normal">
+                {options.currencies.map((c) => <option key={c}>{c}</option>)}
               </select>
             </label>
           </div>

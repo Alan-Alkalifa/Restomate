@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
-import { checkSlug, createOrganization, requireUser } from "./_actions";
+import { requireUser } from "@/lib/auth/dal";
+import { checkSlug, createOrganization } from "@/lib/onboarding/actions";
+import { ALLOWED_TIMEZONES, CURRENCIES } from "@/lib/onboarding/schemas";
 
 export const metadata: Metadata = { title: "Set up your restaurant · Restomate", robots: { index: false } };
 
 async function Wizard() {
-  await requireUser(); // redirects to /login when signed out; inside Suspense per Next 16 rules
-  return <OnboardingWizard actions={{ checkSlug, createOrganization }} />;
+  await requireUser("/onboarding"); // signed-out users go to /login?next=/onboarding; inside Suspense per Next 16 rules
+  return <OnboardingWizard actions={{ checkSlug, createOrganization }} options={{ timezones: ALLOWED_TIMEZONES, currencies: CURRENCIES }} />;
 }
 
 export default function OnboardingPage() {

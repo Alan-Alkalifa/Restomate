@@ -25,3 +25,10 @@ describe("percentToBps", () => {
     expect(bpsToPercent(7)).toBe("0.07");
   });
 });
+
+describe("percentToBps with a cap", () => {
+  it("accepts up to the cap and rejects above it", () => {
+    expect(percentToBps("25", 2500)).toEqual({ ok: true, bps: 2500 });
+    expect(percentToBps("25.01", 2500)).toEqual({ ok: false, error: "Must be between 0 and 25." });
+  });
+});
