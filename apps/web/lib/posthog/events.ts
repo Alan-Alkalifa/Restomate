@@ -11,6 +11,9 @@ export const EVENTS = {
   packageUpdated: "package_updated",
   packageArchived: "package_archived",
   packageDefaultChanged: "package_default_changed",
+  areaCreated: "area_created",
+  tableCreated: "table_created",
+  tableQrRotated: "table_qr_rotated",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
