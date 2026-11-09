@@ -1,6 +1,6 @@
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
-import { content } from "./_content/en";
+import { content } from "../_content/en";
 
 // Static shell: no session, cookies or headers are read here.
 export default function FrontendLayout({ children }: LayoutProps<"/">) {

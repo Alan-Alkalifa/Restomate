@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CtaButtons } from "@/components/marketing/CtaButtons";
 import { ModuleCard } from "@/components/marketing/ModuleCard";
-import { content } from "./_content/en";
+import { content } from "../_content/en";
 
 const { home, modules, cta } = content;
 
