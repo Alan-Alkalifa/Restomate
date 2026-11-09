@@ -12,7 +12,7 @@ Pinned 2026-11-09 by ALAN. The schema is MVM-T06 (PR #73). **DAVIN** implements 
 ## Money
 
 - Every price is an **integer in minor units**, as a decimal string in FormData (e.g. `"35000"` = Rp 35.000; IDR has exponent 0).
-- The UI converts what the user types with `lib/money.ts` (`toMinor` / `formatMoney` with the org currency). It never uses floats and never does its own maths.
+- The UI displays prices with `formatMoney(amount, currency)` from `lib/money.ts`. It turns typed input into minor units using `currencyExponent(currency)`; for IDR (exponent 0) the typed whole-rupiah value **is** the minor-unit value. It never uses floats. If a shared parse helper is needed (e.g. for USD with 2 decimals), ADIT asks for `parseMoneyInput` to be added to `lib/money.ts` (DAVIN's file) rather than writing maths in components.
 - The server validates: integer, `0 ≤ price ≤ 1_000_000_000_000`. Variant `priceDelta` may be negative (≥ −1_000_000_000_000). Modifier `priceDelta` ≥ 0.
 - **Currency:** all locations of an org use the org's currency (Decisions log, 2026-11-09). `getMenu` returns it.
 
