@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { useFocusOnError } from "@/components/auth/use-form-focus";
 import { Button } from "@/components/ui/button";
 import { FormAlert } from "@/components/ui/form-alert";
@@ -35,6 +35,22 @@ type Props = {
  * Trigger button + native <dialog>. The form is mounted only while the dialog is open, so every opening starts with
  * fresh state (no stale error, no double-submit leftovers). Refreshes the route from the server on success.
  */
+const FIELD_LABELS: Record<string, string> = { name: "Name", label: "Table label", capacity: "Seats", shape: "Shape", areaId: "Area", tableId: "Table", areaIds: "Area order", positions: "Positions" };
+
+/** Field errors whose field has no visible control in the form (hidden ids, or a field the dialog does not render). */
+export function hiddenFieldErrors(r: ActionResult | null, form: HTMLFormElement | null): string[] {
+  if (!r || r.ok || !r.fieldErrors) return [];
+  const out: string[] = [];
+  for (const [name, msgs] of Object.entries(r.fieldErrors)) {
+    if (!msgs?.length) continue;
+    const els = form ? Array.from(form.elements).filter((el) => (el as HTMLInputElement).name === name) : [];
+    if (els.some((el) => (el as HTMLInputElement).type !== "hidden")) continue;
+    const label = FIELD_LABELS[name];
+    out.push(label ? `${label}: ${msgs.join(" ")}` : msgs.join(" "));
+  }
+  return out;
+}
+
 export function VenueDialog(props: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
@@ -67,6 +83,12 @@ function DialogBody({ titleId, close, ...p }: Props & { titleId: string; close: 
   const done = useRef(false);
   const ok = state?.ok === true;
   const { onSuccess } = p;
+  const [summary, setSummary] = useState<string[]>([]);
+  useEffect(() => {
+    // Which fields are rendered is only known from the DOM, so the summary is computed after each result.
+    const next = hiddenFieldErrors(state, formRef.current);
+    setSummary((cur) => (cur.join("|") === next.join("|") ? cur : next));
+  }, [state, formRef]);
   useEffect(() => {
     if (!ok || done.current) return;
     done.current = true;
@@ -75,11 +97,22 @@ function DialogBody({ titleId, close, ...p }: Props & { titleId: string; close: 
     close();
   }, [ok, onSuccess, router, close]);
   return (
-    <form ref={formRef} action={formAction} noValidate className="flex flex-col gap-4">
+    <form
+      ref={formRef}
+      noValidate
+      onSubmit={(e) => {
+        // Submit through a transition instead of <form action>: React 19 resets uncontrolled inputs once an action
+        // finishes, which would wipe what the user typed when the server returns an error.
+        e.preventDefault();
+        const data = new FormData(e.currentTarget);
+        startTransition(() => formAction(data));
+      }}
+      className="flex flex-col gap-4"
+    >
       <h2 id={titleId} className="text-lg font-semibold break-words">{p.title}</h2>
       {p.description && <p className="text-sm">{p.description}</p>}
       {Object.entries(p.hidden ?? {}).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
-      <FormAlert message={venueErrorMessage(state)} />
+      <FormAlert message={[venueErrorMessage(state), ...summary].filter(Boolean).join(" ") || undefined} />
       {isPlanLimit(state) && p.upgradeHref && (
         <Link href={p.upgradeHref} className="flex min-h-12 items-center text-sm font-medium underline">View plans</Link>
       )}

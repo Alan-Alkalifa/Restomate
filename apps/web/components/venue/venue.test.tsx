@@ -101,3 +101,14 @@ describe("venueErrorMessage", () => {
     expect(codeOf(null)).toBeUndefined();
   });
 });
+
+describe("hiddenFieldErrors (B1-T10)", () => {
+  it("returns only errors without a visible control", async () => {
+    const { hiddenFieldErrors } = await import("./VenueDialog");
+    const form = { elements: [{ name: "name", type: "text" }, { name: "areaId", type: "hidden" }] } as unknown as HTMLFormElement;
+    const r = { ok: false as const, fieldErrors: { name: ["Too long."], areaId: ["Area not found."], extra: ["Bad."] } };
+    expect(hiddenFieldErrors(r, form)).toEqual(["Area: Area not found.", "Bad."]);
+    expect(hiddenFieldErrors({ ok: true }, form)).toEqual([]);
+    expect(hiddenFieldErrors(null, null)).toEqual([]);
+  });
+});
