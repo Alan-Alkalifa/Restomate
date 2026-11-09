@@ -22,13 +22,27 @@ export default defineConfig({
   ],
   webServer: process.env.E2E_BASE_URL
     ? undefined
-    : {
-        command: "pnpm dev",
-        url: `${baseURL}/login`,
-        reuseExistingServer: !process.env.CI,
-        timeout: 240_000,
-        // Arcjet must be off for e2e: its email validation rejects @restomate.local (no MX) and bot detection
-        // blocks headless browsers. The Arcjet rules are checked separately against a production build.
-        env: { ARCJET_KEY: "" },
-      },
+    : [
+        // Resend stand-in: captures staff invitation mails so tests can read the accept link (see support/mock-resend.mjs).
+        { command: "node e2e/support/mock-resend.mjs", url: "http://127.0.0.1:4010/health", reuseExistingServer: !process.env.CI, timeout: 30_000 },
+        {
+          command: "pnpm dev",
+          url: `${baseURL}/login`,
+          reuseExistingServer: !process.env.CI,
+          timeout: 240_000,
+          env: {
+            // Arcjet must be off for e2e: its email validation rejects @restomate.local (no MX) and bot detection
+            // blocks headless browsers. The Arcjet rules are checked separately against a production build.
+            ARCJET_KEY: "",
+            // App emails go to the local mock instead of Resend.
+            EMAIL_DELIVERY: "resend",
+            RESEND_API_KEY: "re_e2e_mock",
+            RESEND_BASE_URL: "http://127.0.0.1:4010",
+            EMAIL_FROM: "Restomate <no-reply@mail.restomate.app>",
+            // PostHog stand-in (same mock server): lets a test inspect what analytics would receive.
+            NEXT_PUBLIC_POSTHOG_KEY: "phc_e2e_mock",
+            NEXT_PUBLIC_POSTHOG_HOST: "http://127.0.0.1:4010",
+          },
+        },
+      ],
 });
