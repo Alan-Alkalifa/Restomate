@@ -294,7 +294,7 @@ Defined and validated with Zod in `apps/web/lib/env.ts`. Keep `.env.example` in 
 NEXT_PUBLIC_APP_URL=            # https://app.restomate.app
 NEXT_PUBLIC_ROOT_DOMAIN=        # restomate.app (used for tenant subdomains)
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=   # client key; legacy NEXT_PUBLIC_SUPABASE_ANON_KEY still accepted as a fallback
 SUPABASE_SERVICE_ROLE_KEY=      # server-only
 NEXT_PUBLIC_POSTHOG_KEY=
 NEXT_PUBLIC_POSTHOG_HOST=

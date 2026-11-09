@@ -21,7 +21,7 @@ Last updated: 2026-11-08 (late evening)
 | Database migrations | ✅ MF-T02 → T03 → T04 (+ fixes T33, T34); `get_org_package` / `my_org_membership` (T07) |
 | Seed (Demo Restaurant) | ✅ MF-T05, PR #17 |
 | App infrastructure (`lib/`) | ✅ env + clients (T06), auth DAL (T07), Arcjet + PostHog (T08), money (T09), DOKU signature (T10), email (T12), public data (T20) |
-| App code (auth, onboarding, staff, shells) | ⏳ Auth pages ✅ (T14), frontend shell ✅ (T21); auth actions, onboarding, staff, admin in review (§4.0) |
+| App code (auth, onboarding, staff, shells) | ⏳ Auth end to end ✅ (T13, T14, T39), staff invitations ✅ (T17, T19), admin shell ✅ (T18), frontend shell ✅ (T21), onboarding actions ✅ (T15); onboarding wizard (#30) and super admin shell (#36) in QA (§4.0) |
 | CI | ✅ MF-T27, PR #21 |
 | M0 task board | ✅ HQ board **MF** (M0 Foundation), 32 tasks; see §4.0 |
 
@@ -88,17 +88,17 @@ One task = one branch = one PR. Flow: developer opens a **draft** PR → REYKI v
 | MF-T10 ✅ | ADIT | DOKU Non-SNAP signature + tests (§4.5) | T01 | — |
 | MF-T11 ✅ | ADIT | `emails/StaffInvite.tsx` (§4.5) | T01 | — |
 | MF-T12 ✅ | ADIT | `lib/email` (Resend, log mode, `sendStaffInvite`) (§4.5) (PR #41) | T06, T11 | — |
-| MF-T13 | DAVIN | Auth Server Actions + `/auth/confirm` (§4.6) — PR #44 in QA | T07, T08 | — |
+| MF-T13 ✅ | DAVIN | Auth Server Actions + `/auth/confirm` (§4.6) (PR #44) | T07, T08 | — |
 | MF-T14 ✅ | ADIT | Auth pages (§4.6) (PR #27; actions wired in T39) | T01 | — |
-| MF-T15 | DAVIN | Onboarding actions: `checkSlug`, `createOrganization` (§4.7) — PR #47 (stacked on #44) | T03, T07 | T13 |
-| MF-T16 | ADIT | Onboarding wizard UI (§4.7) — PR #30 | T14 | T15 |
-| MF-T17 | DAVIN | Staff actions: invite, resend, revoke, role, deactivate, accept (§4.8) + audit triggers — in progress | T04, T07, T12 | T13 |
-| MF-T18 | ADIT | Restaurant admin shell: sidebar from permissions, location switcher (§4.9) — PR #29 | T07, T14 | — |
-| MF-T19 | ADIT | Staff pages + `/invite/[token]` (§4.8) — PR #37 | T18 | T17 |
+| MF-T15 ✅ | DAVIN | Onboarding actions: `checkSlug`, `createOrganization` (§4.7) (PR #47) | T03, T07 | T13 |
+| MF-T16 | ADIT | Onboarding wizard UI (§4.7) — PR #30, wired to `lib/onboarding`, in QA | T14 | T15 |
+| MF-T17 ✅ | DAVIN | Staff actions: invite, resend, revoke, role, deactivate, accept (§4.8) + audit triggers (PR #50) | T04, T07, T12 | T13 |
+| MF-T18 ✅ | ADIT | Restaurant admin shell: sidebar from permissions, location switcher (§4.9) (PR #29) | T07, T14 | — |
+| MF-T19 ✅ | ADIT | Staff pages + `/invite/[token]` (§4.8) (PR #37) | T18 | T17 |
 | MF-T20 ✅ | ADIT | Public data: `getPublicPackages`, `getStorefront`, `theme.ts` (§4.9) | T05, T06 | — |
 | MF-T21 ✅ | ADIT | Frontend shell + pricing + storefront placeholder (§4.9) (PR #28) | T01 | — |
-| MF-T22 | ADIT | Super admin data + `setOrgStatus` (§4.9) — PR #43 | T07, T03 | — |
-| MF-T23 | ADIT | Super admin shell + tenants list (§4.9) — PR #36 | T18 | T22 |
+| MF-T22 ✅ | ADIT | Super admin data + `setOrgStatus` (§4.9) (PR #43) | T07, T03 | — |
+| MF-T23 | ADIT | Super admin shell + tenants list (§4.9) — PR #36, in QA | T18 | T22 |
 | MF-T24 ✅ | REYKI | M0 test plan, isolation matrix, bug + PR report templates (PR #2) | — | — |
 | MF-T25 ✅ | REYKI | pgTAP isolation suite, core tables (§4.3) (PRs #4, #7) | — | T02 |
 | MF-T34 ✅ | DAVIN | Invitation + branding review fixes: explicit `all_locations`, `org_branding.logo_url` https-only, invite expiry cap (S3 ×3) | T03 | — |
@@ -106,22 +106,26 @@ One task = one branch = one PR. Flow: developer opens a **draft** PR → REYKI v
 | MF-T26 ✅ | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) (PRs #13, #16, #18) | T25 | T03, T04 |
 | MF-T36 ✅ | REYKI | Hardening tests for MF-T34 (PR #19) | T34 | T34 |
 | MF-T27 ✅ | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
-| MF-T28 | REYKI | Playwright setup + auth e2e (after the QA queue) | T01 | T13, T14 |
+| MF-T28 | REYKI | Playwright setup + auth e2e (after the QA queue; Chromium download from `cdn.playwright.dev` awaiting approval) | T01 | T13, T14 |
 | MF-T29 | REYKI | e2e onboarding (exit criterion 1) | T28 | T15, T16 |
 | MF-T30 | REYKI | e2e staff invite as Cashier + cross-tenant (exit criteria 2–3) | T28 | T17–T19 |
 | MF-T31 | REYKI | e2e super admin, storefront, pricing | T28 | T20–T23 |
 | MF-T32 | REYKI | M0 exit sign-off report (includes the live Arcjet check) | all | — |
-| MF-T37 | DAVIN | Env: `EMAIL_DELIVERY` required and `resend` in production (S3 from QA #41) — PR #48 | — | — |
-| MF-T38 | ADIT | `send()` accepts exactly one recipient (S3 from QA #41) — PR #45 | — | — |
-| MF-T39 | ADIT | Wire auth pages to `lib/auth/actions`; one `ActionResult`; reuse `sanitizeNext` | T13 | — |
-| MF-T40 | ADIT | PostHog: allowlist query params, mask tokens in every URL prop, autocapture/recording off (S2 from QA #40) — PR #46 | — | — |
+| MF-T37 ✅ | DAVIN | Env: `EMAIL_DELIVERY` required and `resend` in production (S3 from QA #41) (PR #48) | — | — |
+| MF-T38 ✅ | ADIT | `send()` accepts exactly one recipient (S3 from QA #41) (PR #45) | — | — |
+| MF-T39 ✅ | ADIT | Wire auth pages to `lib/auth/actions`; one `ActionResult`; reuse `sanitizeNext` (PR #54) | T13 | — |
+| MF-T40 ✅ | ADIT | PostHog: allowlist query params, mask tokens in every URL prop, autocapture/recording off (S2 from QA #40) (PR #46) | — | — |
 
-**Critical path:** T13 (#44) → T15 (#47) → T16 (#30) and T17 → T19 (#37) → e2e T29/T30 → T32. QA throughput is now the bottleneck: REYKI verifies every PR before resuming T28.
+**Backlog board `B1`:** B1-T01 PostHog error tracking + `global-error.tsx` (ADIT, #52, in QA) · B1-T02 ✅ atomic `set_member_locations` RPC (DAVIN, #51) · B1-T03 regenerated types + `admin_set_org_status` hardening (DAVIN, #53, whitespace re-check in QA) · B1-T04 ✅ `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` with `ANON_KEY` fallback (DAVIN, #55) · B1-T05 signed-in users redirected away from /login and /signup (ADIT, #56, in QA).
 
-**Progress (2026-11-08, late evening):**
-- ✅ Merged today: #34 env/clients/proxy (T06), #38 db types (T35), #28 frontend shell + pricing (T21), #41 email (T12), #27 auth pages (T14), #40 Arcjet + PostHog (T08), #39 auth DAL (T07). pgTAP: 1,194 tests.
-- ⏳ In QA (approved by ALAN): #43 super admin data (T22), #29 admin shell (T18), #46 PostHog scrubbing (T40, S2), #44 auth actions (T13), #47 onboarding actions (T15), #30 onboarding wizard (T16), #45 single recipient (T38), #48 email env (T37), #36/#37 super admin + staff pages (T23/T19).
-- ⏳ DAVIN: MF-T17 (staff actions + audit triggers). ADIT: rebase #43 → B1-T01 until #44 merges → MF-T39. REYKI: QA queue → live Arcjet check → MF-T28.
+**Critical path:** T16 (#30) → T23 (#36) → MF-T28 (Playwright, blocked on `cdn.playwright.dev`) → e2e T29–T31 → T32 sign-off. All M0 backend is merged; QA throughput is the bottleneck.
+
+**Progress (2026-11-09):**
+- ✅ Merged 2026-11-08: #34 (T06), #38 (T35), #28 (T21), #41 (T12), #27 (T14), #40 (T08), #39 (T07), #46 (T40), #43 (T22), #29 (T18).
+- ✅ Merged 2026-11-09: #44 auth actions (T13), #47 onboarding actions (T15), #50 staff actions + audit triggers (T17), #51 `set_member_locations` (B1-T02), #54 auth pages wired (T39), #45 single recipient (T38), #48 email env (T37), #37 staff pages (T19), #55 publishable key (B1-T04). pgTAP: 1,250 tests.
+- ✅ **Exit criterion 2 verified live by REYKI on #37:** owner invites a Cashier → signup/confirm → accept → lands in `/demo` with the Cashier nav only; audit rows written; resent/used/revoked/expired links show the same generic page; a manager's tampered Owner invite is refused server-side.
+- ⏳ In QA (approved by ALAN): #53 (B1-T03), #56 (B1-T05), #52 (B1-T01), #30 (T16), #36 (T23). Then REYKI's live Arcjet check and MF-T28.
+- Known/accepted: the "no access" view returns HTTP 200 (soft 403 inside Suspense; see Decisions).
 
 **Draft rule (from 2026-11-08):** every code PR is opened as a GitHub **draft**. PRs #3, #4, #10 and #11 were auto-merged 11–33 seconds after opening, before QA and review. ALAN marks a PR ready (`gh pr ready`) only after REYKI's QA report and ALAN's review. #11 put ADIT's untested WIP scaffold on `main`; MF-T01 stays open until a verified scaffold PR lands.
 
@@ -222,11 +226,11 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [x] `payments/doku/signature.ts`: Non-SNAP signing and verification, with unit tests against DOKU's documented example. Built early because it is small and pure; the rest of DOKU is M5
 
 ### 4.6 Auth pages (`app/(auth)`)
-- [ ] Login (email + password), with Arcjet protection
-- [ ] Signup (name, email, password), with Arcjet signup protection; sends the confirm email via Supabase → Resend SMTP (Mailpit locally)
-- [ ] `/auth/confirm` route handler (`verifyOtp` with `token_hash`), then redirect to `next`
-- [ ] Forgot password → email → `/reset-password`
-- [ ] Sign out (Server Action)
+- [x] Login (email + password), with Arcjet protection
+- [x] Signup (name, email, password), with Arcjet signup protection; sends the confirm email via Supabase → Resend SMTP (Mailpit locally)
+- [x] `/auth/confirm` route handler (`verifyOtp` with `token_hash`), then redirect to `next`
+- [x] Forgot password → email → `/reset-password`
+- [x] Sign out (Server Action)
 
 ### 4.7 Onboarding (`app/(frontend)/onboarding`)
 - [ ] Step 1: restaurant name + slug with a live availability check
@@ -235,14 +239,14 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [ ] Submit → `create_organization` RPC → redirect to `/{org}`. PostHog events `signup_completed`, `onboarding_completed`, `trial_started`
 
 ### 4.8 Staff invitations (`app/(dashboard)/[org]/staff`)
-- [ ] Staff list (members + pending invites), gated by `staff.manage`
-- [ ] Invite form: email, role, locations → insert invitation (raw token generated server-side, only the SHA-256 hash stored) → Resend email with accept link
-- [ ] `/invite/[token]`: sign in or sign up with the invited email → `accept_invitation` → redirect to the org
-- [ ] Resend and revoke invitations; change role; deactivate a member
+- [x] Staff list (members + pending invites), gated by `staff.manage`
+- [x] Invite form: email, role, locations → insert invitation (raw token generated server-side, only the SHA-256 hash stored) → Resend email with accept link
+- [x] `/invite/[token]`: sign in or sign up with the invited email → `accept_invitation` → redirect to the org
+- [x] Resend and revoke invitations; change role; deactivate a member
 
 ### 4.9 Surface shells
 - [x] `(frontend)`: home placeholder, pricing page reading public `packages`, demo link (MF-T21, PR #28)
-- [ ] `(dashboard)/[org]`: sidebar built from `my_permissions`, location switcher, setup checklist on the home page, locked-feature state from package features
+- [x] `(dashboard)/[org]`: sidebar built from `my_permissions`, location switcher, setup checklist on the home page, locked-feature state from package features
 - [ ] `(superadmin)/admin`: guarded by `platform_admins`; tenants list (search, status, plan) and suspend/reactivate
 - [x] `(storefront)/s/[tenant]`: branded placeholder page from `get_storefront`; "temporarily unavailable" for suspended orgs
 
@@ -421,12 +425,17 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-08 | Unknown hosts return 404 in production until custom domains exist (M7) |
 | 2026-11-08 | Seed inserts the reserved `demo` slug by disabling `organizations_slug_not_reserved` inside `seed.sql` (table owner only); no runtime bypass in the schema |
 | 2026-11-08 | Seed adds a second tenant, **Other Bistro** (`other-bistro`), as the cross-tenant target for isolation e2e tests. Seed package prices are placeholders until pricing is decided (`PROJECT.md` → Still open #1) |
-| 2026-11-08 | Further load moves from DAVIN to ADIT: MF-T08 (Arcjet/PostHog), MF-T12 (`lib/email`) and MF-T22 (super admin data; ADIT had built MF-T23 against its contract). Follow-up fixes go to whoever owns the module now (T38, T40 → ADIT). Same exception as the T10/T20 move; security-critical auth, onboarding and staff actions stay with DAVIN |
+| 2026-11-08 | Further load moves from DAVIN to ADIT: MF-T08 (Arcjet/PostHog), MF-T12 (`lib/email`) and MF-T22 (super admin data; ADIT had built MF-T23 against its contract). Follow-up fixes go to whoever owns the module now (T38, T40 → ADIT). Same exception as the T10/T20 move; security-critical auth, onboarding and staff actions stay with DAVIN. **User confirmation of the T22 move is still pending** (ALAN moved it without asking first) |
 | 2026-11-08 | Staff audit rows are written by AFTER triggers on `staff_invitations` / `organization_members` calling `private.write_audit` (MF-T17), not by a client-callable audit RPC (forgeable, not atomic) and not by the service role |
 | 2026-11-08 | PostHog: explicit events only. Autocapture, session recording and heatmaps off; query params allowlisted (`utm_*`, `ref`); `/invite/{token}` and `/t/{token}` masked in every URL property (MF-T40). The PostHog wizard PR #42 was closed (it identified users by email) |
 | 2026-11-08 | Email in production must use `EMAIL_DELIVERY=resend`; `log` mode is dev/test only (MF-T37) |
 | 2026-11-08 | `updatePassword` requires a recovery/OTP sign-in within the last 10 minutes; passwords are limited to 72 UTF-8 bytes (bcrypt) (MF-T13) |
 | 2026-11-08 | Open-redirect defence lives in the server-side `sanitizeNext` (`lib/auth/redirect.ts`); client-side checks are cosmetic and reuse the same function (MF-T39) |
+| 2026-11-09 | Pages import Server Actions directly from `lib/*/actions`. A `'use server'` file can't re-export, so UI seams are deleted, not turned into re-exports (found by QA on #44) |
+| 2026-11-09 | Supabase client key: `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Supabase's current name) is preferred; `NEXT_PUBLIC_SUPABASE_ANON_KEY` is still accepted as a fallback (B1-T04) |
+| 2026-11-09 | Member location scope changes go through one atomic `set_member_locations` RPC (B1-T02), not several separate writes |
+| 2026-11-09 | Super admin suspend/reactivate reasons need at least 5 visible characters after stripping Unicode whitespace and zero-width characters, checked in both SQL and Zod; setting the same status again is a no-op with no audit row (B1-T03) |
+| 2026-11-09 | Signed-in users opening /login or /signup are redirected (DAL, not proxy) to the sanitised `next` or `/`; `next` may never point back to an auth page (B1-T05) |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -435,8 +444,7 @@ _None yet._
 
 ## 15. Next up
 
-1. **QA queue (REYKI):** #43 → #29 → #46 → #44 + #47 → #30 → #45 → #48 → #36/#37. ALAN merges each on PASS, retargeting stacked PRs first.
-2. **DAVIN:** MF-T17 (staff actions + audit triggers). Then M0 backend is complete.
-3. **ADIT:** rebase #43; B1-T01 (PostHog error tracking) while waiting; MF-T39 (wire auth pages) once #44 merges; swap #37's staff seam for `lib/staff` once T17 merges.
-4. **REYKI after the queue:** live Arcjet check (dev key now in REYKI's env) → MF-T28 → T29–T31 → T32 sign-off.
-5. **Before any deployed environment:** MF-T37 (email env) and MF-T40 (PostHog scrubbing) must be merged.
+1. **QA queue (REYKI):** #53 whitespace re-check → #56 → #52 → #30 → #36 → live Arcjet check. ALAN merges each on PASS (#36 and #53 both touch `lib/admin/actions.ts`, so the second one rebases).
+2. **MF-T28 → T29–T31 → T32:** Playwright needs Chromium from `cdn.playwright.dev` (awaiting user approval; fallback is the CI Playwright job or the `mcr.microsoft.com/playwright` image). Exit criterion 2 is already verified live; criteria 1 and 3 get e2e coverage in T29/T30.
+3. **DAVIN and ADIT:** M0 build work is done; they fix QA findings first. ALAN to break down M1/M2 (§5, §6) so work is queued for after M0 sign-off.
+4. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key in that environment (production touches need the user's approval).
