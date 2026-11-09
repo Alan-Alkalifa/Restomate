@@ -4,6 +4,8 @@ import { updateTag } from "next/cache";
 import { z } from "zod";
 import { requirePlatformAdmin } from "@/lib/auth/dal";
 import { orgTag } from "@/lib/auth/tags";
+import { EVENTS } from "@/lib/posthog/events";
+import { captureServer } from "@/lib/posthog/server";
 import { createClient } from "@/lib/supabase/server";
 import { callAdminListTenants, toRpcArgs } from "./tenants";
 import type { ActionResult } from "@/lib/auth/schemas";
@@ -20,7 +22,7 @@ const setOrgStatusSchema = z.object({
  * audit_logs row with the admin's user id and the reason in the same transaction). No service role.
  */
 export async function setOrgStatus(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  await requirePlatformAdmin();
+  const admin = await requirePlatformAdmin();
 
   const parsed = setOrgStatusSchema.safeParse({
     orgId: formData.get("orgId"),
@@ -46,6 +48,10 @@ export async function setOrgStatus(_prev: ActionResult | null, formData: FormDat
 
   updateTag(orgTag(orgId));
   updateTag(`storefront:${org.slug}`);
-  // TODO(MF-T22): capture org_status_changed (admin id, org group, no PII) once lib/posthog/server (#40) is on main.
+  captureServer(EVENTS.orgStatusChanged, {
+    distinctId: admin.id,
+    organizationId: orgId,
+    properties: { status },
+  });
   return { ok: true };
 }
