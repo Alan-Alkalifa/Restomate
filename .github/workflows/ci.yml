@@ -44,9 +44,30 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      # The CLI download from GitHub returns transient 504s; retry twice before failing the job (B1-T11).
+      - id: cli1
+        uses: supabase/setup-cli@v1
+        continue-on-error: true
         with:
           version: 3.0.0 # pinned; bump deliberately
+      - id: cli2
+        if: steps.cli1.outcome == 'failure'
+        run: sleep 20
+      - id: cli2b
+        if: steps.cli1.outcome == 'failure'
+        uses: supabase/setup-cli@v1
+        continue-on-error: true
+        with:
+          version: 3.0.0
+      - if: steps.cli1.outcome == 'failure' && steps.cli2b.outcome == 'failure'
+        run: sleep 40
+      - id: cli3
+        if: steps.cli1.outcome == 'failure' && steps.cli2b.outcome == 'failure'
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0
+      - name: Supabase CLI is installed
+        run: supabase --version
       # Only Postgres is needed: migrations, seed and pgTAP run against it.
       - name: Start local database
         run: |
@@ -79,9 +100,30 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - uses: supabase/setup-cli@v1
+      # The CLI download from GitHub returns transient 504s; retry twice before failing the job (B1-T11).
+      - id: cli1
+        uses: supabase/setup-cli@v1
+        continue-on-error: true
         with:
           version: 3.0.0 # keep in step with the database job
+      - id: cli2
+        if: steps.cli1.outcome == 'failure'
+        run: sleep 20
+      - id: cli2b
+        if: steps.cli1.outcome == 'failure'
+        uses: supabase/setup-cli@v1
+        continue-on-error: true
+        with:
+          version: 3.0.0
+      - if: steps.cli1.outcome == 'failure' && steps.cli2b.outcome == 'failure'
+        run: sleep 40
+      - id: cli3
+        if: steps.cli1.outcome == 'failure' && steps.cli2b.outcome == 'failure'
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0
+      - name: Supabase CLI is installed
+        run: supabase --version
       # Auth + Mailpit are required (confirmation and reset mails); the rest of the stack is not.
       - name: Start local Supabase (Auth, Postgres, Mailpit)
         run: supabase start -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
