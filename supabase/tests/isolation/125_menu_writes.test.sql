@@ -118,7 +118,7 @@ insert into tests.write_specs (actor, stmt, expect, label) values
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img2'', 1, ''/etc/passwd'')','blocked','absolute image_path rejected'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img3'', 1, ''https://evil.test/x.png'')','blocked','URL image_path rejected'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img4'', 1, ''a b.png'')','blocked','image_path with space rejected'),
- ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img5'', 1, ''org/items/n5.png'')','ok','relative image_path accepted'),
+ ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img5'', 1, ''org/items/n5.png'')','blocked','image_path outside the item''s own folder rejected (MVM-T13 strict check)'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price) values ({A}, {CA1}, '''', 1)','blocked','empty item name rejected'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price) values ({A}, {CA1}, repeat(''x'', 81), 1)','blocked','81-char item name rejected'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, description) values ({A}, {CA1}, ''N-desc'', 1, repeat(''x'', 501))','blocked','501-char description rejected'),
