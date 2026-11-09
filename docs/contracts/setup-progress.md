@@ -31,7 +31,8 @@ export function getSetupProgress(ctx: OrgContext): Promise<SetupProgress>;
 ```
 
 - Reads through the **signed-in user's client**, so RLS applies. No service role and no org id from the client. The org comes from `ctx`.
-- Cached with `'use cache'` + `cacheTag('setup-progress:' + orgId)`. Keyed by org id only, with no user data in the key. The actions that change an input (create location, table or menu item, invite staff, save branding) call `updateTag('setup-progress:' + orgId)`. If an action doesn't call it yet, the cache life (`'minutes'`) bounds the staleness. Each later PR that touches those actions adds the tag.
+- Cached with **`'use cache: private'`** (not plain `'use cache'`: the read uses the user's session cookies, which a shared cache cannot access; this is the same pattern as `loadOrgContext` in the DAL) + `cacheTag('setup-progress:' + orgId)` + `cacheLife('minutes')`. The cached function takes **only the org id**, so the key holds no user data; the private cache is per user, so what RLS hides from one user never reaches another. The actions that change an input (create location, table or menu item, invite staff, save branding) call `updateTag('setup-progress:' + orgId)`. If an action doesn't call it yet, the cache life bounds the staleness. Each later PR that touches those actions adds the tag.
+- **`href` is computed outside the cache**, from `ctx` (permissions and the first accessible location), because it depends on the user.
 - `href` is `null` when the user lacks the permission for that step (`settings.manage` for location and branding, `tables.manage` for tables, `menu.manage` for menu, `staff.manage` for staff). A step the user can't act on still shows its done state.
 
 ## Done rules
@@ -42,9 +43,9 @@ export function getSetupProgress(ctx: OrgContext): Promise<SetupProgress>;
 | `tables` | ≥ 1 **active** table in any active location | `{firstActiveLocationId}/tables` |
 | `menu` | ≥ 1 **available** menu item (`menu_items`, from MVM-T06). Until #73 merges, `false` | `menu` |
 | `staff` | ≥ 1 active member other than the owner(s), **or** ≥ 1 pending invitation | `staff` |
-| `branding` | `org_branding.logo_url` is set **or** `primary_color` differs from the onboarding default | `settings` |
+| `branding` | `org_branding.logo_path` is set **or** `primary_color` is set and differs (case-insensitively) from the onboarding default `#0f766e` (`DEFAULT_PRIMARY` in `lib/theme.ts`) | `settings` |
 
-The exact column names come from the migrations on `main`. If a rule can't be expressed with existing columns, DAVIN says so before implementing it, and the table is updated here first.
+The exact column names come from the migrations on `main`. Because the reads go through RLS, a step is judged on what the **user can see**: a user limited to some locations sees only those locations and their tables, and pending invitations are visible only with `staff.manage` (without it, only active members count for the staff step). If a rule can't be expressed with existing columns, DAVIN says so before implementing it, and the table is updated here first.
 
 ## UI (MSS-T11)
 
