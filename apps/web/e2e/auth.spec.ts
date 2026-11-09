@@ -25,6 +25,12 @@ async function login(page: Page, email: string, password: string, next?: string)
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
+/** Sign in and wait until the session is established (navigating earlier would interrupt the login action). */
+async function loginOk(page: Page, email: string, password: string) {
+  await login(page, email, password);
+  await expect(page).not.toHaveURL(/\/login/);
+}
+
 async function signup(page: Page, email: string, password = PASSWORD, next?: string) {
   await open(page, next ? `/signup?next=${encodeURIComponent(next)}` : "/signup");
   await page.getByLabel("Full name").fill("E2E Tester");
@@ -102,7 +108,7 @@ test.describe("login and sign out", () => {
   });
 
   test("sign out, then protected pages redirect to /login", async ({ page }) => {
-    await login(page, seedUsers.owner, SEED_PASSWORD);
+    await loginOk(page, seedUsers.owner, SEED_PASSWORD);
     await page.goto("/demo");
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/login/);
@@ -200,8 +206,7 @@ test.describe("password reset", () => {
     await page.context().clearCookies();
     await login(page, email, PASSWORD);
     await expect(page.getByText(BAD_CREDENTIALS)).toBeVisible(); // old password no longer works
-    await login(page, email, NEW_PASSWORD);
-    await expect(page).not.toHaveURL(/\/login/);
+    await loginOk(page, email, NEW_PASSWORD);
   });
 
   test("forgot password answers identically for an unknown email", async ({ page }) => {
@@ -212,7 +217,7 @@ test.describe("password reset", () => {
   });
 
   test("an ordinary (password) session cannot change the password", async ({ page }) => {
-    await login(page, seedUsers.manager, SEED_PASSWORD);
+    await loginOk(page, seedUsers.manager, SEED_PASSWORD);
     await open(page, "/reset-password");
     await page.getByLabel("New password", { exact: true }).fill(NEW_PASSWORD);
     await page.getByLabel("Confirm new password").fill(NEW_PASSWORD);
