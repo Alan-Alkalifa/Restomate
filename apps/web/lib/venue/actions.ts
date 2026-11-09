@@ -1,6 +1,7 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import type { Database } from "@restomate/db";
 import { requireOrgContext, requirePermission, requireUser } from "@/lib/auth/dal";
 import type { ActionResult } from "@/lib/auth/schemas";
 import { EVENTS } from "@/lib/posthog/events";
@@ -36,6 +37,7 @@ async function authorize(orgSlug: string, locationId: string) {
 }
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
+type TableInsert = Database["public"]["Tables"]["tables"]["Insert"];
 
 const areaInLocation = async (s: Supabase, orgId: string, loc: string, areaId: string) =>
   (await s.from("areas").select("id, is_active").eq("organization_id", orgId).eq("location_id", loc).eq("id", areaId).maybeSingle()).data;
@@ -108,7 +110,10 @@ export const createTable: VenueAction = async (orgSlug, locationId, _prev, formD
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error) };
   const { areaId, label, capacity, shape } = parsed.data;
   if (!(await areaInLocation(supabase, orgId, locationId, areaId))) return { ok: false, fieldErrors: { areaId: ["Choose an area from the list."] } };
-  const { error } = await supabase.from("tables").insert({ organization_id: orgId, location_id: locationId, area_id: areaId, label, capacity, shape });
+  // qr_token is NOT NULL in the generated Insert type, but clients cannot set it (no column grant): a BEFORE INSERT
+  // trigger generates it server-side. The cast only bridges that gap.
+  const row = { organization_id: orgId, location_id: locationId, area_id: areaId, label, capacity, shape } as TableInsert;
+  const { error } = await supabase.from("tables").insert(row);
   if (error) return mapVenueError(error);
   captureServer(EVENTS.tableCreated, { distinctId: user.id, organizationId: orgId });
   updateTag(venueTag(locationId));
