@@ -22,13 +22,14 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { checkSlug, createOrganization } from "./actions";
+import type { OnboardingInput } from "./schemas";
 
 const input = {
   name: "Warung Sedap",
   slug: "warung-sedap",
   location: { name: "Main", address: "", city: "", phone: "", timezone: "Asia/Jakarta", currency: "IDR", taxRateBps: 1000, serviceChargeBps: 0, taxOnServiceCharge: true },
   branding: null,
-};
+} satisfies OnboardingInput;
 
 beforeEach(() => {
   vi.clearAllMocks();
