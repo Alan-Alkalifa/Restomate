@@ -11,6 +11,7 @@ export function mapCreateOrganizationError(message: string | undefined): Extract
   if (m.includes("INVALID_NAME")) return { ok: false, fieldErrors: { name: ["Enter a valid restaurant name."] } };
   if (m.includes("INVALID_LOCATION")) return { ok: false, fieldErrors: { location: ["Check the location details and try again."] } };
   if (m.includes("INVALID_BRANDING")) return { ok: false, fieldErrors: { branding: ["Check the logo and colour and try again."] } };
+  if (m.includes("SIGNUP_DISABLED")) return { ok: false, code: "SIGNUP_DISABLED", formError: "Sign-ups are closed right now." };
   if (m.includes("ORG_LIMIT_REACHED") || m.includes("PLAN_LIMIT")) {
     return { ok: false, code: "PLAN_LIMIT", formError: "You have reached the maximum number of restaurants for your account." };
   }

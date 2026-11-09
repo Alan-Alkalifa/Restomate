@@ -406,11 +406,17 @@ isOneToOne: false
             "accept_invitation":
 { Args: { "token": string }; Returns: Json
                            },
+"admin_get_platform_settings":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "admin_list_tenants":
 { Args: { "org_id"?: string,"package_code"?: string,"page_offset"?: number,"page_size"?: number,"q"?: string,"status_filter"?: string }; Returns: Json
                            },
 "admin_set_org_status":
 { Args: { "org": string,"reason": string,"status": string }; Returns: boolean
+                           },
+"admin_update_platform_setting":
+{ Args: { "key": string,"value": Json }; Returns: boolean
                            },
 "create_organization":
 { Args: { "branding"?: Json,"location": Json,"name": string,"package_code"?: string,"slug": string }; Returns: Json
@@ -420,6 +426,9 @@ isOneToOne: false
                            },
 "get_org_package":
 { Args: { "org": string }; Returns: Json
+                           },
+"get_public_platform_flags":
+{ Args: Record<PropertyKey, never>; Returns: Json
                            },
 "get_storefront":
 { Args: { "slug": string }; Returns: Json

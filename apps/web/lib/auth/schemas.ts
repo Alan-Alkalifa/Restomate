@@ -8,7 +8,8 @@ export type ActionErrorCode =
   | "ALREADY_INVITED"
   | "INVALID_INVITATION"
   | "FORBIDDEN"
-  | "RATE_LIMITED";
+  | "RATE_LIMITED"
+  | "SIGNUP_DISABLED";
 
 /** Result shape of every form action (the `useActionState` state). */
 export type ActionResult =

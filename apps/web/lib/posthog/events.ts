@@ -7,6 +7,7 @@ export const EVENTS = {
   staffInvited: "staff_invited",
   invitationAccepted: "invitation_accepted",
   orgStatusChanged: "org_status_changed",
+  platformSettingUpdated: "platform_setting_updated",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

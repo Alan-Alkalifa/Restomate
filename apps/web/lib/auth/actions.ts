@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { publicEnv } from "@/lib/env";
+import { isSignupEnabled } from "@/lib/public/platform-flags";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "./dal";
 import { sanitizeNext } from "./redirect";
@@ -27,6 +28,8 @@ import { guard, track, type GuardReason } from "./seams";
 const GENERIC_ERROR = "Something went wrong. Please try again.";
 /** A password change needs a sign-in via an emailed link (recovery / OTP) no older than this. */
 const RECENT_LINK_WINDOW_SECONDS = 10 * 60;
+
+const SIGNUP_DISABLED_RESULT: ActionResult = { ok: false, code: "SIGNUP_DISABLED", formError: "Sign-ups are closed right now." };
 
 function blocked(reason: GuardReason): ActionResult {
   return {
@@ -76,6 +79,9 @@ export async function signUp(_prev: ActionResult | null, formData: FormData): Pr
 
   const decision = await guard("signup", { email });
   if (!decision.allowed) return blocked(decision.reason);
+
+  // Server-side, uncached: hiding the form is not enough (MSS-T08). Sign-in is not affected.
+  if (!(await isSignupEnabled())) return SIGNUP_DISABLED_RESULT;
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({

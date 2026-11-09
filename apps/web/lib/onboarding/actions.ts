@@ -8,6 +8,7 @@ import { getCurrentUser, requireUser } from "@/lib/auth/dal";
 import type { ActionResult } from "@/lib/auth/schemas";
 import { EVENTS } from "@/lib/posthog/events";
 import { captureServer } from "@/lib/posthog/server";
+import { isSignupEnabled } from "@/lib/public/platform-flags";
 import { createClient } from "@/lib/supabase/server";
 import { mapCreateOrganizationError } from "./errors";
 import { dottedFieldErrors, onboardingSchema, type OnboardingInput } from "./schemas";
@@ -46,6 +47,9 @@ export async function createOrganization(input: OnboardingInput): Promise<Action
   if (!decision.allowed) {
     return { ok: false, code: "RATE_LIMITED", formError: "Too many attempts. Please wait a moment and try again." };
   }
+
+  // Server-side, uncached (MSS-T08); the organizations trigger refuses as well.
+  if (!(await isSignupEnabled())) return { ok: false, code: "SIGNUP_DISABLED", formError: "Sign-ups are closed right now." };
 
   const parsed = onboardingSchema.safeParse(input);
   if (!parsed.success) return { ok: false, fieldErrors: dottedFieldErrors(parsed.error) };

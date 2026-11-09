@@ -28,6 +28,9 @@ const guard = vi.fn();
 const track = vi.fn();
 vi.mock("./seams", () => ({ guard: (...a: unknown[]) => guard(...a), track: (...a: unknown[]) => track(...a) }));
 
+const isSignupEnabled = vi.fn();
+vi.mock("@/lib/public/platform-flags", () => ({ isSignupEnabled: () => isSignupEnabled() }));
+
 import { requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./actions";
 
 const form = (o: Record<string, string>) => {
@@ -39,6 +42,7 @@ const form = (o: Record<string, string>) => {
 beforeEach(() => {
   vi.clearAllMocks();
   guard.mockResolvedValue({ allowed: true });
+  isSignupEnabled.mockResolvedValue(true);
   auth.signInWithPassword.mockResolvedValue({ error: null });
   auth.signUp.mockResolvedValue({ data: { user: { id: "u-1" } }, error: null });
   auth.resetPasswordForEmail.mockResolvedValue({ error: null });
@@ -99,6 +103,17 @@ describe("signUp", () => {
     });
     expect(guard).toHaveBeenCalledWith("signup", { email: "new@x.test" });
     expect(track).toHaveBeenCalledWith("signup_started", { distinctId: "u-1" });
+  });
+  it("refuses with SIGNUP_DISABLED, before touching Supabase Auth, while signup is off", async () => {
+    isSignupEnabled.mockResolvedValue(false);
+    expect(await signUp(null, form(input))).toMatchObject({ ok: false, code: "SIGNUP_DISABLED" });
+    expect(auth.signUp).not.toHaveBeenCalled();
+    expect(track).not.toHaveBeenCalled();
+  });
+  it("does not block sign-in while signup is off", async () => {
+    isSignupEnabled.mockResolvedValue(false);
+    await expect(signIn(null, form({ email: "a@x.test", password: "pw" }))).rejects.toMatchObject({ url: "/" });
+    expect(isSignupEnabled).not.toHaveBeenCalled();
   });
   it("defaults next to /onboarding and rejects an unsafe next", async () => {
     await signUp(null, form(input));
