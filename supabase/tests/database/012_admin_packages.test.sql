@@ -1,5 +1,5 @@
 begin;
-select plan(25);
+select plan(31);
 
 delete from public.subscriptions;
 delete from public.packages;
@@ -38,18 +38,24 @@ select throws_ok($$select public.admin_update_package((select id from public.pac
 select throws_ok($$select public.admin_set_package_active((select id from public.packages where code='t-basic'), false)$$, '42501', 'FORBIDDEN', 'owner cannot archive');
 select throws_ok($$select public.admin_set_default_package((select id from public.packages where code='t-pro'))$$, '42501', 'FORBIDDEN', 'owner cannot set default');
 select throws_ok($$insert into public.packages (code, name) values ('t-evil','Evil')$$, '42501', null, 'owner cannot insert directly (RLS)');
-update public.packages set name = 'Hacked' where code = 't-pro';
-select is((select name from public.packages where code='t-pro'), 'Pro', 'owner direct update changes nothing (RLS)');
+select throws_ok($$update public.packages set name = 'Hacked' where code = 't-pro'$$, '42501', null, 'owner cannot update directly');
+select is((select name from public.packages where code='t-pro'), 'Pro', 'plan unchanged');
 reset role;
 
 -- admin
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000f1');
-select lives_ok($$select public.admin_create_package(pg_temp.valid())$$, 'admin creates a package');
+-- a platform admin cannot write or delete plans directly (no audit row); reads still work
+select throws_ok($$insert into public.packages (code, name) values ('t-direct','Direct')$$, '42501', null, 'admin cannot insert directly');
+select throws_ok($$update public.packages set name = 'Direct' where code = 't-pro'$$, '42501', null, 'admin cannot update directly');
+select throws_ok($$delete from public.packages where code = 't-pro'$$, '42501', null, 'admin cannot delete directly');
+select is((select count(*)::int from public.packages), 2, 'admin can still read all plans');
+select lives_ok($$select public.admin_create_package(pg_temp.valid())$$, 'admin creates a package (RPC still works)');
 select is((select count(*)::int from public.audit_logs where action='package.created' and actor_id='00000000-0000-0000-0000-0000000000f1' and organization_id is null), 1, 'exactly one create audit row with the admin id');
 select is((select price_monthly from public.packages where code='t-new'), 1000::bigint, 'price stored as bigint minor units');
 
 select throws_ok($$select public.admin_create_package(pg_temp.valid('{"price_monthly":10.5}'))$$, 'P0001', 'INVALID_INPUT', 'decimal price rejected');
 select throws_ok($$select public.admin_create_package(pg_temp.valid('{"price_monthly":-1,"code":"t-neg"}'))$$, 'P0001', 'INVALID_INPUT', 'negative price rejected');
+select throws_ok($$select public.admin_create_package(pg_temp.valid('{"limits":{"max_tables":1000001},"code":"t-big"}'))$$, 'P0001', 'INVALID_INPUT', 'limit above 1,000,000 rejected');
 select throws_ok($$select public.admin_create_package(pg_temp.valid('{"limits":{"max_bogus":1},"code":"t-lim"}'))$$, 'P0001', 'INVALID_LIMIT_KEY', 'unknown limit key rejected');
 select throws_ok($$select public.admin_create_package(pg_temp.valid('{"features":["teleport"],"code":"t-feat"}'))$$, 'P0001', 'INVALID_FEATURE_KEY', 'unknown feature rejected');
 select throws_ok($$select public.admin_create_package(pg_temp.valid())$$, '23505', null, 'duplicate code rejected');

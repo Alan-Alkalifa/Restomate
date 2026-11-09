@@ -43,12 +43,18 @@ function failure(error: RpcError): ActionResult {
 }
 
 function invalid(error: z.ZodError): ActionResult {
-  return { ok: false, fieldErrors: z.flattenError(error).fieldErrors as Record<string, string[]> };
+  const flat = z.flattenError(error);
+  return {
+    ok: false,
+    fieldErrors: flat.fieldErrors as Record<string, string[]>,
+    // strictObject reports unrecognised keys as form-level errors
+    ...(flat.formErrors.length > 0 ? { formError: flat.formErrors.join(" ") } : {}),
+  };
 }
 
-function afterWrite(event: EventName, adminId: string, code: string | null): void {
+function afterWrite(event: EventName, adminId: string, properties: Record<string, string>): void {
   updateTag(PACKAGES_TAG);
-  captureServer(event, { distinctId: adminId, properties: code ? { code } : {} });
+  captureServer(event, { distinctId: adminId, properties });
 }
 
 /** Create a plan. Platform admins only; audit row written by admin_create_package in the same transaction. */
@@ -62,7 +68,7 @@ export async function createPackage(_prev: ActionResult | null, formData: FormDa
   const { error } = await supabase.rpc("admin_create_package", { input: { code, ...toRpcInput(rest) } });
   if (error) return failure(error);
 
-  afterWrite(EVENTS.packageCreated, admin.id, code);
+  afterWrite(EVENTS.packageCreated, admin.id, { code });
   return { ok: true };
 }
 
@@ -81,7 +87,7 @@ export async function updatePackage(_prev: ActionResult | null, formData: FormDa
   if (error) return failure(error);
 
   updateTag(PACKAGES_TAG);
-  if (data === true) captureServer(EVENTS.packageUpdated, { distinctId: admin.id, properties: {} });
+  if (data === true) captureServer(EVENTS.packageUpdated, { distinctId: admin.id, properties: { packageId } });
   return { ok: true };
 }
 
@@ -92,13 +98,14 @@ export async function archivePackage(_prev: ActionResult | null, formData: FormD
   if (!parsed.success) return invalid(parsed.error);
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("admin_set_package_active", {
+  const { data, error } = await supabase.rpc("admin_set_package_active", {
     package_id: parsed.data.packageId,
     active: !parsed.data.archived,
   });
   if (error) return failure(error);
 
-  afterWrite(EVENTS.packageArchived, admin.id, null);
+  updateTag(PACKAGES_TAG);
+  if (data === true) captureServer(EVENTS.packageArchived, { distinctId: admin.id, properties: { packageId: parsed.data.packageId } });
   return { ok: true };
 }
 
@@ -109,9 +116,10 @@ export async function setDefaultPackage(_prev: ActionResult | null, formData: Fo
   if (!parsed.success) return invalid(parsed.error);
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("admin_set_default_package", { package_id: parsed.data.packageId });
+  const { data, error } = await supabase.rpc("admin_set_default_package", { package_id: parsed.data.packageId });
   if (error) return failure(error);
 
-  afterWrite(EVENTS.packageDefaultChanged, admin.id, null);
+  updateTag(PACKAGES_TAG);
+  if (data === true) captureServer(EVENTS.packageDefaultChanged, { distinctId: admin.id, properties: { packageId: parsed.data.packageId } });
   return { ok: true };
 }

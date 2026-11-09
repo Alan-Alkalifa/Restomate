@@ -26,6 +26,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
+import { captureServer } from "@/lib/posthog/server";
 import { archivePackage, createPackage, setDefaultPackage, updatePackage } from "./package-actions";
 import { mapAdminPackages } from "./packages";
 
@@ -131,6 +132,35 @@ describe("writes", () => {
     expect(state.rpcCalls[1][1]).toEqual({ package_id: ID, active: false });
     expect(updateTag).toHaveBeenCalledTimes(3);
     expect(updateTag).toHaveBeenCalledWith("packages");
+  });
+
+  it("accepts a plan with no features (an unchecked checkbox group posts no key)", async () => {
+    const { features: _omit, ...noFeatures } = plan;
+    void _omit;
+    const r = await createPackage(null, fd({ code: "growth", ...noFeatures }));
+    expect(r).toEqual({ ok: true });
+    expect(state.rpcCalls[0][1]).toMatchObject({ input: { features: [] } });
+  });
+
+  it("reports unrecognised fields as a formError", async () => {
+    const r = await createPackage(null, fd({ code: "growth", ...plan, bogus: "1" }));
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.formError).toMatch(/bogus/);
+    expect(state.rpcCalls).toEqual([]);
+  });
+
+  it("sends packageId (no PII) to PostHog on update, archive and set default", async () => {
+    state.rpc = {
+      admin_update_package: { data: true, error: null },
+      admin_set_package_active: { data: true, error: null },
+      admin_set_default_package: { data: true, error: null },
+    };
+    vi.mocked(captureServer).mockClear();
+    await updatePackage(null, fd({ packageId: ID, ...plan }));
+    await archivePackage(null, fd({ packageId: ID, archived: "true" }));
+    await setDefaultPackage(null, fd({ packageId: ID }));
+    const props = vi.mocked(captureServer).mock.calls.map(([, o]) => o?.properties);
+    expect(props).toEqual([{ packageId: ID }, { packageId: ID }, { packageId: ID }]);
   });
 
   it("restore passes active=true", async () => {

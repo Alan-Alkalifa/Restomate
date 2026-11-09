@@ -69,7 +69,8 @@ const planFields = {
   limit_max_staff: limitField("Staff"),
   limit_max_tables: limitField("Tables"),
   limit_max_orders_per_month: limitField("Orders per month"),
-  features: z.array(z.enum(FEATURE_KEYS)).transform((a) => [...new Set(a)]),
+  // An unchecked checkbox group posts no `features` key at all: missing = no features.
+  features: z.array(z.enum(FEATURE_KEYS)).default([]).transform((a) => [...new Set(a)]),
   isPublic: boolField,
   sortOrder: intField("Sort order", 0, 9999),
 };

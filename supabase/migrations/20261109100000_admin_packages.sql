@@ -46,7 +46,7 @@ begin
     if v_key not in ('max_locations', 'max_staff', 'max_tables', 'max_orders_per_month') then
       raise exception 'INVALID_LIMIT_KEY' using errcode = 'P0001';
     end if;
-    if jsonb_typeof(v_val) <> 'null' and not (jsonb_typeof(v_val) = 'number' and v_val::text ~ '^\d{1,7}$') then
+    if jsonb_typeof(v_val) <> 'null' and not (jsonb_typeof(v_val) = 'number' and v_val::text ~ '^\d{1,7}$' and (v_val::text)::int <= 1000000) then
       raise exception 'INVALID_INPUT' using errcode = 'P0001';
     end if;
   end loop;
@@ -142,6 +142,23 @@ begin
     raise exception 'PACKAGE_IN_USE' using errcode = 'P0001';
   end if;
 
+  v_before := private.package_snapshot(v_old);
+  v_after := jsonb_build_object(
+    'name', btrim(input->>'name'),
+    'description', nullif(btrim(coalesce(input->>'description', '')), ''),
+    'currency', input->>'currency',
+    'price_monthly', (input->>'price_monthly')::bigint,
+    'price_yearly', (input->>'price_yearly')::bigint,
+    'trial_days', (input->>'trial_days')::int,
+    'limits', input->'limits',
+    'features', (select coalesce(jsonb_agg(f order by f), '[]'::jsonb)
+                   from (select distinct f from jsonb_array_elements_text(input->'features') f) d),
+    'is_public', (input->>'is_public')::boolean,
+    'sort_order', (input->>'sort_order')::int);
+  if v_before = v_after then
+    return false; -- no-op: nothing written, no audit row
+  end if;
+
   update public.packages p set
     name = btrim(input->>'name'),
     description = nullif(btrim(coalesce(input->>'description', '')), ''),
@@ -156,14 +173,6 @@ begin
     updated_at = now()
   where p.id = v_old.id
   returning * into v_new;
-
-  v_before := private.package_snapshot(v_old);
-  v_after  := private.package_snapshot(v_new);
-  if v_before = v_after then
-    -- no-op: undo the updated_at bump by raising nothing; row identical except updated_at, keep it unchanged
-    update public.packages p set updated_at = v_old.updated_at where p.id = v_old.id;
-    return false;
-  end if;
 
   select coalesce(jsonb_object_agg(k, v_before->k), '{}'::jsonb), coalesce(jsonb_object_agg(k, v_after->k), '{}'::jsonb)
     into v_bd, v_ad
@@ -274,3 +283,11 @@ grant execute on function
 -- private helpers are not callable by clients (default privileges revoke covers new functions? be explicit)
 revoke execute on function private.package_input_check(jsonb, boolean), private.package_snapshot(public.packages)
   from public, anon, authenticated;
+
+-- Writes to packages go only through the audited RPCs above. The foundation's FOR ALL admin policy and
+-- insert/update/delete grants let a platform admin write or delete plans directly via PostgREST with no audit row.
+revoke insert, update, delete on public.packages from authenticated;
+drop policy packages_admin_all on public.packages;
+create policy packages_admin_select on public.packages
+  for select to authenticated
+  using (public.is_platform_admin());
