@@ -31,7 +31,7 @@ export function ResetPasswordForm({ action, passwordHint }: { action: AuthAction
     return (
       <div className="flex flex-col gap-4">
         <FormAlert tone="info" message="Your password has been updated." />
-        <Link href="/login" className="underline">Continue to sign in</Link>
+        <Link href="/" className="underline">Continue</Link>
       </div>
     );
   }

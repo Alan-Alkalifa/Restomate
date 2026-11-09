@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { passwordHint } from "@/components/auth/password-hint";
+import { redirectIfSignedIn } from "@/components/auth/redirect-if-signed-in";
 import { SignupForm } from "@/components/auth/SignupForm";
 import { signUp } from "@/lib/auth/actions";
 import { sanitizeNext } from "@/lib/auth/redirect";
@@ -12,6 +13,7 @@ export const metadata: Metadata = { title: "Create account · Restomate" };
 
 async function SignupContent({ searchParams }: { searchParams: PageProps<"/signup">["searchParams"] }) {
   const sp = await searchParams;
+  await redirectIfSignedIn(sp.next);
   return <SignupForm action={signUp} passwordHint={passwordHint()} next={nextParam(sp.next)} />;
 }
 
