@@ -12,10 +12,13 @@ export function LoginForm({
   action,
   next,
   initialError,
+  signupOpen = true,
 }: {
   action: AuthAction;
   next?: string;
   initialError?: string;
+  /** Cosmetic only: the signUp action refuses when sign-ups are closed. */
+  signupOpen?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const formRef = useFocusOnError(state);
@@ -30,9 +33,11 @@ export function LoginForm({
       </Button>
       <p className="flex flex-wrap justify-between gap-2 text-sm">
         <Link href="/forgot-password" className="underline">Forgot password?</Link>
-        <span>
-          No account? <Link href="/signup" className="underline">Create one</Link>
-        </span>
+        {signupOpen ? (
+          <span>
+            No account? <Link href="/signup" className="underline">Create one</Link>
+          </span>
+        ) : null}
       </p>
     </form>
   );

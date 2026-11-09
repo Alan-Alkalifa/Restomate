@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PlatformBannerSlot } from "@/components/ui/PlatformBannerSlot";
 import { signOut } from "@/lib/auth/actions";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { LocationSwitcher } from "@/components/dashboard/LocationSwitcher";
@@ -44,8 +45,13 @@ async function Shell({ params, children }: { params: LayoutProps<"/[org]">["para
 
 export default function OrgLayout({ params, children }: LayoutProps<"/[org]">) {
   return (
-    <Suspense fallback={<div role="status" aria-label="Loading" className="min-h-screen animate-pulse bg-neutral-100 dark:bg-neutral-900" />}>
-      <Shell params={params}>{children}</Shell>
-    </Suspense>
+    <>
+      <Suspense fallback={null}>
+        <PlatformBannerSlot />
+      </Suspense>
+      <Suspense fallback={<div role="status" aria-label="Loading" className="min-h-screen animate-pulse bg-neutral-100 dark:bg-neutral-900" />}>
+        <Shell params={params}>{children}</Shell>
+      </Suspense>
+    </>
   );
 }
