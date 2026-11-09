@@ -7,6 +7,8 @@ export type ActionErrorCode =
   | "SYSTEM_ROLE"
   | "ALREADY_INVITED"
   | "INVALID_INVITATION"
+  | "DUPLICATE_NAME"
+  | "AREA_NOT_EMPTY"
   | "FORBIDDEN"
   | "RATE_LIMITED"
   | "SIGNUP_DISABLED";
