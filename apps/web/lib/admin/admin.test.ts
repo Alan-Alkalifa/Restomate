@@ -75,6 +75,10 @@ describe("setOrgStatus", () => {
     ["bad status", { ...valid, status: "past_due" }, "status"],
     ["short reason", { ...valid, reason: "no" }, "reason"],
     ["long reason", { ...valid, reason: "x".repeat(501) }, "reason"],
+    ["newlines only", { ...valid, reason: "\n\n\n\n\n" }, "reason"],
+    ["tabs only", { ...valid, reason: "\t\t\t\t\t" }, "reason"],
+    ["NBSP only", { ...valid, reason: "\u00a0".repeat(5) }, "reason"],
+    ["zero-width only", { ...valid, reason: "\u200b".repeat(5) }, "reason"],
   ])("validates input: %s", async (_n, input, field) => {
     const r = await setOrgStatus(null, fd(input));
     expect(r.ok).toBe(false);

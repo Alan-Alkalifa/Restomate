@@ -1,5 +1,8 @@
 -- B1-T03: harden admin_set_org_status.
---  * reason (trimmed) must be 5..500 chars, enforced in SQL (not only in the Zod action).
+--  * reason must be 5..500 chars after trimming, enforced in SQL (not only in the Zod action). Postgres trim()
+--    strips only U+0020, so edges are stripped with a regex covering \s, NBSP, other Unicode spaces and zero-width
+--    characters; the reason must also contain >= 5 visible characters (so newline/tab/NBSP/zero-width-only
+--    reasons are rejected). The trimmed text is what is stored in the audit row.
 --  * setting the status an org already has is a no-op: no update, no audit row.
 --  * returns boolean `changed` (was void) so callers can tell. Return type change => drop + create + re-grant.
 drop function public.admin_set_org_status(uuid, text, text);
@@ -15,7 +18,10 @@ declare
   v_uid    uuid := (select auth.uid());
   v_org    uuid := admin_set_org_status.org;
   v_status text := admin_set_org_status.status;
-  v_reason text := trim(coalesce(admin_set_org_status.reason, ''));
+  -- whitespace class: \s, NBSP, ogham, U+2000-200F (spaces + zero-width), line/para sep, NNBSP, MMSP, word joiner, ideographic space, BOM
+  v_ws     constant text := '[\s\u00a0\u1680\u2000-\u200f\u2028\u2029\u202f\u205f\u2060\u3000\ufeff]';
+  v_reason text := regexp_replace(coalesce(admin_set_org_status.reason, ''), '^' || v_ws || '+|' || v_ws || '+$', '', 'g');
+  v_visible int := char_length(regexp_replace(v_reason, v_ws || '+', '', 'g'));
   v_old    text;
 begin
   if not public.is_platform_admin() then
@@ -24,7 +30,7 @@ begin
   if v_status is null or v_status not in ('active', 'suspended', 'past_due', 'read_only') then
     raise exception 'INVALID_STATUS' using errcode = 'P0001';
   end if;
-  if char_length(v_reason) < 5 or char_length(v_reason) > 500 then
+  if v_visible < 5 or char_length(v_reason) > 500 then
     raise exception 'INVALID_REASON' using errcode = 'P0001';
   end if;
 

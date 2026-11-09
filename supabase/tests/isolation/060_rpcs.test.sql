@@ -2,7 +2,7 @@
 begin;
 \ir _helpers.inc
 \ir _rpc.inc
-select plan(118);
+select plan(130);
 
 select tests.mkuser('y1'); select tests.mkuser('y2'); select tests.mkuser('y3'); select tests.mkuser('y4');
 select tests.mkuser('y5'); select tests.mkuser('y6', false);
@@ -155,6 +155,18 @@ select is((select count(*)::int from public.audit_logs where action = 'organizat
 select is(tests.scalar('padmin', $$public.admin_set_org_status({A}, 'active', repeat('r', 500))$$), 'true', 'admin_set_org_status: 500-char reason accepted');
 select is((select count(*)::int from public.audit_logs where action = 'organization.status_changed' and organization_id = (select id from tests.ids where name = 'A')), 4, 'admin_set_org_status: audit rows after boundary reasons');
 select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', repeat('r', 501))$$), 'INVALID_REASON|P0001', 'admin_set_org_status: 501-char reason rejected next to the 500 accept');
+select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', E'\n\n\n\n\n')$$), 'INVALID_REASON|P0001', 'admin_set_org_status: newlines reason rejected');
+select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', E'\t\t\t\t\t')$$), 'INVALID_REASON|P0001', 'admin_set_org_status: tabs reason rejected');
+select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', '     ')$$), 'INVALID_REASON|P0001', 'admin_set_org_status: spaces reason rejected');
+select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', E'\u00a0\u00a0\u00a0\u00a0\u00a0')$$), 'INVALID_REASON|P0001', 'admin_set_org_status: NBSP reason rejected');
+select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', E'\u200b\u200b\u200b\u200b\u200b')$$), 'INVALID_REASON|P0001', 'admin_set_org_status: zero-width reason rejected');
+select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', E'\ufeff\ufeff\ufeff\ufeff\ufeff')$$), 'INVALID_REASON|P0001', 'admin_set_org_status: BOM reason rejected');
+select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', E'  \n abcd \n  ')$$), 'INVALID_REASON|P0001', 'admin_set_org_status: padded abcd reason rejected');
+select is(tests.errmsg('padmin', $$public.admin_set_org_status({A}, 'suspended', E'a\n\n\n\nb')$$), 'INVALID_REASON|P0001', 'admin_set_org_status: interior blanks only reason rejected');
+select is((select status from public.organizations where slug = 'iso-org-a'), 'active', 'admin_set_org_status: blank-class reasons changed nothing');
+select is((select count(*)::int from public.audit_logs where action = 'organization.status_changed' and organization_id = (select id from tests.ids where name = 'A')), 4, 'admin_set_org_status: blank-class reasons wrote no audit');
+select is(tests.scalar('padmin', $$public.admin_set_org_status({A}, 'suspended', E'\n  ok reason \u200b\n')$$), 'true', 'admin_set_org_status: valid reason with surrounding whitespace accepted');
+select is((select metadata ->> 'reason' from public.audit_logs where action = 'organization.status_changed' and organization_id = (select id from tests.ids where name = 'A') order by created_at desc, id desc limit 1), 'ok reason', 'admin_set_org_status: stored reason is trimmed of whitespace and zero-width');
 
 select * from finish();
 rollback;
