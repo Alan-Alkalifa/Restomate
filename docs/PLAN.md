@@ -5,7 +5,7 @@
 > - **How** we build it (stack, rules, conventions) → `CLAUDE.md`
 > - **In what order, and what's done** → this file
 
-Last updated: 2026-11-08 (late evening)
+Last updated: 2026-11-09 (night)
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-11-08 (late evening)
 | Database migrations | ✅ MF-T02 → T03 → T04 (+ fixes T33, T34); `get_org_package` / `my_org_membership` (T07) |
 | Seed (Demo Restaurant) | ✅ MF-T05, PR #17 |
 | App infrastructure (`lib/`) | ✅ env + clients (T06), auth DAL (T07), Arcjet + PostHog (T08), money (T09), DOKU signature (T10), email (T12), public data (T20) |
-| App code (auth, onboarding, staff, shells) | ⏳ Auth end to end ✅ (T13, T14, T39), staff invitations ✅ (T17, T19), admin shell ✅ (T18), frontend shell ✅ (T21), onboarding actions ✅ (T15); onboarding wizard (#30) and super admin shell (#36) in QA (§4.0) |
+| App code (auth, onboarding, staff, shells) | ✅ Auth (T13, T14, T39), onboarding (T15, T16), staff invitations (T17, T19), admin shell (T18), frontend shell (T21), super admin shell (T23, fix #83) |
 | CI | ✅ MF-T27, PR #21 |
 | M0 task board | ✅ HQ board **MF** (M0 Foundation), 32 tasks; see §4.0 |
 
@@ -49,7 +49,7 @@ The first two are now in `CLAUDE.md` → *Next.js 16 rules*. ADIT confirms all f
 
 | Milestone | Goal | Depends on | Size |
 |---|---|---|---|
-| **M0 Foundation** | Sign up, create a restaurant, invite staff with a role | — | L |
+| **M0 Foundation** ✅ | Sign up, create a restaurant, invite staff with a role. **Signed off 2026-11-09** (`docs/qa/M0-signoff.md`, PR #97) | — | L |
 | **M1 Signup & super admin** | Public site, onboarding wizard, tenants list, packages | M0 | M |
 | **M2 Venue & menu** | Areas, tables, floor plan, menu, QR codes | M0 | L |
 | **M3 Service core (MVP)** | POS, orders, KOT/KDS, bills, cash, printing, payment tracking | M2 | XL |
@@ -62,7 +62,7 @@ M1 and M2 can run in parallel once M0 is done.
 
 ---
 
-## 4. M0 — Foundation (detailed)
+## 4. M0 — Foundation (detailed) ✅ signed off 2026-11-09
 
 **Exit criteria:**
 - A new user signs up, confirms their email (in Mailpit locally), and creates a restaurant with one location.
@@ -91,14 +91,14 @@ One task = one branch = one PR. Flow: developer opens a **draft** PR → REYKI v
 | MF-T13 ✅ | DAVIN | Auth Server Actions + `/auth/confirm` (§4.6) (PR #44) | T07, T08 | — |
 | MF-T14 ✅ | ADIT | Auth pages (§4.6) (PR #27; actions wired in T39) | T01 | — |
 | MF-T15 ✅ | DAVIN | Onboarding actions: `checkSlug`, `createOrganization` (§4.7) (PR #47) | T03, T07 | T13 |
-| MF-T16 | ADIT | Onboarding wizard UI (§4.7) — PR #30, wired to `lib/onboarding`, in QA | T14 | T15 |
+| MF-T16 ✅ | ADIT | Onboarding wizard UI (§4.7) (PR #30) | T14 | T15 |
 | MF-T17 ✅ | DAVIN | Staff actions: invite, resend, revoke, role, deactivate, accept (§4.8) + audit triggers (PR #50) | T04, T07, T12 | T13 |
 | MF-T18 ✅ | ADIT | Restaurant admin shell: sidebar from permissions, location switcher (§4.9) (PR #29) | T07, T14 | — |
 | MF-T19 ✅ | ADIT | Staff pages + `/invite/[token]` (§4.8) (PR #37) | T18 | T17 |
 | MF-T20 ✅ | ADIT | Public data: `getPublicPackages`, `getStorefront`, `theme.ts` (§4.9) | T05, T06 | — |
 | MF-T21 ✅ | ADIT | Frontend shell + pricing + storefront placeholder (§4.9) (PR #28) | T01 | — |
 | MF-T22 ✅ | ADIT | Super admin data + `setOrgStatus` (§4.9) (PR #43) | T07, T03 | — |
-| MF-T23 | ADIT | Super admin shell + tenants list (§4.9) — PR #36, in QA | T18 | T22 |
+| MF-T23 ✅ | ADIT | Super admin shell + tenants list (§4.9) (PR #36; shell-after-guard fix #83) | T18 | T22 |
 | MF-T24 ✅ | REYKI | M0 test plan, isolation matrix, bug + PR report templates (PR #2) | — | — |
 | MF-T25 ✅ | REYKI | pgTAP isolation suite, core tables (§4.3) (PRs #4, #7) | — | T02 |
 | MF-T34 ✅ | DAVIN | Invitation + branding review fixes: explicit `all_locations`, `org_branding.logo_url` https-only, invite expiry cap (S3 ×3) | T03 | — |
@@ -106,19 +106,19 @@ One task = one branch = one PR. Flow: developer opens a **draft** PR → REYKI v
 | MF-T26 ✅ | REYKI | pgTAP abuse tests: invitations, RPCs, triggers (§4.3) (PRs #13, #16, #18) | T25 | T03, T04 |
 | MF-T36 ✅ | REYKI | Hardening tests for MF-T34 (PR #19) | T34 | T34 |
 | MF-T27 ✅ | REYKI | CI workflow (§4.10, §12) | T01, T02 | — |
-| MF-T28 | REYKI | Playwright setup + auth e2e (after the QA queue; Chromium download from `cdn.playwright.dev` awaiting approval) | T01 | T13, T14 |
-| MF-T29 | REYKI | e2e onboarding (exit criterion 1) | T28 | T15, T16 |
-| MF-T30 | REYKI | e2e staff invite as Cashier + cross-tenant (exit criteria 2–3) | T28 | T17–T19 |
-| MF-T31 | REYKI | e2e super admin, storefront, pricing | T28 | T20–T23 |
-| MF-T32 | REYKI | M0 exit sign-off report (includes the live Arcjet check) | all | — |
+| MF-T28 ✅ | REYKI | Playwright setup + auth e2e (PR #64) | T01 | T13, T14 |
+| MF-T29 ✅ | REYKI | e2e onboarding (exit criterion 1) (PR #65) | T28 | T15, T16 |
+| MF-T30 ✅ | REYKI | e2e staff invite as Cashier + cross-tenant (exit criteria 2–3) (PR #68) | T28 | T17–T19 |
+| MF-T31 ✅ | REYKI | e2e super admin, storefront, pricing (PR #85; 140/140 e2e green in CI) | T28 | T20–T23 |
+| MF-T32 ✅ | REYKI | M0 exit sign-off report, including the live Arcjet check (PR #97: all three exit criteria PASS, no S1/S2) | all | — |
 | MF-T37 ✅ | DAVIN | Env: `EMAIL_DELIVERY` required and `resend` in production (S3 from QA #41) (PR #48) | — | — |
 | MF-T38 ✅ | ADIT | `send()` accepts exactly one recipient (S3 from QA #41) (PR #45) | — | — |
 | MF-T39 ✅ | ADIT | Wire auth pages to `lib/auth/actions`; one `ActionResult`; reuse `sanitizeNext` (PR #54) | T13 | — |
 | MF-T40 ✅ | ADIT | PostHog: allowlist query params, mask tokens in every URL prop, autocapture/recording off (S2 from QA #40) (PR #46) | — | — |
 
-**Backlog board `B1`:** B1-T01 PostHog error tracking + `global-error.tsx` (ADIT, #52, in QA) · B1-T02 ✅ atomic `set_member_locations` RPC (DAVIN, #51) · B1-T03 regenerated types + `admin_set_org_status` hardening (DAVIN, #53, whitespace re-check in QA) · B1-T04 ✅ `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` with `ANON_KEY` fallback (DAVIN, #55) · B1-T05 signed-in users redirected away from /login and /signup (ADIT, #56, in QA).
+**Backlog board `B1`:** B1-T01 ✅ PostHog error tracking + `global-error.tsx` (ADIT, #52) · B1-T02 ✅ atomic `set_member_locations` RPC (DAVIN, #51) · B1-T03 ✅ regenerated types + `admin_set_org_status` hardening (DAVIN, #53) · B1-T04 ✅ `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` with `ANON_KEY` fallback (DAVIN, #55) · B1-T05 ✅ signed-in users redirected away from /login and /signup (ADIT, #56).
 
-**Critical path:** T16 (#30) → T23 (#36) → MF-T28 (Playwright, blocked on `cdn.playwright.dev`) → e2e T29–T31 → T32 sign-off. All M0 backend is merged; QA throughput is the bottleneck.
+**M0 is done.** Open findings from the sign-off: BUG-M0-01 (S3, no `areas`/`tables` isolation test) → MVM-T02; BUG-M0-02 (S4) = B1-T08 (#71); BUG-M0-03 (S4, dev `Date.now()` noise) → B1-T17; BUG-M0-04 (S3, env validation inside `after()` drops invite mail) → B1-T16. Not covered and carried forward: a manual tablet walkthrough (do it on the M2 floor plan) and Supabase advisors (run them before the first deployed environment).
 
 **Progress (2026-11-09):**
 - ✅ Merged 2026-11-08: #34 (T06), #38 (T35), #28 (T21), #41 (T12), #27 (T14), #40 (T08), #39 (T07), #46 (T40), #43 (T22), #29 (T18).
@@ -436,6 +436,11 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-09 | Member location scope changes go through one atomic `set_member_locations` RPC (B1-T02), not several separate writes |
 | 2026-11-09 | Super admin suspend/reactivate reasons need at least 5 visible characters after stripping Unicode whitespace and zero-width characters, checked in both SQL and Zod; setting the same status again is a no-op with no audit row (B1-T03) |
 | 2026-11-09 | Signed-in users opening /login or /signup are redirected (DAL, not proxy) to the sanitised `next` or `/`; `next` may never point back to an auth page (B1-T05) |
+| 2026-11-09 | HQ marks a task done when *any* PR linked to it merges, including a contract-only Markdown PR (MSS-T01 closed on #89). ALAN reopens the task after a contract PR merges |
+| 2026-11-09 | M0 signed off by REYKI (#97). An HQ task only starts when it's *assigned* (`assign_task`); a message alone doesn't wake an agent with no current task (REYKI sat idle on MF-T32) |
+| 2026-11-09 | Tenant usage `limit` is 0 when an org has no live subscription (matches the plan-limit triggers); the UI shows "No plan" (MSS-T05) |
+| 2026-11-09 | Packages are written only through the audited `admin_*_package` RPCs; `authenticated` has SELECT only on `packages` (MSS-T01 review) |
+| 2026-11-09 | **User decision: real services go on a STAGING environment first.** Vercel Hobby (`restomate-staging`, `*.vercel.app`, no domain yet, so customer sites use `/s/{slug}`), Supabase `restomate-staging` in ap-southeast-1 created through the Vercel Marketplace, Resend test sender, Arcjet, PostHog, DOKU **sandbox**. Production (domain, Vercel Pro, DOKU production) comes later and needs the user's approval. Staging has no seed users with known passwords (B1-T19) |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -444,7 +449,8 @@ _None yet._
 
 ## 15. Next up
 
-1. **QA queue (REYKI):** #53 whitespace re-check → #56 → #52 → #30 → #36 → live Arcjet check. ALAN merges each on PASS (#36 and #53 both touch `lib/admin/actions.ts`, so the second one rebases).
-2. **MF-T28 → T29–T31 → T32:** Playwright needs Chromium from `cdn.playwright.dev` (awaiting user approval; fallback is the CI Playwright job or the `mcr.microsoft.com/playwright` image). Exit criterion 2 is already verified live; criteria 1 and 3 get e2e coverage in T29/T30.
-3. **DAVIN and ADIT:** M0 build work is done; they fix QA findings first. ALAN to break down M1/M2 (§5, §6) so work is queued for after M0 sign-off.
-4. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key in that environment (production touches need the user's approval).
+1. **REYKI (QA is the bottleneck):** MVM-T02 (venue isolation, closes BUG-M0-01; merges before other M2 PRs) → PR QA in merge order: #73 menu schema → #70 lib/venue → #63 tables pages → #69 floor plan → #81 QR sheet → #76 → #71 → menu stack (#78 → #77 → #79 → #80 → #82 → #84 → #86, with MVM-T07 alongside) → M1: #93 packages lib → #92 packages page → #96 tenant detail lib → #95 tenant detail page (MSS-T03 and MSS-T07 alongside) → #90 marketing.
+2. **DAVIN:** MSS-T08 platform settings (contract first), then B1-T16 (S3 env) and B1-T17 (S4 dev noise).
+3. **ADIT:** #95 rebase onto `main` + "No plan" state → B1-T15. Then the platform settings page against the MSS-T08 contract.
+4. **Staging (in progress):** the user does steps 1–6 (Vercel import, Supabase via Vercel Storage, Resend/Arcjet/PostHog/DOKU sandbox keys in Vercel). DAVIN: B1-T16 (env fail-fast) → B1-T19 (migrations deploy + staging seed + `docs/STAGING.md`). REYKI: smoke test on the staging URL.
+5. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.
