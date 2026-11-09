@@ -6,7 +6,7 @@ import { signOut } from "@/app/(auth)/_actions";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { AcceptInvitationForm } from "@/components/staff/AcceptInvitationForm";
 import { emailMatchesHint } from "@/components/staff/invite-email";
-import { acceptInvitation, getInvitationPreview } from "../_data";
+import { acceptInvitation, getInvitationPreview } from "@/lib/staff/actions";
 
 // The token is a secret in the URL: never send it as a Referrer, never index the page.
 export const metadata: Metadata = {

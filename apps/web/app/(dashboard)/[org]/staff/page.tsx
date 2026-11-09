@@ -2,14 +2,15 @@ import { Suspense } from "react";
 import { ForbiddenNotice } from "@/components/dashboard/notices";
 import { InvitationsTable, InviteButton, MembersTable, type StaffActions } from "@/components/staff/StaffTables";
 import { requireOrgContext, requirePermission } from "../../_data";
-import * as staff from "./_data";
+import { listStaff } from "@/lib/staff/data";
+import * as staff from "@/lib/staff/actions";
 
 async function Staff({ params }: { params: PageProps<"/[org]/staff">["params"] }) {
   const { org } = await params;
   const ctx = await requireOrgContext(org);
   if (!ctx.permissions.includes("staff.manage")) return <ForbiddenNotice />;
   await requirePermission(ctx.org.id, "staff.manage");
-  const data = await staff.listStaff(ctx.org.slug);
+  const data = await listStaff(ctx.org.slug);
   const slug = ctx.org.slug;
   // Server actions bound to the org slug (the client never supplies the org).
   const actions: StaffActions = {
