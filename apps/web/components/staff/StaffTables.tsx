@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ActionDialog } from "./ActionDialog";
+import { FieldError } from "./field-errors";
 import { LocationPicker } from "./LocationPicker";
 import type { PendingInvitation, StaffAction, StaffData, StaffMember } from "./types";
 
@@ -59,14 +60,15 @@ export function MembersTable({ data, actions, upgradeHref }: { data: StaffData; 
             <td className={td}>{m.status === "active" ? "Active" : <span className="rounded bg-neutral-200 px-2 py-0.5 text-xs text-neutral-900">Deactivated</span>}</td>
             <td className={td}>
               <div className="flex flex-wrap gap-2">
-                <ActionDialog label="Role" title={`Change role for ${m.fullName ?? m.email}`} action={actions.changeRole} hidden={{ memberId: m.memberId }} submitLabel="Save role" upgradeHref={upgradeHref}>
+                <ActionDialog label="Role" title={`Change role for ${m.fullName ?? m.email}`} action={actions.changeRole} hidden={{ memberId: m.memberId }} submitLabel="Save role" upgradeHref={upgradeHref} fields={["roleId"]}>
                   <label className="flex flex-col gap-1.5 text-sm font-medium">Role
                     <select name="roleId" defaultValue={m.roleId} className="min-h-12 rounded-lg border border-neutral-400 bg-transparent px-2 font-normal">
                       {(roles.some((r) => r.id === m.roleId) ? roles : [...roles, { id: m.roleId, key: m.roleKey, name: m.roleName, isSystem: true }]).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
+                    <FieldError name="roleId" />
                   </label>
                 </ActionDialog>
-                <ActionDialog label="Locations" title={`Locations for ${m.fullName ?? m.email}`} action={actions.setLocations} hidden={{ memberId: m.memberId }} submitLabel="Save locations">
+                <ActionDialog label="Locations" title={`Locations for ${m.fullName ?? m.email}`} action={actions.setLocations} hidden={{ memberId: m.memberId }} submitLabel="Save locations" fields={["allLocations", "locationIds"]}>
                   <LocationPicker locations={data.locations} initialAll={m.allLocations} initialIds={m.locationIds} />
                 </ActionDialog>
                 {m.status === "active" ? (
@@ -112,14 +114,16 @@ export function InvitationsTable({ invitations, actions }: { invitations: Pendin
 export function InviteButton({ data, action, upgradeHref }: { data: StaffData; action: StaffAction; upgradeHref: string }) {
   const roles = roleOptions(data);
   return (
-    <ActionDialog label="Invite staff" title="Invite staff" action={action} submitLabel="Send invitation" upgradeHref={upgradeHref}>
+    <ActionDialog label="Invite staff" title="Invite staff" action={action} submitLabel="Send invitation" upgradeHref={upgradeHref} fields={["email", "roleId", "allLocations", "locationIds"]}>
       <label className="flex flex-col gap-1.5 text-sm font-medium">Email
         <input name="email" type="email" required autoComplete="off" className="min-h-12 rounded-lg border border-neutral-400 bg-transparent px-3 font-normal" />
+        <FieldError name="email" />
       </label>
       <label className="flex flex-col gap-1.5 text-sm font-medium">Role
         <select name="roleId" required className="min-h-12 rounded-lg border border-neutral-400 bg-transparent px-2 font-normal">
           {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
+        <FieldError name="roleId" />
       </label>
       <LocationPicker locations={data.locations} />
     </ActionDialog>

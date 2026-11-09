@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FieldError } from "./field-errors";
 
 /** "All locations" toggle OR a multi-select; an empty selection is never submitted as valid. */
 export function LocationPicker({
@@ -17,6 +18,8 @@ export function LocationPicker({
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="text-sm font-medium">Locations</legend>
+      {/* An unchecked checkbox posts nothing, so send an explicit false (the checkbox posts "true" when checked). */}
+      {!all && <input type="hidden" name="allLocations" value="false" />}
       <label className="flex min-h-12 items-center gap-3 text-sm">
         <input type="checkbox" name="allLocations" value="true" checked={all} onChange={(e) => setAll(e.target.checked)} className="h-6 w-6" />
         All locations
@@ -39,6 +42,7 @@ export function LocationPicker({
           {ids.length === 0 && <p role="alert" className="text-sm text-red-700 dark:text-red-400">Choose at least one location, or select All locations.</p>}
         </>
       )}
+      <FieldError name={["allLocations", "locationIds"]} />
     </fieldset>
   );
 }

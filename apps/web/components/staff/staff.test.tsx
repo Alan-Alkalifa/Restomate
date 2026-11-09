@@ -53,3 +53,35 @@ describe("staff UI", () => {
     expect(emailMatchesHint("bob@example.com", "a***@example.com")).toBe(false);
   });
 });
+
+describe("field errors (B1-T10)", () => {
+  it("lists only errors that have no visible field", async () => {
+    const { unclaimedFieldErrors } = await import("./field-errors");
+    const r = { ok: false as const, fieldErrors: { email: ["Enter a valid email."], memberId: ["Member not found."], allLocations: ["Choose all or some."] } };
+    expect(unclaimedFieldErrors(r, ["email", "allLocations"])).toEqual(["Team member: Member not found."]);
+    expect(unclaimedFieldErrors(r, [])).toHaveLength(3);
+    expect(unclaimedFieldErrors({ ok: true }, [])).toEqual([]);
+    expect(unclaimedFieldErrors(null, [])).toEqual([]);
+  });
+  it("renders inline field errors next to their field", async () => {
+    const { FieldError, FieldErrorsContext } = await import("./field-errors");
+    const html = renderToStaticMarkup(
+      <FieldErrorsContext value={{ email: ["Enter a valid email."], locationIds: ["Pick one."] }}>
+        <FieldError name="email" />
+        <FieldError name={["allLocations", "locationIds"]} />
+        <FieldError name="roleId" />
+      </FieldErrorsContext>,
+    );
+    expect(html).toContain("Enter a valid email.");
+    expect(html).toContain("Pick one.");
+    expect(html.match(/data-field-error/g)).toHaveLength(2);
+  });
+  it("posts an explicit allLocations=false when unchecked", async () => {
+    const { LocationPicker } = await import("./LocationPicker");
+    const locs = [{ id: "l1", name: "Kemang" }];
+    const off = renderToStaticMarkup(<LocationPicker locations={locs} initialAll={false} />);
+    expect(off).toMatch(/type="hidden"[^>]*name="allLocations"[^>]*value="false"|name="allLocations"[^>]*value="false"/);
+    const on = renderToStaticMarkup(<LocationPicker locations={locs} initialAll />);
+    expect(on).not.toContain('value="false"');
+  });
+});
