@@ -16,12 +16,16 @@ Pinned 2026-11-09 by ALAN. **DAVIN** implements it (MVM-T01 schema, MVM-T03 lib)
 | `areas` | `id`, `organization_id`, `location_id`, `name` (1–60), `sort_order`, `is_active`, timestamps. Unique `(location_id, lower(name))` among active rows |
 | `tables` | `id`, `organization_id`, `location_id`, `area_id`, `label` (1–20, unique per location among active rows), `capacity` (1–50), `shape` (`square` \| `round` \| `rect`), `status` (`available` \| `reserved` \| `occupied` \| `needs_cleaning`), `pos_x`, `pos_y` (nullable int), `is_active`, `qr_token` (server-generated, unique), `qr_rotated_at`, timestamps |
 
-RPCs: `rotate_table_qr_token(table_id uuid) returns text` (requires `tables.manage`) and `resolve_table_qr(token text)` (anon; returns only org slug, location id, table id and label).
+`qr_token` is **not** in the client SELECT grant: columns are granted individually, so clients must list columns explicitly (no `select('*')`).
+
+RPCs: `rotate_table_qr_token(table_id uuid) returns text` (requires `tables.manage`), `get_table_qr_tokens(location_id uuid, table_ids uuid[] default null)` (requires `tables.manage` + location access; returns `table_id, label, area_name, qr_token` for active tables; the only way to read tokens), and `resolve_table_qr(token text)` (anon; returns only org slug, location id, table id and label).
 
 SQL errors that the lib maps to codes:
 - a unique-violation on the active-name index (`23505`) → `DUPLICATE_NAME`;
 - `AREA_NOT_EMPTY` (P0001), raised by a trigger when an area with active tables is deactivated → `AREA_NOT_EMPTY`;
 - `PLAN_LIMIT:max_tables` (P0001) → `PLAN_LIMIT`;
+- `AREA_INACTIVE` (P0001), raised when an active table would point to an inactive area → `formError` "That area is inactive. Reactivate it first." (no new code);
+- `TABLE_INACTIVE` (P0001), raised by rotating the QR of an inactive table → `formError` "Reactivate the table before replacing its QR code." (no new code);
 - `42501` → `FORBIDDEN`.
 
 ## `apps/web/lib/venue/data.ts` (`server-only`)
@@ -46,7 +50,7 @@ export function getVenue(orgSlug: string, locationId: string): Promise<{
 
 export function getTableQrTokens(orgSlug: string, locationId: string, tableIds?: string[]):
   Promise<{ tableId: string; label: string; areaName: string; url: string }[]>;
-// tables.manage only. url = `${storefront origin}/t/{qr_token}`. For the QR print task (later). Never cache it with a token in the key.
+// tables.manage only, via the get_table_qr_tokens RPC. url = `${storefront origin}/t/{qr_token}`. For the QR print task (later). Never cache it with a token in the key.
 ```
 
 ## `apps/web/lib/venue/actions.ts` (`'use server'`)
