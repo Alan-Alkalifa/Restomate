@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getCurrentUser } from "@/app/(dashboard)/_data";
-import { signOut } from "@/app/(auth)/_actions";
+import { signOut } from "@/lib/auth/actions";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { AcceptInvitationForm } from "@/components/staff/AcceptInvitationForm";
 import { emailMatchesHint } from "@/components/staff/invite-email";
