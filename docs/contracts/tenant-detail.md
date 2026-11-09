@@ -31,7 +31,7 @@ No new tables. Two new `security definer` functions (`search_path = ''`, `execut
 | `max_tables` | `tables` of the org where `is_active` |
 | `max_orders_per_month` | **Always `0` until M3** creates orders. The field exists so the UI does not change later. The UI should show it as "—" or "Not tracked yet" rather than "0 of N" |
 
-`limit` is the value from the org's **current** subscription package (`private.org_limit`), `null` = unlimited. An org with no subscription has `limit: null` for every key.
+`limit` comes from `private.org_limit`, the function the triggers call: the package limit of the org's live subscription (`trialing`, `active`, `past_due`), `null` = unlimited. An org with **no live subscription** has `limit: 0` for every key, because the triggers refuse every new location, member, invitation and table in that case. The UI should show it as "no plan" rather than "0 allowed".
 
 ## `apps/web/lib/admin/tenant-detail-types.ts` (shared, no `server-only`)
 

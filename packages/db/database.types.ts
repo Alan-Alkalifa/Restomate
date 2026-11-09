@@ -406,8 +406,14 @@ isOneToOne: false
             "accept_invitation":
 { Args: { "token": string }; Returns: Json
                            },
+"admin_get_tenant_detail":
+{ Args: { "org_id": string }; Returns: Json
+                           },
 "admin_list_tenants":
 { Args: { "org_id"?: string,"package_code"?: string,"page_offset"?: number,"page_size"?: number,"q"?: string,"status_filter"?: string }; Returns: Json
+                           },
+"admin_prepare_owner_password_reset":
+{ Args: { "org_id": string,"user_id": string }; Returns: string
                            },
 "admin_set_org_status":
 { Args: { "org": string,"reason": string,"status": string }; Returns: boolean
