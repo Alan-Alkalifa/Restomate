@@ -30,12 +30,19 @@ const td = "px-3 py-2 align-middle text-sm";
 type Common = { actions: VenueActions; offline: boolean; upgradeHref: string; areas: Area[]; onNotice: (m: string) => void };
 
 function TableFields({ areas, table, state }: { areas: Area[]; table?: VenueTable; state: Parameters<typeof errorsFor>[0] }) {
-  const options = areas
-    .filter((a) => a.isActive || a.id === table?.areaId)
-    .map((a) => ({ value: a.id, label: a.isActive ? a.name : `${a.name} (inactive)` }));
+  // Only active areas are offered (an active table cannot sit in an inactive area: AREA_INACTIVE).
+  const options = areas.filter((a) => a.isActive).map((a) => ({ value: a.id, label: a.name }));
+  const current = options.find((o) => o.value === table?.areaId);
   return (
     <>
-      <SelectField name="areaId" label="Area" options={options} defaultValue={table?.areaId ?? options[0]?.value} errors={errorsFor(state, "areaId")} />
+      <SelectField
+        name="areaId"
+        label="Area"
+        options={options}
+        defaultValue={current?.value ?? options[0]?.value}
+        hint={table && !current ? "This table's area is inactive. Choose an active area." : undefined}
+        errors={errorsFor(state, "areaId")}
+      />
       <Field name="label" label="Table label" maxLength={20} required autoComplete="off" defaultValue={table?.label ?? ""} errors={errorsFor(state, "label")} />
       <div className="grid grid-cols-2 gap-4">
         <Field name="capacity" label="Seats" type="number" inputMode="numeric" min={1} max={50} step={1} required defaultValue={table?.capacity ?? 4} errors={errorsFor(state, "capacity")} />
@@ -69,6 +76,7 @@ function Row({ t, canManage, ...c }: Common & { t: VenueTable; canManage: boolea
             </VenueDialog>
             <VenueDialog
               triggerLabel="Rotate QR"
+              disabled={!t.isActive}
               triggerAriaLabel={`Rotate QR code for table ${t.label}`}
               title={`Rotate the QR code for ${t.label}?`}
               description="Printed codes for this table stop working immediately. You will need to print and place the new code."

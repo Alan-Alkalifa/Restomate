@@ -56,6 +56,17 @@ describe("VenueManager (SSR)", () => {
     expect(html(data({ areas: [], tables: [] }))).toContain("No areas yet.");
     expect(html(data({ tables: [] }))).toContain("No tables yet.");
   });
+  it("offers only active areas in the table picker and disables Rotate QR on inactive tables", () => {
+    const out = html(data({
+      tables: [
+        { id: "t1", areaId: "a1", label: "T1", capacity: 4, shape: "round", status: "available", posX: null, posY: null, isActive: true },
+        { id: "t2", areaId: "a1", label: "T2", capacity: 2, shape: "square", status: "available", posX: null, posY: null, isActive: false },
+      ],
+    }));
+    expect(out).toContain('aria-label="Rotate QR code for table T1"');
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Rotate QR code for table T2"|<button[^>]*aria-label="Rotate QR code for table T2"[^>]*disabled=""/);
+    expect(out).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="Rotate QR code for table T1"|<button[^>]*aria-label="Rotate QR code for table T1"[^>]*disabled=""/);
+  });
   it("never puts an organization id in a form", () => {
     expect(html(data())).not.toMatch(/organization|orgId|org_id/i);
   });
