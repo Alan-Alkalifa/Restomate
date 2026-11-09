@@ -8,7 +8,7 @@ const flush = vi.fn(async () => {});
 vi.mock("posthog-node", () => ({ PostHog: class { capture = capture; flush = flush; } }));
 
 import { EVENTS, EVENT_NAMES } from "./events";
-import { sanitizeEvent, sanitizeUrl } from "./sanitize";
+import { sanitizeEvent, sanitizeText, sanitizeUrl } from "./sanitize";
 
 describe("events", () => {
   it("are snake_case object_action names", () => {
@@ -95,6 +95,56 @@ describe("exception payloads", () => {
     }
     expect(out).toContain("onSubmit");
     expect(out).toContain('"lineno":3');
+  });
+});
+
+describe("sanitizeText key=value secrets", () => {
+  it.each([
+    ["password=hunter2", "password=[token]"],
+    ["login failed, password=hunter2 for user", "login failed, password=[token] for user"],
+    ["token: abc123", "token: [token]"],
+    ['{"secret":"s3cret value"}', '{"secret":"[token]"}'],
+    ['{"token": "abc"}', '{"token": "[token]"}'],
+    ["{'api_key': 'k-1'}", "{'api_key': '[token]'}"],
+    ['\\"token\\":\\"abc\\"', '\\"token\\":\\"[token]\\"'],
+    ["failed at ?api_key=abc&a=1", "failed at ?api_key=[token]&a=1"],
+    ["Authorization: Bearer abc.def", "Authorization: Bearer [token]"],
+    ["authorization=Basic dXNlcjpwdw", "authorization=Basic [token]"],
+    ["X-Api-Key: zzz", "X-Api-Key: [token]"],
+    ["user_password=pw&next=/x", "user_password=[token]&next=/x"],
+    ["Cookie: sid=1; theme=dark", "Cookie: [token]"],
+    ["client_secret = shh", "client_secret = [token]"],
+    ["service_role=eyJhbGciOiJIUzI1NiJ9", "service_role=[token]"],
+    ["msg: password=hunter2", "msg: password=[token]"],
+  ])("masks %j", (input, expected) => {
+    expect(sanitizeText(input)).toBe(expected);
+  });
+  it("leaves normal text and non-sensitive keys alone", () => {
+    for (const t of [
+      "Unexpected token } in JSON at position 4",
+      "Invalid token",
+      "a=1&b=2",
+      "status: 500",
+      "Cannot read properties of undefined (reading 'name')",
+      "retry=3 timeout: 30",
+      '{"name":"Pizza","price":25000}',
+      "keyboard=us",
+    ]) {
+      expect(sanitizeText(t)).toBe(t);
+    }
+  });
+  it("keeps the existing masks working", () => {
+    expect(sanitizeText("mail a@b.co at /invite/abc")).toBe("mail [email] at /invite/[token]");
+  });
+  it("stays fast on long adversarial input", () => {
+    const inputs = ["a".repeat(100_000), "password=".repeat(20_000), "a=".repeat(50_000), `"${"\\".repeat(50_000)}`, "token:".padEnd(100_000, " "), "x-".repeat(60_000)];
+    const start = performance.now();
+    for (const i of inputs) sanitizeText(i);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+  it("is applied to exception payloads", () => {
+    const out = sanitizeEvent({ properties: { $exception_list: [{ value: "bad request password=hunter2" }] } });
+    expect(JSON.stringify(out)).not.toContain("hunter2");
   });
 });
 

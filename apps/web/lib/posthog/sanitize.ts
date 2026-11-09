@@ -59,17 +59,62 @@ export function sanitizeUrl(input: string): string {
 }
 
 const TEXT_URL = /https?:\/\/[^\s"'<>)\]]+/gi;
-const TEXT_EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+// Lookbehind: one start per run of local-part characters (otherwise a long run without "@" is rescanned from every position).
+const TEXT_EMAIL = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const TEXT_JWT = /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g;
 const TEXT_PHONE = /\+?\d[\d\s().-]{6,}\d/g;
-const TEXT_OPAQUE = /\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{24,}\b/g;
+// One start per run of word characters (lookbehind instead of \b, which also matched after every "-" and made
+// "a-a-a-…" quadratic).
+const TEXT_OPAQUE = /(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{24,}(?![A-Za-z0-9_-])/g;
+
+/** Key names whose value is a secret. Matched as a substring of the key, so `user_password` and `X-Api-Key` count too. */
+const SENSITIVE_KEY =
+  /password|passwd|pwd|secret|token|api[_-]?key|apikey|authorization|credential|service[_-]?role|private[_-]?key|session[_-]?id|\bcookie\b/i;
 
 /**
- * Scrub free text (exception messages, stack traces): URLs go through sanitizeUrl, then emails, JWTs,
+ * Head of a `key=value`, `key: value`, `"key":"value"` (also backslash-escaped, as in JSON inside a message) or URL
+ * query pair: groups 1 quote, 2 key, 3 separator. Linear: the key is at most 64 characters and only starts at a word
+ * boundary. The value is read only for secret-looking keys, by TEXT_VALUE.
+ */
+const TEXT_HEAD = /(?<![\w.-])(\\{0,3}["']?)([A-Za-z][\w.-]{0,63})\1(\s{0,3}[:=]\s{0,3})(?!\[token\])/g;
+
+/** Value after the head (sticky, so it only matches right there): groups 1 opening quote, 2 quoted value, 3 auth scheme. */
+const TEXT_VALUE = /(?:(\\{0,3}["'])((?:(?!\1)[^\r\n]){0,2000})\1|((?:Bearer|Basic|Token)\s+)?[^\s&,;"'<>)\]}]{1,2000})/y;
+
+/** `Cookie:` / `Set-Cookie:` header lines hold several `a=1; b=2` pairs: mask up to the end of the line or quote. */
+const TEXT_COOKIE_HEADER = /\b((?:set-)?cookie\s{0,3}:\s{0,3})[^\r\n"']{1,2000}/gi;
+
+const MASK = "[token]";
+
+function maskPairs(input: string): string {
+  const text = input.replace(TEXT_COOKIE_HEADER, (_m, head: string) => `${head}${MASK}`);
+  // Manual scan (not String.replace) so a harmless key does not swallow a secret in its value: we only read the
+  // value of secret-looking keys and always resume right behind the separator, which keeps the pass linear.
+  const heads = new RegExp(TEXT_HEAD.source, TEXT_HEAD.flags);
+  const value = new RegExp(TEXT_VALUE.source, TEXT_VALUE.flags);
+  let out = "";
+  let last = 0;
+  for (let m = heads.exec(text); m; m = heads.exec(text)) {
+    const [head, , key] = m;
+    if (!SENSITIVE_KEY.test(key)) continue;
+    value.lastIndex = m.index + head.length;
+    const v = value.exec(text);
+    if (!v) continue;
+    // Keep the key, separator and quoting so the message still reads naturally; only the value is replaced.
+    out += text.slice(last, m.index) + head + (v[1] !== undefined ? `${v[1]}${MASK}${v[1]}` : `${v[3] ?? ""}${MASK}`);
+    last = m.index + head.length + v[0].length;
+    heads.lastIndex = last;
+  }
+  return out + text.slice(last);
+}
+
+/**
+ * Scrub free text (exception messages, stack traces): values of secret-looking keys (`password=x`, `"token": "x"`,
+ * `Authorization: Bearer x`, `?api_key=x`) are masked first, then URLs go through sanitizeUrl, then emails, JWTs,
  * phone-like digit runs and long opaque tokens are redacted, and /invite|t/{x} paths are masked.
  */
 export function sanitizeText(input: string): string {
-  return input
+  return maskPairs(input)
     .replace(TEXT_URL, (u) => sanitizeUrl(u))
     .replace(TOKEN_PATH, (_m, seg: string) => `/${seg.toLowerCase()}/[token]`)
     .replace(TEXT_EMAIL, "[email]")
