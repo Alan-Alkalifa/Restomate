@@ -406,9 +406,12 @@ test.describe("analytics", () => {
     });
     await open(page, url);
     await expect(page.getByRole("heading", { name: /join demo restaurant/i })).toBeVisible();
-    // Give the SDK time to flush its pageview, then look at what reached the (mock) analytics host.
-    await expect.poll(() => bodies.length, { timeout: 20_000 }).toBeGreaterThan(0);
-    await page.waitForTimeout(1500);
+    // The SDK batches and flushes lazily (timing differs on mobile): a client-side navigation emits another pageview and
+    // hiding the page forces the flush, so wait for a real capture instead of a fixed delay.
+    await page.getByRole("link", { name: /sign in/i }).first().click().catch(() => undefined);
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect.poll(() => bodies.length, { timeout: 45_000, intervals: [500, 1000, 2000] }).toBeGreaterThan(0);
+    await page.waitForTimeout(1000);
     const all = bodies.join("\n");
     expect(all, "invite token leaked to PostHog").not.toContain(token);
     expect(all).not.toContain(invitee);
