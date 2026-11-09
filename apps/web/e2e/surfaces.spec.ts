@@ -93,7 +93,7 @@ test.describe("super admin access", () => {
   // KNOWN ISSUE (S3, reported to ALAN): the 404 for a non-admin still streams the admin layout shell ("Restomate platform
   // admin", the Tenants/Billing nav labels and a second <title>) because the layout renders before the guard resolves.
   // No tenant data is included today. Un-fixme when the shell is no longer sent to non-admins.
-  test.fixme("a non-admin's 404 response contains no admin shell markup", async ({ page }) => {
+  test("a non-admin's 404 response contains no admin shell markup", async ({ page }) => {
     await signInAs(page, seedUsers.owner);
     const res = await page.request.get("/admin/tenants");
     const html = await res.text();
