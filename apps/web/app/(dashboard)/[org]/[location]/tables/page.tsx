@@ -4,8 +4,8 @@ import { Suspense } from "react";
 import { requireOrgContext, requirePermission } from "@/app/(dashboard)/_data";
 import { ForbiddenNotice } from "@/components/dashboard/notices";
 import { VenueManager } from "@/components/venue/VenueManager";
-import { createArea, createTable, renameArea, reorderAreas, rotateTableQr, setAreaActive, setTableActive, updateTable } from "./_actions";
-import { getVenue } from "./_data";
+import { createArea, createTable, renameArea, reorderAreas, rotateTableQr, setAreaActive, setTableActive, updateTable } from "@/lib/venue/actions";
+import { getVenue } from "@/lib/venue/data";
 import { TablesSkeleton } from "./skeleton";
 
 export const metadata: Metadata = { title: "Tables · Restomate" };

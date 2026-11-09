@@ -1,13 +1,10 @@
 import type { ActionResult } from "@/lib/auth/schemas";
 
-// SEAM: replaced with `import type { Area, VenueTable } from "@/lib/venue/data"` when MVM-T03 merges.
-export type Area = { id: string; name: string; sortOrder: number; isActive: boolean; tableCount: number };
-export type TableShape = "square" | "round" | "rect";
-export type TableStatus = "available" | "reserved" | "occupied" | "needs_cleaning";
-export type VenueTable = {
-  id: string; areaId: string; label: string; capacity: number; shape: TableShape; status: TableStatus;
-  posX: number | null; posY: number | null; isActive: boolean;
-};
+import type { Area, VenueTable } from "@/lib/venue/data";
+
+export type { Area, VenueTable };
+export type TableShape = VenueTable["shape"];
+export type TableStatus = VenueTable["status"];
 export type VenueData = {
   areas: Area[];
   tables: VenueTable[];

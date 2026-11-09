@@ -89,10 +89,8 @@ describe("moveArea", () => {
 
 describe("venueErrorMessage", () => {
   it("maps the contract codes to friendly copy", () => {
-    // @ts-expect-error DUPLICATE_NAME / AREA_NOT_EMPTY join ActionErrorCode when MVM-T03 lands
     const dup = venueErrorMessage({ ok: false, code: "DUPLICATE_NAME", formError: "An area named Indoor already exists." });
     expect(dup).toBe("An area named Indoor already exists.");
-    // @ts-expect-error see above
     expect(venueErrorMessage({ ok: false, code: "AREA_NOT_EMPTY" })).toContain("active tables");
     expect(venueErrorMessage({ ok: false, code: "PLAN_LIMIT" })).toContain("table limit");
     expect(venueErrorMessage({ ok: false, code: "FORBIDDEN" })).toContain("permission");
