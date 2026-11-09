@@ -83,6 +83,78 @@ isOneToOne: false
       referencedColumns: ["key"]
     }
                   ]
+                },"item_variants": {
+                  Row: {
+                    "created_at": string,"id": string,"is_active": boolean,"item_id": string,"name": string,"organization_id": string,"price_delta": number,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"item_id": string,"name": string,"organization_id": string,"price_delta"?: number,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"item_id"?: string,"name"?: string,"organization_id"?: string,"price_delta"?: number,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "item_variants_item_org_fk"
+      columns: ["item_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "menu_items"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"kitchen_stations": {
+                  Row: {
+                    "created_at": string,"id": string,"is_active": boolean,"location_id": string,"name": string,"organization_id": string,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"location_id": string,"name": string,"organization_id": string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"location_id"?: string,"name"?: string,"organization_id"?: string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "kitchen_stations_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"location_menu_overrides": {
+                  Row: {
+                    "created_at": string,"id": string,"is_available": boolean,"item_id": string,"kitchen_station_id": string | null,"location_id": string,"organization_id": string,"price_override": number | null,"sold_out_until": string | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"is_available"?: boolean,"item_id": string,"kitchen_station_id"?: string | null,"location_id": string,"organization_id": string,"price_override"?: number | null,"sold_out_until"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"is_available"?: boolean,"item_id"?: string,"kitchen_station_id"?: string | null,"location_id"?: string,"organization_id"?: string,"price_override"?: number | null,"sold_out_until"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "lmo_item_org_fk"
+      columns: ["item_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "menu_items"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "lmo_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "lmo_station_location_fk"
+      columns: ["kitchen_station_id","location_id"]
+isOneToOne: false
+      referencedRelation: "kitchen_stations"
+      referencedColumns: ["id","location_id"]
+    }
+                  ]
                 },"location_staff": {
                   Row: {
                     "created_at": string,"location_id": string,"member_id": string,"organization_id": string
@@ -127,6 +199,112 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "organizations"
       referencedColumns: ["id"]
+    }
+                  ]
+                },"menu_categories": {
+                  Row: {
+                    "created_at": string,"description": string | null,"id": string,"is_active": boolean,"name": string,"organization_id": string,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"description"?: string | null,"id"?: string,"is_active"?: boolean,"name": string,"organization_id": string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"description"?: string | null,"id"?: string,"is_active"?: boolean,"name"?: string,"organization_id"?: string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "menu_categories_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"menu_item_modifier_groups": {
+                  Row: {
+                    "created_at": string,"group_id": string,"item_id": string,"organization_id": string,"sort_order": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"group_id": string,"item_id": string,"organization_id": string,"sort_order"?: number
+                  }
+                  Update: {
+                    "created_at"?: string,"group_id"?: string,"item_id"?: string,"organization_id"?: string,"sort_order"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "mimg_group_org_fk"
+      columns: ["group_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "modifier_groups"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "mimg_item_org_fk"
+      columns: ["item_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "menu_items"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"menu_items": {
+                  Row: {
+                    "base_price": number,"category_id": string,"created_at": string,"description": string | null,"dietary_tags": (string)[],"id": string,"image_path": string | null,"is_active": boolean,"is_published": boolean,"name": string,"organization_id": string,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "base_price": number,"category_id": string,"created_at"?: string,"description"?: string | null,"dietary_tags"?: (string)[],"id"?: string,"image_path"?: string | null,"is_active"?: boolean,"is_published"?: boolean,"name": string,"organization_id": string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "base_price"?: number,"category_id"?: string,"created_at"?: string,"description"?: string | null,"dietary_tags"?: (string)[],"id"?: string,"image_path"?: string | null,"is_active"?: boolean,"is_published"?: boolean,"name"?: string,"organization_id"?: string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "menu_items_category_org_fk"
+      columns: ["category_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "menu_categories"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"modifier_groups": {
+                  Row: {
+                    "created_at": string,"id": string,"is_active": boolean,"max_select": number,"min_select": number,"name": string,"organization_id": string,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"max_select"?: number,"min_select"?: number,"name": string,"organization_id": string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"is_active"?: boolean,"max_select"?: number,"min_select"?: number,"name"?: string,"organization_id"?: string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "modifier_groups_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"modifiers": {
+                  Row: {
+                    "created_at": string,"group_id": string,"id": string,"is_active": boolean,"name": string,"organization_id": string,"price_delta": number,"sort_order": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"group_id": string,"id"?: string,"is_active"?: boolean,"name": string,"organization_id": string,"price_delta"?: number,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"group_id"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"organization_id"?: string,"price_delta"?: number,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "modifiers_group_org_fk"
+      columns: ["group_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "modifier_groups"
+      referencedColumns: ["id","organization_id"]
     }
                   ]
                 },"org_branding": {
@@ -427,6 +605,9 @@ isOneToOne: false
 "get_org_package":
 { Args: { "org": string }; Returns: Json
                            },
+"get_public_menu":
+{ Args: { "location_id": string,"org_slug": string }; Returns: Json
+                           },
 "get_public_platform_flags":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
@@ -475,6 +656,9 @@ isOneToOne: false
                            },
 "rotate_table_qr_token":
 { Args: { "table_id": string }; Returns: string
+                           },
+"set_item_sold_out":
+{ Args: { "item_id": string,"location_id": string,"sold_out": boolean }; Returns: string
                            },
 "set_member_locations":
 { Args: { "all_locations": boolean,"location_ids"?: (string)[],"member": string }; Returns: Json

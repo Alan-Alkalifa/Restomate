@@ -440,6 +440,7 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-09 | M0 signed off by REYKI (#97). An HQ task only starts when it's *assigned* (`assign_task`); a message alone doesn't wake an agent with no current task (REYKI sat idle on MF-T32) |
 | 2026-11-09 | Tenant usage `limit` is 0 when an org has no live subscription (matches the plan-limit triggers); the UI shows "No plan" (MSS-T05) |
 | 2026-11-09 | Packages are written only through the audited `admin_*_package` RPCs; `authenticated` has SELECT only on `packages` (MSS-T01 review) |
+| 2026-11-09 | **User decision: real services go on a STAGING environment first.** Vercel Hobby (`restomate-staging`, `*.vercel.app`, no domain yet, so customer sites use `/s/{slug}`), Supabase `restomate-staging` in ap-southeast-1 created through the Vercel Marketplace, Resend test sender, Arcjet, PostHog, DOKU **sandbox**. Production (domain, Vercel Pro, DOKU production) comes later and needs the user's approval. Staging has no seed users with known passwords (B1-T19) |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -451,4 +452,5 @@ _None yet._
 1. **REYKI (QA is the bottleneck):** MVM-T02 (venue isolation, closes BUG-M0-01; merges before other M2 PRs) → PR QA in merge order: #73 menu schema → #70 lib/venue → #63 tables pages → #69 floor plan → #81 QR sheet → #76 → #71 → menu stack (#78 → #77 → #79 → #80 → #82 → #84 → #86, with MVM-T07 alongside) → M1: #93 packages lib → #92 packages page → #96 tenant detail lib → #95 tenant detail page (MSS-T03 and MSS-T07 alongside) → #90 marketing.
 2. **DAVIN:** MSS-T08 platform settings (contract first), then B1-T16 (S3 env) and B1-T17 (S4 dev noise).
 3. **ADIT:** #95 rebase onto `main` + "No plan" state → B1-T15. Then the platform settings page against the MSS-T08 contract.
-4. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.
+4. **Staging (in progress):** the user does steps 1–6 (Vercel import, Supabase via Vercel Storage, Resend/Arcjet/PostHog/DOKU sandbox keys in Vercel). DAVIN: B1-T16 (env fail-fast) → B1-T19 (migrations deploy + staging seed + `docs/STAGING.md`). REYKI: smoke test on the staging URL.
+5. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.

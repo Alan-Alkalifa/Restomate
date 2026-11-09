@@ -104,7 +104,7 @@ select is(tests.cnt('ca', 'select 1 from public.org_branding where organization_
 
 -- schema-level guards ------------------------------------------------------------------
 select is((select count(*)::int from pg_class c join pg_namespace n on n.oid = c.relnamespace
-            where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity), 19, 'M0 + M2 venue have 19 RLS tables in public (update when tables are added)');
+            where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity), 27, 'M0 + M2 venue + M2 menu have 27 RLS tables in public (update when tables are added)');
 select is(has_schema_privilege('authenticated', 'private', 'USAGE'), false, 'authenticated has no usage on private schema');
 select is(has_schema_privilege('anon', 'private', 'USAGE'), false, 'anon has no usage on private schema');
 
