@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { activePublicPackages, auditActions, createOrg, deleteOrgs, deleteRest, insertRest, rest } from "./support/db";
+import { activePublicPackages, auditActions, createOrg, deleteOrgs, deleteRest, insertRest, orgIdOf, rest } from "./support/db";
 import { open, signInAs } from "./support/flows";
 import { seedUsers, uniqueEmail } from "./support/users";
 
@@ -175,8 +175,10 @@ test.describe("super admin tenants", () => {
       await dialog.getByRole("button", { name: "Suspend" }).click();
       await expect(row().getByText(/suspended/i).first()).toBeVisible();
 
+      // Scoped to this run's throwaway org: desktop and mobile projects run in parallel and use the same reason text.
+      const orgId = await orgIdOf(slug);
       const audit = await rest<{ metadata: { to?: string; reason?: string } }>(
-        `audit_logs?action=eq.organization.status_changed&metadata->>reason=eq.e2e%20suspension%20test&select=metadata`,
+        `audit_logs?organization_id=eq.${orgId}&action=eq.organization.status_changed&metadata->>reason=eq.e2e%20suspension%20test&select=metadata`,
       );
       expect(audit).toHaveLength(1);
       expect(audit[0].metadata.to).toBe("suspended");
