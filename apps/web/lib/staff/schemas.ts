@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 const id = z.string().uuid("Invalid selection.");
-const bool = z.enum(["true", "false"]).transform((v) => v === "true");
+// An unchecked HTML checkbox sends no field at all, so a missing value means false.
+const bool = z.enum(["true", "false"]).optional().default("false").transform((v) => v === "true");
 const locationIds = z.array(id).max(100).default([]);
 
 const scope = {

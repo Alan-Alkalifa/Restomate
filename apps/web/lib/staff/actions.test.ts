@@ -128,6 +128,16 @@ describe("inviteStaff", () => {
     const r = await inviteStaff("demo", null, form([["email", "a@b.test"], ["roleId", ROLE_CASHIER], ["allLocations", "false"], ["locationIds", LOC]]));
     expect(r).toMatchObject({ ok: false, fieldErrors: { locationIds: [expect.any(String)] } });
   });
+  it("a form with no allLocations field creates a location-scoped invite", async () => {
+    results["locations.select"] = { data: [{ id: LOC, name: "Main" }] };
+    const r = await inviteStaff("demo", null, form([["email", "a@b.test"], ["roleId", ROLE_CASHIER], ["locationIds", LOC]]));
+    expect(r).toEqual({ ok: true });
+    expect(sent("staff_invitations.insert")[0]!.payload).toMatchObject({ all_locations: false, location_ids: [LOC] });
+  });
+  it("no allLocations and no locations -> fieldErrors.locationIds", async () => {
+    const r = await inviteStaff("demo", null, form([["email", "a@b.test"], ["roleId", ROLE_CASHIER]]));
+    expect(r).toMatchObject({ ok: false, fieldErrors: { locationIds: [expect.any(String)] } });
+  });
   it("pending or expired invitation -> ALREADY_INVITED; existing active member -> field error", async () => {
     results["staff_invitations.select"] = { data: { id: INV, expires_at: new Date(Date.now() + 1e6).toISOString() } };
     expect(await invite()).toMatchObject({ ok: false, code: "ALREADY_INVITED", formError: expect.stringContaining("Resend") });
@@ -209,6 +219,12 @@ describe("member changes", () => {
     expect(sent("location_staff.insert")).toHaveLength(0);
     expect(sent("organization_members.update")).toHaveLength(0);
     expect(updateTag).toHaveBeenCalledWith(`member:u-other:${ORG}`);
+  });
+  it("setMemberLocations with no allLocations field scopes to the given locations", async () => {
+    member("u-other", "waiter");
+    rpc.mockResolvedValue({ data: { changed: true }, error: null });
+    expect(await setMemberLocations("demo", null, form([["memberId", MEMBER], ["locationIds", LOC]]))).toEqual({ ok: true });
+    expect(rpc).toHaveBeenCalledWith("set_member_locations", { member: MEMBER, all_locations: false, location_ids: [LOC] });
   });
   it("setMemberLocations maps INVALID_LOCATION and 42501, and does not tag on failure", async () => {
     member("u-other", "waiter");
