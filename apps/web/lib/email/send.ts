@@ -1,6 +1,7 @@
 import "server-only";
 import type { ReactElement } from "react";
 import { render } from "@react-email/components";
+import { z } from "zod";
 import { serverEnv } from "../env.server";
 import { getResend } from "./client";
 
@@ -21,6 +22,8 @@ function oneLine(value: string): string {
   return value.replace(/[\r\n]+/g, " ").trim();
 }
 
+const recipientSchema = z.email();
+
 /** `o***@demo.local` */
 export function maskEmail(address: string): string {
   const at = address.lastIndexOf("@");
@@ -38,6 +41,12 @@ export async function send(input: SendInput): Promise<SendResult> {
   try {
     const subject = oneLine(input.subject);
     const to = oneLine(input.to);
+    // Exactly one bare address: rejects lists (comma/semicolon), "Name <addr>" form, empty and malformed values,
+    // so a guest-supplied value can never fan out to several recipients.
+    if (!recipientSchema.safeParse(to).success || /[,;<>"\s]/.test(to)) {
+      console.error(`[email] rejected recipient ${maskEmail(to)}`);
+      return { ok: false, error: "invalid recipient" };
+    }
     const from = oneLine(input.from ?? serverEnv.EMAIL_FROM);
     const replyTo = input.replyTo ? oneLine(input.replyTo) : undefined;
 
