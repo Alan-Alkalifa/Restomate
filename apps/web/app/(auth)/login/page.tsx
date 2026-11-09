@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { redirectIfSignedIn } from "@/components/auth/redirect-if-signed-in";
 import { signIn } from "@/lib/auth/actions";
 import { sanitizeNext } from "@/lib/auth/redirect";
 
@@ -15,6 +16,7 @@ const ERRORS: Record<string, string> = {
 
 async function LoginContent({ searchParams }: { searchParams: PageProps<"/login">["searchParams"] }) {
   const sp = await searchParams;
+  await redirectIfSignedIn(sp.next);
   const code = typeof sp.error === "string" ? sp.error : undefined;
   return <LoginForm action={signIn} next={nextParam(sp.next)} initialError={code ? ERRORS[code] : undefined} />;
 }
