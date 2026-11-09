@@ -28,15 +28,21 @@ const GENERIC_ERROR = "Something went wrong. Please try again.";
 /** A password change needs a sign-in via an emailed link (recovery / OTP) no older than this. */
 const RECENT_LINK_WINDOW_SECONDS = 10 * 60;
 
+const RATE_LIMIT_MESSAGE = "Too many attempts. Please wait a moment and try again.";
+const UNVERIFIED_MESSAGE = "We couldn't verify this request. Please try again from a normal browser, or contact support.";
+
+/**
+ * Map an Arcjet denial to a result. Only a real rate limit says "Too many attempts" (code RATE_LIMITED). A bot or
+ * shield denial gets a generic message and no code, and never reveals which rule fired; the reason is logged
+ * server-side only (no email, IP or other personal data).
+ */
 function blocked(reason: GuardReason): ActionResult {
-  return {
-    ok: false,
-    code: "RATE_LIMITED",
-    formError:
-      reason === "EMAIL_INVALID"
-        ? "Please use a valid, non-disposable email address."
-        : "Too many attempts. Please wait a moment and try again.",
-  };
+  if (reason === "EMAIL_INVALID") {
+    return { ok: false, code: "RATE_LIMITED", formError: "Please use a valid, non-disposable email address." };
+  }
+  if (reason === "RATE_LIMITED") return { ok: false, code: "RATE_LIMITED", formError: RATE_LIMIT_MESSAGE };
+  console.warn("[auth] request denied by Arcjet", { reason });
+  return { ok: false, formError: UNVERIFIED_MESSAGE };
 }
 
 function confirmUrl(next: string): string {

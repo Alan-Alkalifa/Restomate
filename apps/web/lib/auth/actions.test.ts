@@ -73,6 +73,20 @@ describe("signIn", () => {
     expect(r).toMatchObject({ ok: false, code: "RATE_LIMITED" });
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
+  it.each(["BOT", "SHIELD"] as const)("%s denial shows the generic verify message, no RATE_LIMITED code, and logs the reason", async (reason) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    guard.mockResolvedValue({ allowed: false, reason });
+    const r = await signIn(null, form(creds));
+    expect(r).toEqual({ ok: false, formError: expect.stringContaining("couldn't verify") });
+    expect(JSON.stringify(r)).not.toMatch(/Too many|BOT|SHIELD|rate/i);
+    expect(warn).toHaveBeenCalledWith("[auth] request denied by Arcjet", { reason });
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+  it("a real rate limit still says Too many attempts", async () => {
+    guard.mockResolvedValue({ allowed: false, reason: "RATE_LIMITED" });
+    expect(await signIn(null, form(creds))).toEqual({ ok: false, code: "RATE_LIMITED", formError: expect.stringContaining("Too many attempts") });
+  });
   it("uses one generic message for wrong password and unknown email, never the provider text", async () => {
     auth.signInWithPassword.mockResolvedValue({ error: { code: "invalid_credentials", message: "Invalid login credentials: leak", status: 400 } });
     const r = await signIn(null, form(creds));
@@ -119,7 +133,7 @@ describe("signUp", () => {
   it("maps a blocked request (EMAIL_INVALID gets its own message)", async () => {
     guard.mockResolvedValue({ allowed: false, reason: "EMAIL_INVALID" });
     expect(await signUp(null, form(input))).toMatchObject({ ok: false, code: "RATE_LIMITED", formError: expect.stringContaining("valid") });
-    guard.mockResolvedValue({ allowed: false, reason: "BOT" });
+    guard.mockResolvedValue({ allowed: false, reason: "RATE_LIMITED" });
     expect(await signUp(null, form(input))).toMatchObject({ ok: false, code: "RATE_LIMITED", formError: expect.stringContaining("Too many") });
     expect(auth.signUp).not.toHaveBeenCalled();
   });
