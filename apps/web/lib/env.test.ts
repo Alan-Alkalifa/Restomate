@@ -5,7 +5,7 @@ const PUBLIC = {
   NEXT_PUBLIC_APP_URL: "http://localhost:3000",
   NEXT_PUBLIC_ROOT_DOMAIN: "localhost",
   NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-value",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "publishable-key-value",
 };
 const SERVER = { ...PUBLIC, SUPABASE_SERVICE_ROLE_KEY: "service-role-secret-value" };
 const PROD = {
@@ -40,6 +40,7 @@ describe("parseEnv", () => {
       expect.arrayContaining([
         "NEXT_PUBLIC_ROOT_DOMAIN",
         "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
         "NEXT_PUBLIC_SUPABASE_ANON_KEY",
         "SUPABASE_SERVICE_ROLE_KEY",
       ]),
@@ -64,6 +65,38 @@ describe("parseEnv", () => {
     expect(errorOf(() => parseEnv(publicEnvSchema, { ...PUBLIC, NEXT_PUBLIC_ROOT_DOMAIN: "https://restomate.app" })).names).toEqual([
       "NEXT_PUBLIC_ROOT_DOMAIN",
     ]);
+  });
+});
+
+describe("Supabase client key", () => {
+  const { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: _drop, ...BASE } = PUBLIC;
+  void _drop;
+
+  it("accepts only PUBLISHABLE_KEY", () => {
+    expect(parseEnv(publicEnvSchema, { ...BASE, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "pub" }).supabasePublishableKey).toBe("pub");
+  });
+  it("accepts only the legacy ANON_KEY", () => {
+    expect(parseEnv(publicEnvSchema, { ...BASE, NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon" }).supabasePublishableKey).toBe("anon");
+  });
+  it("prefers PUBLISHABLE_KEY when both are set", () => {
+    const env = parseEnv(serverEnvSchema, {
+      ...SERVER,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "pub",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon",
+    });
+    expect(env.supabasePublishableKey).toBe("pub");
+  });
+  it("treats an empty PUBLISHABLE_KEY as unset and falls back", () => {
+    expect(
+      parseEnv(publicEnvSchema, { ...BASE, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon" }).supabasePublishableKey,
+    ).toBe("anon");
+  });
+  it("fails with neither, naming both variables and no values", () => {
+    const e = errorOf(() => parseEnv(publicEnvSchema, { ...BASE, NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" }));
+    expect(e.names).toEqual(["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"]);
+    expect(e.message).toContain("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+    expect(e.message).toContain("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    expect(e.message).not.toContain("127.0.0.1");
   });
 });
 
