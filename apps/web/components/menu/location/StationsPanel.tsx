@@ -23,7 +23,7 @@ export function StationsPanel({ stations, canManage, actions }: { stations: Kitc
         {stations.map((st) => (
           <li key={st.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-300 p-3 dark:border-neutral-700">
             <span className="min-w-0 flex-1 font-semibold break-words">{st.name}</span>
-            {!st.isActive && <Badge tone="warn">Inactive</Badge>}
+            {!st.isActive && <Badge tone="amber">Inactive</Badge>}
             {canManage && (
               <>
                 <MenuDialog triggerLabel="Rename" triggerAriaLabel={`Rename ${st.name}`} title={`Rename ${st.name}`} submitLabel="Save" action={actions.renameStation} hidden={{ stationId: st.id }}>

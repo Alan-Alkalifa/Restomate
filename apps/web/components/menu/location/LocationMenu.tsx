@@ -60,12 +60,12 @@ export function LocationMenu({ data, actions, nowIso }: { data: LocationMenuData
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold break-words">{r.name}</span>
                   <span className="text-sm">{formatMoney(r.effectivePrice, data.currency)}</span>
-                  {r.priceOverride !== null ? <Badge tone="good">Override (base {formatMoney(r.basePrice, data.currency)})</Badge> : null}
-                  {!r.isAvailable && <Badge tone="warn">Not available here</Badge>}
-                  {!r.isActive && <Badge tone="warn">Inactive</Badge>}
+                  {r.priceOverride !== null ? <Badge tone="green">Override (base {formatMoney(r.basePrice, data.currency)})</Badge> : null}
+                  {!r.isAvailable && <Badge tone="amber">Not available here</Badge>}
+                  {!r.isActive && <Badge tone="amber">Inactive</Badge>}
                   {!r.isPublished && <Badge>Draft</Badge>}
                   {st && <Badge>{st}</Badge>}
-                  {out && r.soldOutUntil && <Badge tone="warn">Sold out until {formatSoldOutUntil(r.soldOutUntil, data.timezone, now)}</Badge>}
+                  {out && r.soldOutUntil && <Badge tone="amber">Sold out until {formatSoldOutUntil(r.soldOutUntil, data.timezone, now)}</Badge>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {data.canToggleSoldOut && (
