@@ -9,6 +9,8 @@ const PUBLIC = {
 };
 const SERVER = { ...PUBLIC, SUPABASE_SERVICE_ROLE_KEY: "service-role-secret-value" };
 const PROD = {
+  EMAIL_DELIVERY: "resend",
+  EMAIL_FROM: "Restomate <no-reply@mail.restomate.app>",
   ARCJET_KEY: "aj",
   RESEND_API_KEY: "re_x",
   DOKU_CLIENT_ID: "BRN-1",
@@ -113,8 +115,40 @@ describe("server env defaults and production rules", () => {
   });
 
   it("production passes when everything is set", () => {
-    const env = parseEnv(serverEnvSchema, { ...SERVER, ...PROD, EMAIL_DELIVERY: "resend" }, { production: true, requireInProduction: PRODUCTION_REQUIRED });
+    const env = parseEnv(serverEnvSchema, { ...SERVER, ...PROD }, { production: true, requireInProduction: PRODUCTION_REQUIRED });
     expect(env.EMAIL_DELIVERY).toBe("resend");
+  });
+
+  const prod = { production: true, requireInProduction: PRODUCTION_REQUIRED } as const;
+
+  it("production with EMAIL_DELIVERY unset fails and names EMAIL_DELIVERY", () => {
+    const { EMAIL_DELIVERY: _omit, ...rest } = PROD;
+    void _omit;
+    const e = errorOf(() => parseEnv(serverEnvSchema, { ...SERVER, ...rest }, prod));
+    expect(e.names).toEqual(["EMAIL_DELIVERY"]);
+  });
+
+  it("production with EMAIL_DELIVERY=log fails", () => {
+    const e = errorOf(() => parseEnv(serverEnvSchema, { ...SERVER, ...PROD, EMAIL_DELIVERY: "log" }, prod));
+    expect(e.names).toEqual(["EMAIL_DELIVERY"]);
+    expect(e.message).toContain("resend");
+  });
+
+  it("resend without RESEND_API_KEY or EMAIL_FROM fails in any environment", () => {
+    const e = errorOf(() => parseEnv(serverEnvSchema, { ...SERVER, EMAIL_DELIVERY: "resend" }));
+    expect(e.names.sort()).toEqual(["EMAIL_FROM", "RESEND_API_KEY"]);
+    expect(() => parseEnv(serverEnvSchema, { ...SERVER, EMAIL_DELIVERY: "resend", RESEND_API_KEY: "re_x", EMAIL_FROM: "A <a@b.test>" })).not.toThrow();
+  });
+
+  it("dev/test with nothing set defaults to log without error; log is allowed outside production", () => {
+    expect(parseEnv(serverEnvSchema, SERVER).EMAIL_DELIVERY).toBe("log");
+    expect(parseEnv(serverEnvSchema, { ...SERVER, EMAIL_DELIVERY: "log" }).EMAIL_DELIVERY).toBe("log");
+  });
+
+  it("error messages never contain secret values", () => {
+    const e = errorOf(() => parseEnv(serverEnvSchema, { ...SERVER, EMAIL_DELIVERY: "log", RESEND_API_KEY: "re_super_secret" }, prod));
+    expect(e.message).not.toContain("re_super_secret");
+    expect(e.message).not.toContain("service-role-secret-value");
   });
 
   it("validates the encryption key length (hex or base64, 32 bytes)", () => {

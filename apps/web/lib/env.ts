@@ -68,6 +68,7 @@ const serverBase = z.object({
 });
 
 export const PRODUCTION_REQUIRED = [
+  "EMAIL_DELIVERY",
   "ARCJET_KEY",
   "RESEND_API_KEY",
   "DOKU_CLIENT_ID",
@@ -105,6 +106,16 @@ export function parseEnv<S extends z.ZodType>(
   if (options.production) {
     for (const name of options.requireInProduction ?? []) {
       if (!(name in cleaned)) problems.set(name, "required in production");
+    }
+  }
+  // Log mode prints rendered email bodies (invite tokens included) and sends nothing: never acceptable in production.
+  if (options.production && cleaned.EMAIL_DELIVERY !== undefined && cleaned.EMAIL_DELIVERY !== "resend") {
+    problems.set("EMAIL_DELIVERY", 'must be "resend" in production');
+  }
+  // Real delivery needs credentials and a sender in every environment (EMAIL_FROM has a dev default, so check it is explicit).
+  if (cleaned.EMAIL_DELIVERY === "resend") {
+    for (const name of ["RESEND_API_KEY", "EMAIL_FROM"]) {
+      if (!(name in cleaned)) problems.set(name, 'required when EMAIL_DELIVERY is "resend"');
     }
   }
   if (problems.size > 0) {
