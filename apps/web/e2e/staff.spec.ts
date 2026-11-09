@@ -33,22 +33,28 @@ async function ownerInvites(page: Page, email: string, roleLabel: string, opts: 
   await expect(page.locator("dialog[open]")).toHaveCount(0, { timeout: 30_000 });
 }
 
+type CapturedAction = { url: string; headers: Record<string, string>; body: Buffer; email: string };
+
 /**
- * Invites through the REAL bound Server Action by replaying the invite form's own hidden fields (org slug and action
- * binding) from the owner's page. Used where the UI path is broken (BUG: an unchecked "All locations" box sends no field,
- * see the test.fixme below) and to prove that the action itself rejects non-permitted callers.
+ * Captures the REAL Server Action request that the invite dialog sends (URL, Next-Action id, bound args and body), so a
+ * test can replay it from another session with only the invitee address changed. Independent of how the form is wired.
  */
-async function craftedInviteFields(ownerPage: Page): Promise<Record<string, string>> {
-  await open(ownerPage, "/demo/staff");
-  await ownerPage.getByRole("button", { name: "Invite staff" }).click();
-  const hidden: Record<string, string> = await ownerPage.locator("dialog[open] form").evaluate((form) => {
-    const out: Record<string, string> = {};
-    form.querySelectorAll("input[type=hidden]").forEach((i) => { const el = i as HTMLInputElement; if (el.name) out[el.name] = el.value; });
-    return out;
-  });
-  expect(Object.keys(hidden).length).toBeGreaterThan(0);
-  await ownerPage.keyboard.press("Escape");
-  return hidden;
+async function captureInviteAction(ownerPage: Page, email: string): Promise<CapturedAction> {
+  const reqPromise = ownerPage.waitForRequest((r) => r.method() === "POST" && "next-action" in r.headers() && (r.postData() ?? "").includes(email));
+  await ownerInvites(ownerPage, email, "Cashier");
+  const req = await reqPromise;
+  const headers: Record<string, string> = {};
+  for (const k of ["next-action", "next-router-state-tree", "content-type", "accept"]) {
+    const v = req.headers()[k];
+    if (v) headers[k] = v;
+  }
+  return { url: req.url(), headers, body: req.postDataBuffer() ?? Buffer.from(""), email };
+}
+
+/** Replays a captured invite action with another invitee address, using `page`'s own cookies (its own session). */
+async function replayInvite(page: Page, cap: CapturedAction, newEmail: string) {
+  const body = Buffer.from(cap.body.toString("utf8").split(cap.email).join(newEmail), "utf8");
+  return page.request.post(cap.url, { headers: cap.headers, data: body });
 }
 
 /** Owner invites `email`; returns the accept URL read from the captured mail. */
@@ -75,18 +81,14 @@ test.describe("Cashier lifecycle (exit criterion 2)", () => {
   let bandungId = "";
   let jakartaId = "";
 
-  test("owner invites a Cashier for ONE location; the mail goes to the invitee", async ({ browser }) => {
+  test("owner invites a Cashier for ONE location (dialog); the mail goes to the invitee", async ({ browser }) => {
     const locs = await locationsOf("demo");
     expect(locs.length).toBeGreaterThanOrEqual(2);
     [bandungId, jakartaId] = [locs[0].id, locs[1].id];
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await signInAs(page, seedUsers.owner);
-    const hidden = await craftedInviteFields(page);
-    const res = await page.request.post("/demo/staff", {
-      multipart: { ...hidden, email: cashierEmail, roleId: await roleIdOf("demo", "cashier"), allLocations: "false", locationIds: bandungId },
-    });
-    expect(res.status()).toBeLessThan(500);
+    await ownerInvites(page, cashierEmail, "Cashier", { locationName: locs[0].name });
     await expect.poll(async () => (await invitationsFor("demo", cashierEmail)).length, { timeout: 30_000 }).toBe(1);
 
     const mails = await waitForSentMail(cashierEmail);
@@ -189,27 +191,22 @@ test.describe("Cashier lifecycle (exit criterion 2)", () => {
     await ctx.close();
   });
 
-  test("a crafted inviteStaff request from the Cashier is rejected (control: the same request works for the owner)", async ({ browser }) => {
-    // Replay the real invite form's hidden fields (bound action + org slug) from the owner's page.
+  test("a crafted inviteStaff request from the Cashier is rejected (control: the identical request works for the owner)", async ({ browser }) => {
     const oCtx = await browser.newContext();
     const owner = await oCtx.newPage();
     await signInAs(owner, seedUsers.owner);
-    const hidden = await craftedInviteFields(owner);
-    const roleId = await roleIdOf("demo", "cashier");
-    const fields = (email: string) => ({ ...hidden, email, roleId, allLocations: "true" });
+    const cap = await captureInviteAction(owner, uniqueEmail("crafted-src")); // the real request, as the dialog sends it
 
     const control = uniqueEmail("crafted-ok");
-    const okRes = await owner.request.post("/demo/staff", { multipart: fields(control) });
-    expect(okRes.status()).toBeLessThan(500);
+    expect((await replayInvite(owner, cap, control)).status()).toBeLessThan(500);
     await expect.poll(async () => (await invitationsFor("demo", control)).length, { timeout: 30_000 }).toBe(1);
 
     const cCtx = await browser.newContext();
     const cashier = await cCtx.newPage();
     await signInAs(cashier, cashierEmail, INVITE_PASSWORD);
     const evil = uniqueEmail("crafted-bad");
-    const badRes = await cashier.request.post("/demo/staff", { multipart: fields(evil) });
-    expect(badRes.status()).toBeLessThan(500);
-    await new Promise((r) => setTimeout(r, 3000)); // a created row would appear within this window; poll-for-absence needs a bound
+    expect((await replayInvite(cashier, cap, evil)).status()).toBeLessThan(500);
+    await new Promise((r) => setTimeout(r, 3000)); // absence needs a bounded wait: a created row would appear within it
     expect(await invitationsFor("demo", evil)).toHaveLength(0);
     await oCtx.close();
     await cCtx.close();
