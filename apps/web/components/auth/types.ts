@@ -1,14 +1,6 @@
-/**
- * Mirrors the MF-T13 contract (lib/auth). When DAVIN's `ActionResult` lands,
- * replace this with a re-export: `export type { ActionResult } from "@/lib/auth/..."`.
- */
-export type ActionResult =
-  | { ok: true }
-  | {
-      ok: false;
-      fieldErrors?: Record<string, string[] | undefined>;
-      formError?: string;
-    };
+import type { ActionResult } from "@/lib/auth/schemas";
+
+export type { ActionResult };
 
 /** Shape accepted by React's `useActionState`. */
 export type AuthAction = (

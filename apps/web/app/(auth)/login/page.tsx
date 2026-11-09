@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { signIn } from "../_actions";
+import { signIn } from "@/lib/auth/actions";
+import { sanitizeNext } from "@/lib/auth/redirect";
+
+/** `next` reaches the hidden input only after the shared sanitiser; the action re-validates it. */
+const nextParam = (v: string | string[] | undefined) => (typeof v === "string" ? sanitizeNext(v, "") || undefined : undefined);
 
 export const metadata: Metadata = { title: "Sign in · Restomate" };
 
@@ -9,15 +13,10 @@ const ERRORS: Record<string, string> = {
   link_expired: "That link has expired or was already used. Please try again.",
 };
 
-// Only same-site relative paths are accepted as `next` (server re-validates).
-function safeNext(v: string | string[] | undefined) {
-  return typeof v === "string" && v.startsWith("/") && !v.startsWith("//") ? v : undefined;
-}
-
 async function LoginContent({ searchParams }: { searchParams: PageProps<"/login">["searchParams"] }) {
   const sp = await searchParams;
   const code = typeof sp.error === "string" ? sp.error : undefined;
-  return <LoginForm action={signIn} next={safeNext(sp.next)} initialError={code ? ERRORS[code] : undefined} />;
+  return <LoginForm action={signIn} next={nextParam(sp.next)} initialError={code ? ERRORS[code] : undefined} />;
 }
 
 export default function LoginPage({ searchParams }: PageProps<"/login">) {

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { signOut } from "@/app/(auth)/_actions";
+import { signOut } from "@/lib/auth/actions";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { LocationSwitcher } from "@/components/dashboard/LocationSwitcher";
 import { SuspendedNotice } from "@/components/dashboard/notices";

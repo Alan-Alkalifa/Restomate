@@ -25,7 +25,7 @@ function ResendHint({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-export function SignupForm({ action, next }: { action: AuthAction; next?: string }) {
+export function SignupForm({ action, next, passwordHint }: { action: AuthAction; next?: string; passwordHint: string }) {
   const [state, formAction, pending] = useActionState(action, null);
   const formRef = useFocusOnError(state);
   const [dismissed, setDismissed] = useState<typeof state>(null);
@@ -49,7 +49,7 @@ export function SignupForm({ action, next }: { action: AuthAction; next?: string
       <FormAlert message={formErrorOf(state)} />
       <Field name="fullName" label="Full name" autoComplete="name" required errors={errorsFor(state, "fullName")} />
       <Field name="email" label="Email" type="email" autoComplete="email" required errors={errorsFor(state, "email")} />
-      <Field name="password" label="Password" type="password" autoComplete="new-password" minLength={8} required hint="At least 8 characters." errors={errorsFor(state, "password")} />
+      <Field name="password" label="Password" type="password" autoComplete="new-password" required hint={passwordHint} errors={errorsFor(state, "password")} />
       <Button type="submit" pending={pending}>
         {pending ? "Creating account…" : "Create account"}
       </Button>

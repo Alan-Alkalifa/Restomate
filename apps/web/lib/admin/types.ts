@@ -25,8 +25,3 @@ export type ListTenantsInput = {
 };
 
 export type ListTenantsResult = { rows: TenantRow[]; total: number };
-
-/** Same shape as the auth actions' result (MF-T13 contract). */
-export type ActionResult =
-  | { ok: true }
-  | { ok: false; fieldErrors?: Record<string, string[] | undefined>; formError?: string };
