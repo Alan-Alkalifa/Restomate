@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { passwordHint } from "@/components/auth/password-hint";
 import { SignupForm } from "@/components/auth/SignupForm";
-import { signUp } from "../_actions";
+import { signUp } from "@/lib/auth/actions";
+import { sanitizeNext } from "@/lib/auth/redirect";
+
+/** `next` reaches the hidden input only after the shared sanitiser; the action re-validates it. */
+const nextParam = (v: string | string[] | undefined) => (typeof v === "string" ? sanitizeNext(v, "") || undefined : undefined);
 
 export const metadata: Metadata = { title: "Create account · Restomate" };
 
-// Only same-site relative paths are accepted as `next` (the server re-validates).
-function safeNext(v: string | string[] | undefined) {
-  return typeof v === "string" && v.startsWith("/") && !v.startsWith("//") ? v : undefined;
-}
-
 async function SignupContent({ searchParams }: { searchParams: PageProps<"/signup">["searchParams"] }) {
   const sp = await searchParams;
-  return <SignupForm action={signUp} next={safeNext(sp.next)} />;
+  return <SignupForm action={signUp} passwordHint={passwordHint()} next={nextParam(sp.next)} />;
 }
 
 export default function SignupPage({ searchParams }: PageProps<"/signup">) {

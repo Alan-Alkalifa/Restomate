@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
-import { requestPasswordReset } from "../_actions";
+import { requestPasswordReset } from "@/lib/auth/actions";
 
 export const metadata: Metadata = { title: "Forgot password · Restomate" };
 

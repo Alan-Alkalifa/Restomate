@@ -6,7 +6,7 @@ import { requirePlatformAdmin } from "@/lib/auth/dal";
 import { orgTag } from "@/lib/auth/tags";
 import { createClient } from "@/lib/supabase/server";
 import { callAdminListTenants, toRpcArgs } from "./tenants";
-import type { ActionResult } from "./types";
+import type { ActionResult } from "@/lib/auth/schemas";
 
 const setOrgStatusSchema = z.object({
   orgId: z.uuid(),

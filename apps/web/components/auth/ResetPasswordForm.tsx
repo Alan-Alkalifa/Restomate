@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -7,7 +8,7 @@ import { FormAlert } from "@/components/ui/form-alert";
 import type { AuthAction } from "./types";
 import { errorsFor, formErrorOf, useFocusOnError } from "./use-form-focus";
 
-export function ResetPasswordForm({ action }: { action: AuthAction }) {
+export function ResetPasswordForm({ action, passwordHint }: { action: AuthAction; passwordHint: string }) {
   const [serverState, formAction, pending] = useActionState(action, null);
   const [mismatch, setMismatch] = useState(false);
   const formRef = useFocusOnError(serverState);
@@ -26,10 +27,19 @@ export function ResetPasswordForm({ action }: { action: AuthAction }) {
     }
   };
 
+  if (serverState?.ok) {
+    return (
+      <div className="flex flex-col gap-4">
+        <FormAlert tone="info" message="Your password has been updated." />
+        <Link href="/login" className="underline">Continue to sign in</Link>
+      </div>
+    );
+  }
+
   return (
     <form ref={formRef} action={formAction} onSubmit={guard} noValidate className="flex flex-col gap-4">
       <FormAlert message={formErrorOf(serverState)} />
-      <Field name="password" label="New password" type="password" autoComplete="new-password" minLength={8} required hint="At least 8 characters." errors={errorsFor(serverState, "password")} />
+      <Field name="password" label="New password" type="password" autoComplete="new-password" required hint={passwordHint} errors={errorsFor(serverState, "password")} />
       <Field
         name="confirmPassword"
         label="Confirm new password"
