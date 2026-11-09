@@ -22,7 +22,7 @@ function moneyString(min: number, label: string) {
       min < 0 ? "That amount is out of range." : `Enter ${label} between 0 and ${MAX_MONEY.toLocaleString("en-US")}.`);
 }
 const price = moneyString(0, "a price");
-const optionalPrice = z.string().trim().transform((v) => (v === "" ? null : v)).pipe(z.union([z.null(), price]));
+const optionalPrice = z.string().trim().optional().default("").transform((v) => (v === "" ? null : v)).pipe(z.union([z.null(), price]));
 
 const name = (max: number) => z.string().trim().min(1, "Enter a name.").max(max, `Use at most ${max} characters.`);
 const optionalText = (max: number) =>
@@ -49,10 +49,13 @@ export const setItemPublishedSchema = z.object({ itemId: id, published: flag });
 export const reorderItemsSchema = z.object({ categoryId: id, itemIds: z.array(id).min(1).max(500) });
 export const setItemModifierGroupsSchema = z.object({ itemId: id, groupIds: z.array(id).max(50).default([]) });
 
+const count = (min: number, max: number, minMsg: string) =>
+  z.string().trim().regex(/^\d{1,3}$/, "Enter a whole number.").transform(Number)
+    .refine((n) => n >= min, minMsg).refine((n) => n <= max, `Use at most ${max}.`);
 const group = {
   name: name(60),
-  minSelect: z.coerce.number({ error: "Enter a whole number." }).int("Enter a whole number.").min(0, "Use 0 or more.").max(100, "Use at most 100."),
-  maxSelect: z.coerce.number({ error: "Enter a whole number." }).int("Enter a whole number.").min(1, "Use at least 1.").max(100, "Use at most 100."),
+  minSelect: count(0, 100, "Use 0 or more."),
+  maxSelect: count(1, 100, "Use at least 1."),
 };
 const minMax = (v: { minSelect: number; maxSelect: number }, ctx: z.RefinementCtx) => {
   if (v.maxSelect < v.minSelect) ctx.addIssue({ code: "custom", path: ["maxSelect"], message: "Maximum must be at least the minimum." });
@@ -99,7 +102,7 @@ export const setLocationOverrideSchema = z.object({
   itemId: id,
   priceOverride: optionalPrice,
   isAvailable: checkbox,
-  kitchenStationId: z.string().trim().transform((v) => (v === "" ? null : v)).pipe(z.union([z.null(), id])),
+  kitchenStationId: z.string().trim().optional().default("").transform((v) => (v === "" ? null : v)).pipe(z.union([z.null(), id])),
 });
 export const toggleSoldOutSchema = z.object({ itemId: id, soldOut: flag });
 export const createStationSchema = z.object({ name: name(40) });
