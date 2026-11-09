@@ -90,9 +90,9 @@ describe("protect", () => {
     vi.stubEnv("NODE_ENV", "production");
     protectFn.mockResolvedValue(decision({}));
     const m = await load();
-    await m.protect(m.ajSignup, { email: "x@mailinator.com" });
+    await m.protect(m.ajSignup, { email: "x@restaurant.example" });
     expect(calls.rules).toContainEqual([{ type: "email", mode: "LIVE", deny: ["DISPOSABLE", "INVALID", "NO_MX_RECORDS"] }]);
-    expect(protectFn).toHaveBeenCalledWith({ headers: {} }, { email: "x@mailinator.com" });
+    expect(protectFn).toHaveBeenCalledWith({ headers: {} }, { email: "x@restaurant.example" });
   });
 
   it.each([
@@ -147,5 +147,46 @@ describe("proxy shield", () => {
     expect((await m.shieldRequest({}))?.status).toBe(403);
     protectFn.mockResolvedValueOnce(decision({}));
     expect(await m.shieldRequest({})).toBeNull();
+  });
+});
+
+describe("email decisions (B1-T07)", () => {
+  it("maps an email DENY (any email type) to EMAIL_INVALID, and an errored decision to allowed (Arcjet fails open)", async () => {
+    const m = await load();
+    expect(m.mapDecision(decision({ denied: true, kind: "email" }) as never)).toEqual({ allowed: false, reason: "EMAIL_INVALID" });
+    expect(m.mapDecision(decision({ errored: true }) as never)).toEqual({ allowed: true });
+    expect(m.mapDecision(decision({}) as never)).toEqual({ allowed: true });
+  });
+
+  it("matches known disposable providers, their subdomains and case, but not look-alikes or valid domains", async () => {
+    const m = await load();
+    for (const e of ["a@mailinator.com", "A@MAILINATOR.COM", "a@yopmail.com", "a@guerrillamail.com", "x@sub.mailinator.com", "a@mailinator.com.", "a+tag@10minutemail.com"]) {
+      expect(m.isKnownDisposableEmail(e), e).toBe(true);
+    }
+    for (const e of ["a@gmail.com", "a@example.com", "a@notmailinator.com", "a@mailinator.com.evil.example", "a@mailinator", "no-at-sign", "", "a@com"]) {
+      expect(m.isKnownDisposableEmail(e), e).toBe(false);
+    }
+  });
+
+  it("rejects known disposable addresses at signup in production without asking Arcjet; valid ones still go through", async () => {
+    vi.stubEnv("ARCJET_KEY", "ajkey_test");
+    vi.stubEnv("NODE_ENV", "production");
+    protectFn.mockResolvedValue(decision({}));
+    const m = await load();
+    expect(await m.protect(m.ajSignup, { email: "someone@mailinator.com" })).toEqual({ allowed: false, reason: "EMAIL_INVALID" });
+    expect(await m.protect(m.ajSignup, { email: "someone@yopmail.com" })).toEqual({ allowed: false, reason: "EMAIL_INVALID" });
+    expect(protectFn).not.toHaveBeenCalled();
+    expect(await m.protect(m.ajSignup, { email: "owner@restaurant.example" })).toEqual({ allowed: true });
+    expect(protectFn).toHaveBeenCalledTimes(1);
+    // Other presets never look at the email.
+    expect(await m.protect(m.ajAuth, { email: "someone@mailinator.com" })).toEqual({ allowed: true });
+  });
+
+  it("does not enforce the local list outside production (DRY_RUN, like the Arcjet rules)", async () => {
+    vi.stubEnv("ARCJET_KEY", "ajkey_test");
+    vi.stubEnv("NODE_ENV", "test");
+    protectFn.mockResolvedValue(decision({}));
+    const m = await load();
+    expect(await m.protect(m.ajSignup, { email: "someone@mailinator.com" })).toEqual({ allowed: true });
   });
 });

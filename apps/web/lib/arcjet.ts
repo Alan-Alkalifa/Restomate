@@ -22,6 +22,14 @@ import arcjet, {
  *   (`serverEnv`), which throws when it is missing: a misconfiguration fails fast instead of silently
  *   running unprotected.
  * - Arcjet fails open on its own errors by design; an errored decision is treated as allowed.
+ * - Email validation is BEST EFFORT on Arcjet's side. The SDK only checks syntax locally; DISPOSABLE, NO_MX_RECORDS and
+ *   NO_GRAVATAR are answered by Arcjet's service, which fails open (SDK timeout 2s, doubled for email rules; a slow DNS
+ *   or list lookup is treated as "valid"). Measured with a dev key: cold lookups took 0.1-3.6s, and the FIRST request for a
+ *   disposable domain could come back ALLOW with no email types while later requests denied it. So Arcjet does not
+ *   guarantee that a given disposable address is rejected on a given request (B1-T07). The config (deny DISPOSABLE,
+ *   INVALID, NO_MX_RECORDS) and the `email` input are correct; this is service behaviour, not a plan limit we could
+ *   see. To keep the worst offenders deterministic, `isKnownDisposableEmail` rejects a short list of well-known
+ *   providers before Arcjet is asked (LIVE only). Arcjet still covers the long tail.
  * - Never exclude-by-accident: the DOKU webhook is skipped in proxy.ts and never calls protect().
  */
 
@@ -44,6 +52,32 @@ export const ajSignup: ArcjetPreset = { name: "signup", limit: { interval: "10m"
 export const ajPublicForm: ArcjetPreset = { name: "publicForm", limit: { interval: "1m", max: 20 }, validatesEmail: false };
 /** probe endpoints (checkSlug, getInvitationPreview): they leak existence, but checkSlug runs per debounced keystroke, so 20/min (not tighter than auth) */
 export const ajProbe: ArcjetPreset = { name: "probe", limit: { interval: "1m", max: 20 }, validatesEmail: false };
+
+/**
+ * Well-known throwaway-mail providers, rejected locally so the common cases never depend on Arcjet's best-effort
+ * lookup. Not exhaustive on purpose: Arcjet's DISPOSABLE check handles the rest. Matches the domain and any subdomain.
+ */
+const KNOWN_DISPOSABLE_DOMAINS: ReadonlySet<string> = new Set([
+  "mailinator.com", "yopmail.com", "yopmail.fr", "yopmail.net", "guerrillamail.com", "guerrillamail.net", "guerrillamail.org",
+  "guerrillamail.biz", "guerrillamail.de", "guerrillamailblock.com", "sharklasers.com", "grr.la", "spam4.me", "pokemail.net",
+  "10minutemail.com", "10minutemail.net", "20minutemail.com", "tempmail.com", "temp-mail.org", "temp-mail.io", "tempmail.net",
+  "tempail.com", "trashmail.com", "trashmail.net", "trashmail.de", "throwawaymail.com", "getnada.com", "nada.email",
+  "maildrop.cc", "mailnesia.com", "mailcatch.com", "mintemail.com", "jetable.org", "dispostable.com", "fakeinbox.com",
+  "mohmal.com", "emailondeck.com", "burnermail.io", "spamgourmet.com", "mytemp.email", "moakt.com", "tmail.ws",
+  "getairmail.com", "mailforspam.com", "discard.email", "inboxkitten.com", "mail.tm", "tempr.email", "dropmail.me",
+]);
+
+/** True when the address's domain (or a parent domain) is on the known-disposable list. */
+export function isKnownDisposableEmail(email: string): boolean {
+  const at = email.lastIndexOf("@");
+  if (at < 0) return false;
+  const domain = email.slice(at + 1).trim().toLowerCase().replace(/\.+$/, "");
+  const labels = domain.split(".");
+  for (let i = 0; i < labels.length - 1; i++) {
+    if (KNOWN_DISPOSABLE_DOMAINS.has(labels.slice(i).join("."))) return true;
+  }
+  return false;
+}
 
 const mode = () => (process.env.NODE_ENV === "production" ? "LIVE" : "DRY_RUN") as "LIVE" | "DRY_RUN";
 
@@ -109,6 +143,10 @@ export function mapDecision(decision: ArcjetDecision): ProtectResult {
  * (must run inside a request scope). `opts.email` is only used by `ajSignup`.
  */
 export async function protect(preset: ArcjetPreset, opts: { email?: string } = {}): Promise<ProtectResult> {
+  // Deterministic local check for the well-known providers (see the header note). Enforced only in LIVE, like the rules.
+  if (preset.validatesEmail && opts.email && mode() === "LIVE" && isKnownDisposableEmail(opts.email)) {
+    return { allowed: false, reason: "EMAIL_INVALID" };
+  }
   const inst = instanceFor(preset);
   if (!inst) return { allowed: true };
   try {
