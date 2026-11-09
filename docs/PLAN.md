@@ -5,7 +5,7 @@
 > - **How** we build it (stack, rules, conventions) → `CLAUDE.md`
 > - **In what order, and what's done** → this file
 
-Last updated: 2026-11-09 (evening)
+Last updated: 2026-11-09 (night)
 
 ---
 
@@ -49,7 +49,7 @@ The first two are now in `CLAUDE.md` → *Next.js 16 rules*. ADIT confirms all f
 
 | Milestone | Goal | Depends on | Size |
 |---|---|---|---|
-| **M0 Foundation** | Sign up, create a restaurant, invite staff with a role | — | L |
+| **M0 Foundation** ✅ | Sign up, create a restaurant, invite staff with a role. **Signed off 2026-11-09** (`docs/qa/M0-signoff.md`, PR #97) | — | L |
 | **M1 Signup & super admin** | Public site, onboarding wizard, tenants list, packages | M0 | M |
 | **M2 Venue & menu** | Areas, tables, floor plan, menu, QR codes | M0 | L |
 | **M3 Service core (MVP)** | POS, orders, KOT/KDS, bills, cash, printing, payment tracking | M2 | XL |
@@ -62,7 +62,7 @@ M1 and M2 can run in parallel once M0 is done.
 
 ---
 
-## 4. M0 — Foundation (detailed)
+## 4. M0 — Foundation (detailed) ✅ signed off 2026-11-09
 
 **Exit criteria:**
 - A new user signs up, confirms their email (in Mailpit locally), and creates a restaurant with one location.
@@ -110,7 +110,7 @@ One task = one branch = one PR. Flow: developer opens a **draft** PR → REYKI v
 | MF-T29 ✅ | REYKI | e2e onboarding (exit criterion 1) (PR #65) | T28 | T15, T16 |
 | MF-T30 ✅ | REYKI | e2e staff invite as Cashier + cross-tenant (exit criteria 2–3) (PR #68) | T28 | T17–T19 |
 | MF-T31 ✅ | REYKI | e2e super admin, storefront, pricing (PR #85; 140/140 e2e green in CI) | T28 | T20–T23 |
-| MF-T32 | REYKI | M0 exit sign-off report (includes the live Arcjet check) | all | — |
+| MF-T32 ✅ | REYKI | M0 exit sign-off report, including the live Arcjet check (PR #97: all three exit criteria PASS, no S1/S2) | all | — |
 | MF-T37 ✅ | DAVIN | Env: `EMAIL_DELIVERY` required and `resend` in production (S3 from QA #41) (PR #48) | — | — |
 | MF-T38 ✅ | ADIT | `send()` accepts exactly one recipient (S3 from QA #41) (PR #45) | — | — |
 | MF-T39 ✅ | ADIT | Wire auth pages to `lib/auth/actions`; one `ActionResult`; reuse `sanitizeNext` (PR #54) | T13 | — |
@@ -118,7 +118,7 @@ One task = one branch = one PR. Flow: developer opens a **draft** PR → REYKI v
 
 **Backlog board `B1`:** B1-T01 ✅ PostHog error tracking + `global-error.tsx` (ADIT, #52) · B1-T02 ✅ atomic `set_member_locations` RPC (DAVIN, #51) · B1-T03 ✅ regenerated types + `admin_set_org_status` hardening (DAVIN, #53) · B1-T04 ✅ `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` with `ANON_KEY` fallback (DAVIN, #55) · B1-T05 ✅ signed-in users redirected away from /login and /signup (ADIT, #56).
 
-**Critical path:** everything up to T31 is merged. Only **MF-T32** (REYKI's M0 exit sign-off report) is left; M1/M2 QA starts after it.
+**M0 is done.** Open findings from the sign-off: BUG-M0-01 (S3, no `areas`/`tables` isolation test) → MVM-T02; BUG-M0-02 (S4) = B1-T08 (#71); BUG-M0-03 (S4, dev `Date.now()` noise) → B1-T17; BUG-M0-04 (S3, env validation inside `after()` drops invite mail) → B1-T16. Not covered and carried forward: a manual tablet walkthrough (do it on the M2 floor plan) and Supabase advisors (run them before the first deployed environment).
 
 **Progress (2026-11-09):**
 - ✅ Merged 2026-11-08: #34 (T06), #38 (T35), #28 (T21), #41 (T12), #27 (T14), #40 (T08), #39 (T07), #46 (T40), #43 (T22), #29 (T18).
@@ -437,6 +437,10 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-09 | Super admin suspend/reactivate reasons need at least 5 visible characters after stripping Unicode whitespace and zero-width characters, checked in both SQL and Zod; setting the same status again is a no-op with no audit row (B1-T03) |
 | 2026-11-09 | Signed-in users opening /login or /signup are redirected (DAL, not proxy) to the sanitised `next` or `/`; `next` may never point back to an auth page (B1-T05) |
 | 2026-11-09 | HQ marks a task done when *any* PR linked to it merges, including a contract-only Markdown PR (MSS-T01 closed on #89). ALAN reopens the task after a contract PR merges |
+| 2026-11-09 | M0 signed off by REYKI (#97). An HQ task only starts when it's *assigned* (`assign_task`); a message alone doesn't wake an agent with no current task (REYKI sat idle on MF-T32) |
+| 2026-11-09 | Tenant usage `limit` is 0 when an org has no live subscription (matches the plan-limit triggers); the UI shows "No plan" (MSS-T05) |
+| 2026-11-09 | Packages are written only through the audited `admin_*_package` RPCs; `authenticated` has SELECT only on `packages` (MSS-T01 review) |
+| 2026-11-09 | **User decision: real services go on a STAGING environment first.** Vercel Hobby (`restomate-staging`, `*.vercel.app`, no domain yet, so customer sites use `/s/{slug}`), Supabase `restomate-staging` in ap-southeast-1 created through the Vercel Marketplace, Resend test sender, Arcjet, PostHog, DOKU **sandbox**. Production (domain, Vercel Pro, DOKU production) comes later and needs the user's approval. Staging has no seed users with known passwords (B1-T19) |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -445,7 +449,8 @@ _None yet._
 
 ## 15. Next up
 
-1. **M0 sign-off (REYKI, MF-T32):** `docs/qa/M0-signoff.md` with every §4.10 exit criterion, evidence, the live Arcjet check and open bugs. M0 closes when that merges.
-2. **QA queue after sign-off (REYKI):** MVM-T07 (menu pgTAP) and MVM-T02 (venue pgTAP), then PR QA in merge order: #73 menu schema → #70 lib/venue → #76 parseMoneyInput → #71 bot-denial message → #63 tables pages → #69 floor plan → #81 QR sheet → #78 lib/menu → #77 menu editor → #79 per-location menu → #80 Demo seed → #82 menu images → #84 Realtime → #86 atomic saves → #90 marketing. All are already approved by ALAN. Stacked PRs are retargeted to `main` before their base is squashed.
-3. **M1 build:** MSS-T01 `lib/admin/packages` (DAVIN; reopened, because HQ closed it when the contract PR #89 merged) → MSS-T02 Packages page (ADIT, against the contract seam) → MSS-T03 QA. B1-T15 (S4 onboarding header) queued for ADIT.
-4. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key in that environment (production touches need the user's approval).
+1. **REYKI (QA is the bottleneck):** MVM-T02 (venue isolation, closes BUG-M0-01; merges before other M2 PRs) → PR QA in merge order: #73 menu schema → #70 lib/venue → #63 tables pages → #69 floor plan → #81 QR sheet → #76 → #71 → menu stack (#78 → #77 → #79 → #80 → #82 → #84 → #86, with MVM-T07 alongside) → M1: #93 packages lib → #92 packages page → #96 tenant detail lib → #95 tenant detail page (MSS-T03 and MSS-T07 alongside) → #90 marketing.
+2. **DAVIN:** MSS-T08 platform settings (contract first), then B1-T16 (S3 env) and B1-T17 (S4 dev noise).
+3. **ADIT:** #95 rebase onto `main` + "No plan" state → B1-T15. Then the platform settings page against the MSS-T08 contract.
+4. **Staging (in progress):** the user does steps 1–6 (Vercel import, Supabase via Vercel Storage, Resend/Arcjet/PostHog/DOKU sandbox keys in Vercel). DAVIN: B1-T16 (env fail-fast) → B1-T19 (migrations deploy + staging seed + `docs/STAGING.md`). REYKI: smoke test on the staging URL.
+5. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.
