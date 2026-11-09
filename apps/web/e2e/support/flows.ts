@@ -40,10 +40,25 @@ export async function signInAs(page: Page, email: string, password = SEED_PW) {
   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 }); // cold `pnpm dev` compiles the landing route on first sign-in
 }
 
-/** Labels of the org sidebar links (works on mobile too: reads text content, not visibility). */
+/**
+ * Labels of the org sidebar links (works on mobile too: reads text content, not visibility).
+ * The sidebar streams in after the URL changes, so wait until it is attached and two consecutive reads agree.
+ */
 export async function sidebarLabels(page: Page, orgSlug: string): Promise<string[]> {
-  const labels = await page.locator(`nav a[href^="/${orgSlug}"]`).allTextContents();
-  return [...new Set(labels.map((l) => l.replace(/[^\p{L}\p{N} ]/gu, "").trim()).filter(Boolean))].sort();
+  const links = page.locator(`nav a[href^="/${orgSlug}"]`);
+  await links.first().waitFor({ state: "attached", timeout: 30_000 });
+  const read = async () => {
+    const labels = await links.allTextContents();
+    return [...new Set(labels.map((l) => l.replace(/[^\p{L}\p{N} ]/gu, "").trim()).filter(Boolean))].sort();
+  };
+  let prev = await read();
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(250);
+    const cur = await read();
+    if (JSON.stringify(cur) === JSON.stringify(prev)) return cur;
+    prev = cur;
+  }
+  return prev;
 }
 
 /** Visible text of the whole page, to assert that no tenant data is present in a refused view. */

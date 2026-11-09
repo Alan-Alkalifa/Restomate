@@ -15,7 +15,8 @@ import { SEED_PASSWORD, seedUsers, uniqueEmail } from "./support/users";
 
 const INVITE_PASSWORD = SEED_PASSWORD;
 const FORBIDDEN = /you don.t have access/i;
-const NOT_FOUND = /page not found/i;
+// Non-members and deactivated members get the standard 404 view (heading "404"); restaurant-level notices say "Page not found".
+const NOT_FOUND = /^404$|page not found/i;
 const CASHIER_NAV = ["Customers", "Home", "Kitchen", "Orders", "POS", "Payments", "Tables"].sort();
 
 async function ownerInvites(page: Page, email: string, roleLabel: string, opts: { locationName?: string } = {}) {
