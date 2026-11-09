@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { FormAlert } from "@/components/ui/form-alert";
 import { percentToBps } from "./bps";
+import { errorTarget } from "./error-target";
 import { suggestSlug } from "@/lib/onboarding/slug";
 import { clear, getServerSnapshot, getSnapshot, parse, save, subscribe } from "./wizard-store";
 import type { OnboardingActions, OnboardingOptions, SlugStatus, WizardState } from "./types";
@@ -31,6 +32,11 @@ export function OnboardingWizard({ actions, options }: { actions: OnboardingActi
   const submitted = useRef(false);
   useEffect(() => () => { if (submitted.current) clear(); }, []);
   const [formError, setFormError] = useState<string | null>(null);
+  // Input to focus after a server error moved the wizard to an earlier step (nonce re-triggers the effect).
+  const [focusRequest, setFocusRequest] = useState<{ field: string; nonce: number } | null>(null);
+  useEffect(() => {
+    if (focusRequest) document.getElementById(`field-${focusRequest.field}`)?.focus();
+  }, [focusRequest]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[] | undefined>>({});
 
   // Debounced slug availability check; "checking" is derived (result is for a different slug).
@@ -90,8 +96,16 @@ export function OnboardingWizard({ actions, options }: { actions: OnboardingActi
       });
       if (!result.ok) {
         submitted.current = false;
-        setFormError(result.formError ?? null);
         setFieldErrors(result.fieldErrors ?? {});
+        // A field error may belong to an earlier step (e.g. the slug was taken in the meantime): go there, focus the
+        // input and say so in that step's alert, instead of failing silently on step 3.
+        const target = errorTarget(result.fieldErrors);
+        setFormError(result.formError ?? target?.alert ?? null);
+        if (target) {
+          if (target.step !== state.step) set({ step: target.step });
+          if (target.field) setFocusRequest({ field: target.field, nonce: Date.now() });
+          if (target.field === "slug") setSlugResult({ slug: state.slug, status: "taken" });
+        }
       }
     });
   }
@@ -115,7 +129,7 @@ export function OnboardingWizard({ actions, options }: { actions: OnboardingActi
             onChange={(e) => set({ name: e.target.value, ...(state.slugEdited ? {} : { slug: suggestSlug(e.target.value) }) })} />
           <Field name="slug" label="Web address" value={state.slug} autoCapitalize="none" spellCheck={false} required
             hint={`${state.slug || "your-name"}.${ROOT}`} errors={err("slug")}
-            onChange={(e) => set({ slug: e.target.value.toLowerCase(), slugEdited: true })} />
+            onChange={(e) => { setFieldErrors((f) => ({ ...f, slug: undefined })); set({ slug: e.target.value.toLowerCase(), slugEdited: true }); }} />
           <p role="status" className="text-sm">
             {!state.slug ? "" : slugChecking ? "Checking availability…" : slugStatus ? SLUG_MESSAGES[slugStatus] : ""}
           </p>
