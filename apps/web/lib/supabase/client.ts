@@ -4,5 +4,5 @@ import { publicEnv } from "@/lib/env";
 
 /** Browser Supabase client (anon key, RLS applies). */
 export function createClient() {
-  return createBrowserClient<Database>(publicEnv.NEXT_PUBLIC_SUPABASE_URL, publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return createBrowserClient<Database>(publicEnv.NEXT_PUBLIC_SUPABASE_URL, publicEnv.supabasePublishableKey);
 }

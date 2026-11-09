@@ -9,7 +9,7 @@ import { z } from "zod";
 
 const nonEmpty = z.string().trim().min(1);
 
-export const publicEnvSchema = z.object({
+const publicBase = z.object({
   NEXT_PUBLIC_APP_URL: z.url(),
   /** Bare hostname used for tenant subdomains, e.g. restomate.app (no scheme, no port). */
   NEXT_PUBLIC_ROOT_DOMAIN: z
@@ -18,11 +18,34 @@ export const publicEnvSchema = z.object({
     .toLowerCase()
     .regex(/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/, "must be a bare hostname"),
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: nonEmpty,
+  /** Supabase's current name for the client key. Preferred over the legacy ANON_KEY. */
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: nonEmpty.optional(),
+  /** Legacy name, still accepted as a fallback. */
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: nonEmpty.optional(),
   // Analytics is optional everywhere: it must never block the app.
   NEXT_PUBLIC_POSTHOG_KEY: nonEmpty.optional(),
   NEXT_PUBLIC_POSTHOG_HOST: z.url().optional(),
 });
+
+const KEY_HINT = "set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or legacy NEXT_PUBLIC_SUPABASE_ANON_KEY)";
+type KeyFields = { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string; NEXT_PUBLIC_SUPABASE_ANON_KEY?: string };
+const noKey = (v: KeyFields) => !v.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY && !v.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+/**
+ * Requires at least one client key (named in the error, even when other variables are also invalid) and
+ * exposes the winner (PUBLISHABLE, else ANON) as `supabasePublishableKey`.
+ */
+function withClientKey<S extends z.ZodType<KeyFields>>(schema: S) {
+  return schema
+    .refine((v) => !noKey(v), { path: ["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"], error: KEY_HINT, when: () => true })
+    .refine((v) => !noKey(v), { path: ["NEXT_PUBLIC_SUPABASE_ANON_KEY"], error: KEY_HINT, when: () => true })
+    .transform((v) => ({
+      ...v,
+      supabasePublishableKey: (v.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || v.NEXT_PUBLIC_SUPABASE_ANON_KEY) as string,
+    }));
+}
+
+export const publicEnvSchema = withClientKey(publicBase);
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
 
 /** 32 bytes as 64 hex chars or base64. */
@@ -52,7 +75,7 @@ export const PRODUCTION_REQUIRED = [
   "APP_ENCRYPTION_KEY",
 ] as const;
 
-export const serverEnvSchema = serverBase.extend(publicEnvSchema.shape);
+export const serverEnvSchema = withClientKey(serverBase.extend(publicBase.shape));
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
 export class EnvError extends Error {
@@ -113,6 +136,7 @@ export function loadPublicEnv(): PublicEnv {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_ROOT_DOMAIN: process.env.NEXT_PUBLIC_ROOT_DOMAIN,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
