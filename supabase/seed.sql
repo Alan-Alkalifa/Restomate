@@ -227,8 +227,10 @@ begin
       ('de000000-0000-4000-8000-0000000003a3', demo, 'de000000-0000-4000-8000-0000000000a2', 'Dapur', 1),
       ('de000000-0000-4000-8000-0000000003a4', demo, 'de000000-0000-4000-8000-0000000000a2', 'Bar',   2);
 
-    insert into public.menu_items (organization_id, category_id, name, description, base_price, dietary_tags, is_published, sort_order)
-    select demo, c.id, i.name, i.descr, i.price, i.tags, true, i.ord
+    -- Six items have fixed ids so their sample images (supabase/seed/menu-images/<org>/items/<id>/sample.png) line up.
+    insert into public.menu_items (id, organization_id, category_id, name, description, base_price, dietary_tags, is_published, sort_order, image_path)
+    select coalesce(i.id, gen_random_uuid()), demo, c.id, i.name, i.descr, i.price, i.tags, true, i.ord,
+           case when i.id is not null then demo::text || '/items/' || i.id::text || '/sample.png' end
     from (values
       ('Makanan', 'Nasi Goreng Kampung', 'Nasi goreng bumbu terasi, telur, ayam suwir dan acar',        35000, array['halal']::text[],                  1),
       ('Makanan', 'Mie Goreng Jawa',     'Mie goreng manis gurih dengan sayuran dan bakso',             33000, array['halal']::text[],                  2),
@@ -251,7 +253,16 @@ begin
       ('Dessert', 'Klepon',              'Kue ketan isi gula merah, parutan kelapa, 5 buah',             15000, array['vegan']::text[],                  2),
       ('Dessert', 'Pisang Bakar Coklat', 'Pisang bakar, coklat, keju dan susu',                          20000, array['vegetarian']::text[],             3),
       ('Dessert', 'Es Teler',            'Alpukat, kelapa muda, nangka, susu dan sirup',                 22000, array['vegetarian']::text[],             4)
-    ) as i(cat, name, descr, price, tags, ord)
+    ) as v(cat, name, descr, price, tags, ord)
+    left join (values
+      ('Nasi Goreng Kampung', 'de000000-0000-4000-8000-000000000501'::uuid),
+      ('Mie Goreng Jawa',     'de000000-0000-4000-8000-000000000502'::uuid),
+      ('Ayam Bakar Taliwang', 'de000000-0000-4000-8000-000000000503'::uuid),
+      ('Es Teh Manis',        'de000000-0000-4000-8000-000000000504'::uuid),
+      ('Kopi Susu Gula Aren', 'de000000-0000-4000-8000-000000000505'::uuid),
+      ('Es Cendol',           'de000000-0000-4000-8000-000000000506'::uuid)
+    ) as fixed(name, id) on fixed.name = v.name
+    cross join lateral (select v.cat, v.name, v.descr, v.price, v.tags, v.ord, fixed.id) as i
     join public.menu_categories c on c.organization_id = demo and c.name = i.cat;
 
     -- an unpublished draft: must never reach the public menu
