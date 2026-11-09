@@ -117,8 +117,12 @@ test.describe("onboarding wizard", () => {
     const slug = uniqueSlug("dbl");
     await fillStep1(page, "Double Click Diner", slug);
     await fillStep2(page);
-    const finish = page.getByRole("button", { name: "Finish" });
-    await Promise.all([finish.click(), finish.click({ force: true }).catch(() => undefined), finish.dblclick({ force: true }).catch(() => undefined)]);
+    // Three synchronous clicks in one task: a real double/triple tap, without Playwright retrying a detached button.
+    await page.getByRole("button", { name: "Finish" }).evaluate((el) => {
+      (el as HTMLButtonElement).click();
+      (el as HTMLButtonElement).click();
+      (el as HTMLButtonElement).click();
+    });
     await expect(page).toHaveURL(new RegExp(`/${slug}$`));
     expect((await snapshotBySlug(slug)).orgs).toHaveLength(1);
     expect(await orgCountForEmail(email)).toBe(1);
