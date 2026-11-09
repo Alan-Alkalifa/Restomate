@@ -36,7 +36,8 @@ No new tables. Two new `security definer` functions (`search_path = ''`, `execut
 ## `apps/web/lib/admin/tenant-detail-types.ts` (shared, no `server-only`)
 
 ```ts
-import type { LimitKey } from "@/lib/admin/package-schemas";   // 'max_locations' | 'max_staff' | 'max_tables' | 'max_orders_per_month'
+export const TENANT_LIMIT_KEYS = ["max_locations", "max_staff", "max_tables", "max_orders_per_month"] as const;
+export type TenantLimitKey = (typeof TENANT_LIMIT_KEYS)[number]; // same keys as package-schemas LIMIT_KEYS; kept here so this file has no dependency on the packages PR
 
 export type TenantDetail = {
   org: {
@@ -49,7 +50,7 @@ export type TenantDetail = {
   locations: { id: string; name: string; timezone: string; currency: string; isActive: boolean }[]; // all, active first, then by name
   subscription: TenantSubscription | null;   // the current one (see below); null = none
   subscriptionHistory: TenantSubscription[];  // every subscription, newest first (createdAt desc); includes the current one
-  usage: Record<LimitKey, { used: number; limit: number | null }>; // every LIMIT_KEY present
+  usage: Record<TenantLimitKey, { used: number; limit: number | null }>; // every key present
   owners: { userId: string; name: string | null; email: string }[]; // active owners only; platform-admin payload only
   auditTrail: TenantAuditEntry[];            // last 50 rows for this org, newest first
 };
@@ -126,6 +127,7 @@ The audit row is written **before** the mail is sent, so an attempt is always on
 | Per-admin limit reached (`RATE_LIMITED`, P0001) | same as above |
 | `userId` is not an active owner of `orgId` (`NOT_AN_OWNER`, P0001), or `orgId` does not exist | `{ ok: false, code: 'NOT_FOUND', formError: "That owner no longer exists." }` (one message for every cause, so it cannot probe other organizations) |
 | `42501` | `{ ok: false, code: 'FORBIDDEN', formError: "You don't have access to do that." }` |
+| `OWNER_HAS_NO_EMAIL` (P0001): the owner's profile has no address | `{ ok: false, formError: "Could not send the reset email. Try again." }` (same generic error; nothing is audited) |
 | Anything else | `{ ok: false, formError: "Could not send the reset email. Try again." }` |
 | Success | `{ ok: true }` |
 
