@@ -144,3 +144,41 @@ export async function deleteInvitations(emails: string[]): Promise<void> {
     if (!res.ok) throw new Error(`cleanup of invitations for ${email} -> ${res.status}`);
   }
 }
+/* ---- throwaway fixtures for the surfaces spec (service role, local only; always cleaned up by the spec) ---- */
+
+export async function insertRest(table: string, rows: Record<string, unknown> | Record<string, unknown>[]): Promise<void> {
+  const res = await fetch(`${url()}/rest/v1/${table}`, {
+    method: "POST",
+    headers: { apikey: key(), authorization: `Bearer ${key()}`, "content-type": "application/json", prefer: "return=minimal" },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) throw new Error(`PostgREST POST ${table} -> ${res.status} ${await res.text()}`);
+}
+
+export async function deleteRest(path: string): Promise<void> {
+  const res = await fetch(`${url()}/rest/v1/${path}`, {
+    method: "DELETE",
+    headers: { apikey: key(), authorization: `Bearer ${key()}`, prefer: "return=minimal" },
+  });
+  if (!res.ok) throw new Error(`PostgREST DELETE ${path} -> ${res.status} ${await res.text()}`);
+}
+
+/** A throwaway organization (optionally with one location). Removed with deleteOrgs. */
+export async function createOrg(slug: string, name: string, opts: { location?: string } = {}): Promise<void> {
+  await insertRest("organizations", { slug, name });
+  const id = await orgIdOf(slug);
+  // A plan is required for plan-limited rows (an org without one has max_locations = 0).
+  const [pkg] = await rest<{ id: string }>("packages?code=eq.starter&select=id");
+  await insertRest("subscriptions", { organization_id: id, package_id: pkg.id });
+  if (opts.location) {
+    await insertRest("locations", { organization_id: id, name: opts.location, timezone: "Asia/Jakarta", currency: "IDR" });
+  }
+}
+
+export async function deleteOrgs(slugLike: string): Promise<void> {
+  await deleteRest(`organizations?slug=like.${encodeURIComponent(slugLike)}`);
+}
+
+export async function activePublicPackages(): Promise<{ code: string; name: string; price_monthly: number; price_yearly: number }[]> {
+  return rest(`packages?is_active=eq.true&is_public=eq.true&select=code,name,price_monthly,price_yearly&order=sort_order.asc`);
+}
