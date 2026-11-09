@@ -68,8 +68,51 @@ jobs:
           if-no-files-found: ignore
 
   e2e:
-    name: Playwright (disabled until MF-T28)
-    if: false
+    name: Playwright (auth e2e)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - run: echo "Enabled by MF-T28"
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0 # keep in step with the database job
+      # Auth + Mailpit are required (confirmation and reset mails); the rest of the stack is not.
+      - name: Start local Supabase (Auth, Postgres, Mailpit)
+        run: supabase start -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: Reset (migrations + seed)
+        run: supabase db reset
+      - name: Export local keys for the app (never printed, never committed)
+        run: |
+          eval "$(supabase status -o env)"
+          echo "::add-mask::$ANON_KEY"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+      - name: Install Chromium for Playwright
+        run: pnpm --filter ./apps/web exec playwright install --with-deps chromium
+      - name: Run e2e (dev server is started by playwright.config.ts)
+        run: pnpm --filter ./apps/web test:e2e
+        env:
+          CI: "true"
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_ROOT_DOMAIN: localhost
+          EMAIL_DELIVERY: log
+          # No ARCJET_KEY on purpose: Arcjet rejects @restomate.local (no MX) and blocks headless browsers.
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore
