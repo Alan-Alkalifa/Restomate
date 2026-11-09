@@ -224,31 +224,14 @@ export const setMemberLocations: StaffAction = async (orgSlug, _prev, formData) 
   const { memberId, allLocations, locationIds } = parsed.data;
   const { ctx, supabase, member } = await targetMember(orgSlug, memberId);
   if (!member) return fail("That team member was not found.");
-  const orgId = ctx.org.id;
-  const wanted = allLocations ? [] : await validLocations(supabase, orgId, locationIds);
-  if (wanted === null) return { ok: false, fieldErrors: { locationIds: ["Choose locations from the list."] } };
 
-  // Not one transaction: apply the minimal diff, scope flag last, and tag even on partial failure.
-  const { data: current } = await supabase.from("location_staff").select("location_id").eq("organization_id", orgId).eq("member_id", member.id);
-  const have = new Set((current ?? []).map((r) => r.location_id));
-  const want = new Set(wanted.map((l) => l.id));
-  const toRemove = [...have].filter((id) => !want.has(id));
-  const toAdd = [...want].filter((id) => !have.has(id));
-  let failure: ActionResult | null = null;
-  if (toAdd.length) {
-    const { error } = await supabase.from("location_staff").insert(toAdd.map((location_id) => ({ member_id: member.id, location_id, organization_id: orgId })));
-    if (error) failure = mapStaffError(error);
-  }
-  if (!failure && toRemove.length) {
-    const { error } = await supabase.from("location_staff").delete().eq("organization_id", orgId).eq("member_id", member.id).in("location_id", toRemove);
-    if (error) failure = mapStaffError(error);
-  }
-  if (!failure && member.all_locations !== allLocations) {
-    const { error } = await supabase.from("organization_members").update({ all_locations: allLocations }).eq("organization_id", orgId).eq("id", member.id);
-    if (error) failure = mapStaffError(error);
-  }
-  bumpMember(member.user_id, orgId);
-  return failure ?? OK;
+  // One atomic RPC: privilege checks, org-scoped location validation, the diff and the flag all happen in the DB.
+  const { error } = await supabase.rpc("set_member_locations", {
+    member: member.id, all_locations: allLocations, location_ids: allLocations ? [] : [...new Set(locationIds)],
+  });
+  if (error) return mapStaffError(error);
+  bumpMember(member.user_id, ctx.org.id);
+  return OK;
 };
 
 function statusAction(next: "active" | "deactivated"): StaffAction {
