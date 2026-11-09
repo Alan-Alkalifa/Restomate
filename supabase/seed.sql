@@ -166,6 +166,36 @@ begin
     perform private.write_audit(other, 'a0000000-0000-4000-8000-000000000021', 'organization.seeded',
                                 'organization', other::text, '{"seed":true}');
   end if;
+
+  -- ---- Venue: areas and tables (M2). QR tokens here are FIXED and readable for local/demo use only;
+  --      at runtime they are random (private.new_qr_token) and rotated by rotate_table_qr_token. ----------------
+  if not exists (select 1 from public.areas where organization_id = demo) then
+    insert into public.areas (id, organization_id, location_id, name, sort_order) values
+      ('de000000-0000-4000-8000-0000000001a1', demo, 'de000000-0000-4000-8000-0000000000a1', 'Indoor',  1),
+      ('de000000-0000-4000-8000-0000000001a2', demo, 'de000000-0000-4000-8000-0000000000a1', 'Terrace', 2),
+      ('de000000-0000-4000-8000-0000000001a3', demo, 'de000000-0000-4000-8000-0000000000a1', 'Bar',     3);
+
+    insert into public.tables (organization_id, location_id, area_id, label, capacity, shape, pos_x, pos_y, qr_token)
+    select demo, 'de000000-0000-4000-8000-0000000000a1', a.id, t.label, t.capacity, t.shape, t.pos_x, t.pos_y, 'demo-qr-' || lower(t.label)
+    from (values
+      ('Indoor',  'T1',  2, 'square', 1, 1), ('Indoor',  'T2',  2, 'square', 3, 1),
+      ('Indoor',  'T3',  4, 'rect',   1, 3), ('Indoor',  'T4',  4, 'rect',   3, 3),
+      ('Indoor',  'T5',  6, 'rect',   5, 2), ('Indoor',  'T6',  8, 'rect',   5, 5),
+      ('Terrace', 'P1',  4, 'round',  8, 1), ('Terrace', 'P2',  4, 'round',  8, 3),
+      ('Terrace', 'P3',  4, 'round',  8, 5), ('Terrace', 'P4',  6, 'round', 10, 3),
+      ('Bar',     'B1',  2, 'square', 1, 8), ('Bar',     'B2',  2, 'square', 3, 8)
+    ) as t(area, label, capacity, shape, pos_x, pos_y)
+    join public.areas a on a.location_id = 'de000000-0000-4000-8000-0000000000a1' and a.name = t.area;
+  end if;
+
+  if not exists (select 1 from public.areas where organization_id = other) then
+    insert into public.areas (id, organization_id, location_id, name, sort_order) values
+      ('de000000-0000-4000-8000-0000000001b1', other, 'de000000-0000-4000-8000-0000000000b1', 'Main Hall', 1);
+    insert into public.tables (organization_id, location_id, area_id, label, capacity, shape, pos_x, pos_y, qr_token) values
+      (other, 'de000000-0000-4000-8000-0000000000b1', 'de000000-0000-4000-8000-0000000001b1', 'M1', 2, 'square', 1, 1, 'other-qr-m1'),
+      (other, 'de000000-0000-4000-8000-0000000000b1', 'de000000-0000-4000-8000-0000000001b1', 'M2', 4, 'round',  3, 1, 'other-qr-m2'),
+      (other, 'de000000-0000-4000-8000-0000000000b1', 'de000000-0000-4000-8000-0000000001b1', 'M3', 6, 'rect',   5, 1, 'other-qr-m3');
+  end if;
 end
 $seed$;
 
