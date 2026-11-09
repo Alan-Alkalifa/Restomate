@@ -133,3 +133,14 @@ export async function asUser(jwt: string, path: string, init: { method?: string;
   try { json = text ? JSON.parse(text) : null; } catch { json = text; }
   return { status: res.status, json };
 }
+
+/** Test cleanup: pending invitations count toward the plan's max_staff, so tests remove the ones they created. */
+export async function deleteInvitations(emails: string[]): Promise<void> {
+  for (const email of emails) {
+    const res = await fetch(`${url()}/rest/v1/staff_invitations?email=eq.${encodeURIComponent(email)}&accepted_at=is.null`, {
+      method: "DELETE",
+      headers: { apikey: key(), authorization: `Bearer ${key()}`, prefer: "return=minimal" },
+    });
+    if (!res.ok) throw new Error(`cleanup of invitations for ${email} -> ${res.status}`);
+  }
+}

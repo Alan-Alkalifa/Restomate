@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { gunzipSync } from "node:zlib";
 import { extractLink, waitForEmail } from "./support/mailpit";
-import { auditActions, invitationsFor, locationsOf, memberCount, memberOf, patchRest, rest, roleIdOf } from "./support/db";
+import { auditActions, deleteInvitations, invitationsFor, locationsOf, memberCount, memberOf, patchRest, rest, roleIdOf } from "./support/db";
 import { open, pageText, sidebarLabels, signInAs } from "./support/flows";
 import { inviteUrlOf, waitForSentMail } from "./support/resend-mock";
 import { SEED_PASSWORD, seedUsers, uniqueEmail } from "./support/users";
@@ -19,7 +19,16 @@ const FORBIDDEN = /you don.t have access/i;
 const NOT_FOUND = /^404$|page not found/i;
 const CASHIER_NAV = ["Customers", "Home", "Kitchen", "Orders", "POS", "Payments", "Tables"].sort();
 
-async function ownerInvites(page: Page, email: string, roleLabel: string, opts: { locationName?: string } = {}) {
+/** Invitations created by the current test; removed in afterEach because pending invites count toward max_staff. */
+const createdInvites: string[] = [];
+const trackInvite = (email: string) => { createdInvites.push(email); };
+test.afterEach(async () => {
+  const mine = createdInvites.splice(0);
+  if (mine.length) await deleteInvitations(mine);
+});
+
+async function ownerInvites(page: Page, email: string, roleLabel: string, opts: { locationName?: string; keep?: boolean } = {}) {
+  if (!opts.keep) trackInvite(email);
   await open(page, "/demo/staff");
   await page.getByRole("button", { name: "Invite staff" }).click();
   const dialog = page.locator("dialog[open]");
@@ -30,7 +39,14 @@ async function ownerInvites(page: Page, email: string, roleLabel: string, opts: 
     await dialog.getByLabel(opts.locationName).check();
   }
   await dialog.getByRole("button", { name: "Send invitation" }).click();
-  await expect(page.locator("dialog[open]")).toHaveCount(0, { timeout: 30_000 });
+  // Report the dialog's own error (plan limit, validation...) instead of a bare timeout.
+  await expect
+    .poll(async () => {
+      if ((await page.locator("dialog[open]").count()) === 0) return "closed";
+      const msg = (await dialog.getByRole("alert").allInnerTexts()).join(" ").trim();
+      return msg ? `dialog shows: ${msg}` : "still open";
+    }, { timeout: 30_000 })
+    .toBe("closed");
 }
 
 type CapturedAction = { url: string; headers: Record<string, string>; body: Buffer; email: string };
@@ -53,6 +69,7 @@ async function captureInviteAction(ownerPage: Page, email: string): Promise<Capt
 
 /** Replays a captured invite action with another invitee address, using `page`'s own cookies (its own session). */
 async function replayInvite(page: Page, cap: CapturedAction, newEmail: string) {
+  trackInvite(newEmail);
   const body = Buffer.from(cap.body.toString("utf8").split(cap.email).join(newEmail), "utf8");
   return page.request.post(cap.url, { headers: cap.headers, data: body });
 }
@@ -88,7 +105,7 @@ test.describe("Cashier lifecycle (exit criterion 2)", () => {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await signInAs(page, seedUsers.owner);
-    await ownerInvites(page, cashierEmail, "Cashier", { locationName: locs[0].name });
+    await ownerInvites(page, cashierEmail, "Cashier", { locationName: locs[0].name, keep: true }); // accepted by the next test
     await expect.poll(async () => (await invitationsFor("demo", cashierEmail)).length, { timeout: 30_000 }).toBe(1);
 
     const mails = await waitForSentMail(cashierEmail);
