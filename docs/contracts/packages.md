@@ -118,5 +118,9 @@ A no-op update (nothing changed) returns `{ ok: true }` without an audit row.
 
 - Every successful write calls `updateTag('packages')` (the tag `getPublicPackages` uses), so `/pricing` shows the change on the next request. A failed write does not.
 - The audit row is written by the RPC, in the same transaction as the write. No audit row for a failed or no-op write.
-- PostHog (server, `distinctId` = admin id, no group, no PII): `package_created`, `package_updated`, `package_archived`, `package_default_changed`, each with `{ code }`.
+- PostHog (server, `distinctId` = admin id, no group, no PII): events `package_created`, `package_updated`, `package_archived`, `package_default_changed`. `package_created` carries `{ code }`; `package_updated`, `package_archived` and `package_default_changed` carry `{ packageId }` and are sent only when the RPC reports a change (no-ops send nothing).
 - Prices on a plan apply to **future** invoices only. Existing `platform_invoices` keep their stored amounts.
+
+## Direct writes are closed
+
+`authenticated` has `select` only on `packages`, and the admin RLS policy is select-only. Plans are created, edited, archived and defaulted **only** through the four RPCs, so every change has an audit row and a platform admin cannot delete a plan through PostgREST.

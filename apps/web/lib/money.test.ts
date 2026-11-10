@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allocate, applyBps, calculateBill, currencyExponent, formatMoney } from "./money";
+import { allocate, applyBps, calculateBill, currencyExponent, formatMoney, parseMoneyInput } from "./money";
 
 describe("currencyExponent", () => {
   it.each([["IDR", 0], ["USD", 2], ["JPY", 0]])("%s -> %i", (c, e) => expect(currencyExponent(c)).toBe(e));
@@ -105,5 +105,93 @@ describe("allocate", () => {
     expect(() => allocate(10.5, 2)).toThrow(RangeError);
     expect(() => allocate(10, 0)).toThrow(RangeError);
     expect(() => allocate(10, 1.5)).toThrow(RangeError);
+  });
+});
+
+describe("parseMoneyInput", () => {
+  const ok = (text: string, currency: string, value: number, opts?: { allowNegative?: boolean }) =>
+    expect(parseMoneyInput(text, currency, opts)).toEqual({ ok: true, value });
+  const bad = (text: string, currency = "IDR", opts?: { allowNegative?: boolean }) => {
+    const r = parseMoneyInput(text, currency, opts);
+    expect(r.ok).toBe(false);
+    return r.ok ? "" : r.message;
+  };
+
+  it("IDR: plain, grouped and prefixed input", () => {
+    ok("35000", "IDR", 35000);
+    ok("35.000", "IDR", 35000);
+    ok("1.250.000", "IDR", 1250000);
+    ok("1,250,000", "IDR", 1250000);
+    ok("Rp 35.000", "IDR", 35000);
+    ok("Rp35.000", "IDR", 35000);
+    ok("rp. 35.000", "IDR", 35000);
+    ok("  35 000  ", "IDR", 35000);
+    ok("Rp\u00a035.000", "IDR", 35000);
+    ok("Rp\u202f35.000", "IDR", 35000);
+    ok("0", "IDR", 0);
+    ok("007", "IDR", 7);
+  });
+  it("IDR: rejects decimals and malformed grouping", () => {
+    expect(bad("35.50")).toMatch(/decimals/i);
+    expect(bad("35,5")).toMatch(/decimals/i);
+    bad("1.2.3");
+    bad("1.2345");
+    bad("35.00.000");
+    bad(".5");
+    bad("35.");
+  });
+  it("rejects empty, non-numeric and odd input", () => {
+    expect(bad("")).toMatch(/enter/i);
+    expect(bad("   ")).toMatch(/enter/i);
+    expect(bad("Rp")).toMatch(/enter/i);
+    bad("abc");
+    bad("12abc");
+    bad("1e5");
+    bad("0x10");
+    bad("+5");
+    bad("--5", "IDR", { allowNegative: true });
+  });
+  it("negative only with allowNegative", () => {
+    expect(bad("-5.000")).toMatch(/negative/i);
+    expect(bad("Rp -5.000")).toMatch(/negative/i);
+    ok("-5.000", "IDR", -5000, { allowNegative: true });
+    ok("Rp -5.000", "IDR", -5000, { allowNegative: true });
+    ok("-Rp 5.000", "IDR", -5000, { allowNegative: true });
+    ok("-0", "IDR", 0, { allowNegative: true });
+  });
+  it("USD: one decimal separator with at most two digits", () => {
+    ok("25", "USD", 2500);
+    ok("25.5", "USD", 2550);
+    ok("25.50", "USD", 2550);
+    ok("25,50", "USD", 2550);
+    ok("$25.05", "USD", 2505);
+    ok("$ 1,234.56", "USD", 123456);
+    ok("1.234,56", "USD", 123456);
+    ok("1,234,567", "USD", 123456700);
+    ok("0.99", "USD", 99);
+    ok("-3.25", "USD", -325, { allowNegative: true });
+  });
+  it("USD: rejects too many decimals and bad shapes", () => {
+    expect(bad("1.2345", "USD")).toMatch(/decimal/i);
+    expect(bad("25.999", "USD")).toMatch(/decimal/i);
+    expect(bad("1,234", "USD")).toMatch(/decimal/i);
+    bad("1.2.3", "USD");
+    bad("1,2,3", "USD");
+    bad("1.234.56", "USD");
+    bad("12,34.5,6", "USD");
+    bad("25.", "USD");
+    bad(",50", "USD");
+    expect(bad("-1.00", "USD")).toMatch(/negative/i);
+  });
+  it("enforces the 1_000_000_000_000 bound without float drift", () => {
+    ok("1.000.000.000.000", "IDR", 1_000_000_000_000);
+    expect(bad("1.000.000.000.001")).toMatch(/large/i);
+    expect(bad("9".repeat(30))).toMatch(/large/i);
+    expect(bad("-1.000.000.000.001", "IDR", { allowNegative: true })).toMatch(/large/i);
+    ok("10000000000.00", "USD", 1_000_000_000_000);
+    expect(bad("10000000000.01", "USD")).toMatch(/large/i);
+  });
+  it("unsupported currency returns a message instead of throwing", () => {
+    expect(parseMoneyInput("5", "XXX")).toMatchObject({ ok: false });
   });
 });

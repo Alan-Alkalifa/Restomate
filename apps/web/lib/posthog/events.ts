@@ -7,9 +7,16 @@ export const EVENTS = {
   staffInvited: "staff_invited",
   invitationAccepted: "invitation_accepted",
   orgStatusChanged: "org_status_changed",
+  packageCreated: "package_created",
+  packageUpdated: "package_updated",
+  packageArchived: "package_archived",
+  packageDefaultChanged: "package_default_changed",
   areaCreated: "area_created",
   tableCreated: "table_created",
   tableQrRotated: "table_qr_rotated",
+  menuItemCreated: "menu_item_created",
+  menuItemUpdated: "menu_item_updated",
+  menuItemSoldOutToggled: "menu_item_sold_out_toggled",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
