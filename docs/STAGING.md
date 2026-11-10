@@ -30,7 +30,7 @@ Where to copy it: Supabase dashboard -> the `restomate-staging` project -> **Con
 **Why only this one (least privilege):** there is deliberately **no** Supabase personal access token. A token is account-wide, so a leaked CI secret would expose every other project in the account. The connection string reaches this one database and nothing else. The workflow stops with an error naming the secret if it is missing, masks the string (and its password on its own) in the logs, and never prints it.
 
 **Supabase Auth on the staging project** (Authentication):
-- **URL Configuration:** Site URL `https://restomate-staging.vercel.app`; Redirect URLs `https://restomate-staging.vercel.app/**`.
+- **URL Configuration:** Site URL `https://restomate-staging.vercel.app`; Redirect URLs `https://restomate-staging.vercel.app/**` and, for deployment, branch and PR preview URLs, `https://*-alan-alkalifas-projects.vercel.app/**` (scope slug `alan-alkalifas-projects`).
 - **Email templates:** the hosted project does **not** read `supabase/templates/*.html`. Paste `confirmation.html` into *Confirm sign up* and `recovery.html` into *Reset password*. Without them the confirmation and password-reset links do not work (the app's `/auth/confirm` needs the `token_hash` link they contain).
 - **SMTP:** the Resend SMTP settings from CLAUDE.md ("Email (Resend)"). The built-in mailer is rate limited to a handful of mails per hour.
 
@@ -104,5 +104,13 @@ If staging data is hopeless, the owner can reset the project in the Supabase das
 
 ## Known limits
 
-- Vercel preview URLs (`*.vercel.app` per branch) currently return 404 because `proxy.ts` treats them as unknown tenant hosts (follow-up B1-T23). Use the Production staging URL.
+- Production staging URL only for tenant/custom hosts: any host that is not the app/root domain 404s in production.
+
+## Preview deployments (B1-T23)
+
+`proxy.ts` treats unknown hosts as unknown tenants (404). On a Vercel **preview** deployment (`VERCEL_ENV=preview` only) the deployment's own hosts, `VERCEL_URL` and `VERCEL_BRANCH_URL`, are served as the app host, so PR preview URLs work (e.g. `/login`). Hosts come from Vercel system env vars, never a request header, and only exact `*.vercel.app` hostnames are accepted. Production is unchanged.
+
+- Vercel project, Settings, Environment Variables: **"Automatically expose System Environment Variables" must be ON** (provides `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_BRANCH_URL`).
+- `turbo.json` needs no change: the proxy reads these at runtime.
+- Supabase Auth redirect URLs must include the preview pattern above, or sign-in on a preview will bounce.
 - A direct call to Supabase Auth's `/signup` with the public key can create an account while sign-ups are switched off in platform settings; such an account still cannot create an organization (follow-up B1-T18).
