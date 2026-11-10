@@ -10,6 +10,13 @@ export const EVENTS = {
   areaCreated: "area_created",
   tableCreated: "table_created",
   tableQrRotated: "table_qr_rotated",
+  orderPlaced: "order_placed",
+  orderRoundSent: "order_round_sent",
+  orderItemVoided: "order_item_voided",
+  orderCancelled: "order_cancelled",
+  discountApplied: "discount_applied",
+  discountRemoved: "discount_removed",
+  kotStatusChanged: "kot_status_changed",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

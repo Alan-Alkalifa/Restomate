@@ -10,12 +10,23 @@ export type ActionErrorCode =
   | "DUPLICATE_NAME"
   | "AREA_NOT_EMPTY"
   | "FORBIDDEN"
-  | "RATE_LIMITED";
+  | "RATE_LIMITED"
+  | "INVALID_INPUT"
+  | "ITEM_UNAVAILABLE"
+  | "MODIFIER_INVALID"
+  | "VARIANT_REQUIRED"
+  | "TABLE_NOT_FOUND"
+  | "ORDER_CLOSED"
+  | "ALREADY_VOID"
+  | "ALREADY_REMOVED"
+  | "INVALID_TRANSITION"
+  | "DISCOUNT_EXCEEDS_SUBTOTAL"
+  | "CLIENT_REF_CONFLICT";
 
 /** Result shape of every form action (the `useActionState` state). */
 export type ActionResult =
-  | { ok: true }
-  | { ok: false; fieldErrors?: Record<string, string[]>; formError?: string; code?: ActionErrorCode };
+  | { ok: true; data?: Record<string, string | number | boolean> }
+  | { ok: false; fieldErrors?: Record<string, string[]>; formError?: string; code?: ActionErrorCode; details?: { itemIds?: string[]; groupId?: string } };
 
 export const PASSWORD_MIN = 10;
 /** bcrypt ignores bytes beyond 72 (bytes, not characters), so longer passwords would silently weaken. */
