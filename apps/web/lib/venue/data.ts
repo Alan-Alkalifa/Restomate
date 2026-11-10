@@ -15,8 +15,9 @@ const STATUSES = ["available", "reserved", "occupied", "needs_cleaning"] as cons
 
 /**
  * Venue page data. Any member with access to the location can read. Explicit columns only: qr_token is not
- * selectable by clients (column grants) and is never returned here. `tableLimit.used` counts the active tables the
- * caller can see; the database enforces the real, org-wide limit. Call inside <Suspense>.
+ * selectable by clients (column grants) and is never returned here. `tableLimit.used` is the org-wide active table
+ * count (org_active_table_count, member-only security definer; RLS would hide other locations from scoped staff); the
+ * database trigger enforces the real limit. Call inside <Suspense>.
  */
 export async function getVenue(orgSlug: string, locationId: string): Promise<{
   areas: Area[]; tables: VenueTable[]; canManage: boolean; tableLimit: { used: number; max: number | null };
@@ -29,7 +30,7 @@ export async function getVenue(orgSlug: string, locationId: string): Promise<{
       .order("sort_order").order("name"),
     supabase.from("tables").select("id, area_id, label, capacity, shape, status, pos_x, pos_y, is_active")
       .eq("organization_id", ctx.org.id).eq("location_id", locationId).order("label"),
-    supabase.from("tables").select("id", { count: "exact", head: true }).eq("organization_id", ctx.org.id).eq("is_active", true),
+    supabase.rpc("org_active_table_count", { org_id: ctx.org.id }),
   ]);
   const tables: VenueTable[] = (tablesRes.data ?? []).map((t) => ({
     id: t.id, areaId: t.area_id, label: t.label, capacity: t.capacity,
@@ -45,7 +46,7 @@ export async function getVenue(orgSlug: string, locationId: string): Promise<{
   return {
     areas, tables,
     canManage: ctx.permissions.includes("tables.manage"),
-    tableLimit: { used: usedRes.count ?? 0, max: ctx.package?.limits.max_tables ?? null },
+    tableLimit: { used: usedRes.data ?? 0, max: ctx.package?.limits.max_tables ?? null },
   };
 }
 
