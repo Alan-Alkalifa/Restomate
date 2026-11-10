@@ -3,7 +3,22 @@
   "ui": "stream",
   "tasks": {
     "dev": { "cache": false, "persistent": true },
-    "build": { "dependsOn": ["^build"], "outputs": [".next/**", "!.next/cache/**"] },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**"],
+      "passThroughEnv": [
+        "VERCEL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "EMAIL_FROM",
+        "EMAIL_DELIVERY",
+        "RESEND_API_KEY",
+        "ARCJET_KEY",
+        "DOKU_ENV",
+        "DOKU_CLIENT_ID",
+        "DOKU_SECRET_KEY",
+        "APP_ENCRYPTION_KEY"
+      ]
+    },
     "start": { "dependsOn": ["build"], "cache": false, "persistent": true },
     "lint": { "dependsOn": ["^lint"] },
     "typecheck": { "dependsOn": ["^typecheck"] },
