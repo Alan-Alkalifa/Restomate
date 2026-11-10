@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { EnvError, parseEnv, PRODUCTION_REQUIRED, publicEnvSchema, serverEnvSchema } from "./env";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ENV_SLICES, EnvError, envSliceSchemas, parseEnv, PRODUCTION_REQUIRED, publicEnvSchema, serverEnvSchema, sliceOfEnvKey } from "./env";
 
 const PUBLIC = {
   NEXT_PUBLIC_APP_URL: "http://localhost:3000",
@@ -159,5 +159,137 @@ describe("server env defaults and production rules", () => {
 
   it("rejects bad enum values", () => {
     expect(errorOf(() => parseEnv(serverEnvSchema, { ...SERVER, DOKU_ENV: "live" })).names).toEqual(["DOKU_ENV"]);
+  });
+});
+
+describe("env slices are validated independently", () => {
+  const BAD = { DOKU_ENV: "banana", APP_ENCRYPTION_KEY: "too-short" };
+  const slice = (name: keyof typeof ENV_SLICES, source: Record<string, string>, production = false): Record<string, string | undefined> =>
+    parseEnv(envSliceSchemas[name], source, {
+      production,
+      requireInProduction: PRODUCTION_REQUIRED.filter((k) => (ENV_SLICES[name] as readonly string[]).includes(k)),
+      emailRules: name === "email",
+    });
+
+  it("a bad DOKU_ENV and APP_ENCRYPTION_KEY do not break the email, public or supabaseAdmin slices", () => {
+    const src = { ...SERVER, ...PROD, ...BAD };
+    expect(slice("email", src, true).EMAIL_DELIVERY).toBe("resend");
+    expect(slice("public", src, true).NEXT_PUBLIC_APP_URL).toBe("http://localhost:3000");
+    expect(slice("supabaseAdmin", src, true).SUPABASE_SERVICE_ROLE_KEY).toBe("service-role-secret-value");
+  });
+
+  it("each bad slice names only its own variable, never the value", () => {
+    const src = { ...SERVER, ...PROD, ...BAD };
+    const doku = errorOf(() => slice("doku", src, true));
+    expect(doku.names).toEqual(["DOKU_ENV"]);
+    const enc = errorOf(() => slice("encryption", src, true));
+    expect(enc.names).toEqual(["APP_ENCRYPTION_KEY"]);
+    expect(doku.message + enc.message).not.toContain("banana");
+    expect(doku.message + enc.message).not.toContain("too-short");
+  });
+
+  it("the full env still reports every bad variable at once", () => {
+    const e = errorOf(() => parseEnv(serverEnvSchema, { ...SERVER, ...PROD, ...BAD }, { production: true, requireInProduction: PRODUCTION_REQUIRED }));
+    expect(e.names).toEqual(expect.arrayContaining(["DOKU_ENV", "APP_ENCRYPTION_KEY"]));
+  });
+
+  it("email rules apply to the email slice only", () => {
+    // EMAIL_DELIVERY=log in production is wrong for the email slice, but must not be reported by the doku slice
+    const src = { ...SERVER, ...PROD, EMAIL_DELIVERY: "log" };
+    expect(errorOf(() => slice("email", src, true)).names).toEqual(["EMAIL_DELIVERY"]);
+    expect(slice("doku", src, true).DOKU_ENV).toBe("sandbox");
+  });
+
+  it("production requires each slice's own secrets", () => {
+    expect(errorOf(() => slice("doku", SERVER, true)).names).toEqual(["DOKU_CLIENT_ID", "DOKU_SECRET_KEY"]);
+    expect(errorOf(() => slice("encryption", SERVER, true)).names).toEqual(["APP_ENCRYPTION_KEY"]);
+  });
+
+  it("maps every server variable to exactly one slice", () => {
+    for (const key of ["EMAIL_FROM", "RESEND_API_KEY", "DOKU_SECRET_KEY", "APP_ENCRYPTION_KEY", "SUPABASE_SERVICE_ROLE_KEY", "ARCJET_KEY", "NEXT_PUBLIC_APP_URL", "supabasePublishableKey"]) {
+      expect(sliceOfEnvKey(key)).toBeDefined();
+    }
+    expect(sliceOfEnvKey("then")).toBeUndefined();
+    const all = Object.values(ENV_SLICES).flat();
+    expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+describe("serverEnv (per-slice proxy) and boot validation", () => {
+  const BASE = { ...SERVER, ...PROD, DOKU_ENV: "sandbox" };
+  const setEnv = (vars: Record<string, string>, nodeEnv = "production") => {
+    vi.unstubAllEnvs();
+    for (const k of Object.keys(process.env)) if (k in BASE || k.startsWith("NEXT_PUBLIC_")) vi.stubEnv(k, "");
+    vi.stubEnv("NODE_ENV", nodeEnv);
+    for (const [k, v] of Object.entries(vars)) vi.stubEnv(k, v);
+  };
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+  const load = async () => {
+    vi.resetModules();
+    vi.doMock("server-only", () => ({}));
+    return import("./env.server");
+  };
+
+  it("reading an email variable works while DOKU_ENV and APP_ENCRYPTION_KEY are invalid", async () => {
+    setEnv({ ...BASE, DOKU_ENV: "banana", APP_ENCRYPTION_KEY: "short" });
+    const { serverEnv } = await load();
+    expect(serverEnv.EMAIL_DELIVERY).toBe("resend");
+    expect(serverEnv.NEXT_PUBLIC_APP_URL).toBe("http://localhost:3000");
+    expect(() => serverEnv.DOKU_ENV).toThrow(/DOKU_ENV/);
+    expect(() => serverEnv.APP_ENCRYPTION_KEY).toThrow(/APP_ENCRYPTION_KEY/);
+  });
+
+  it("validateServerEnv fails naming both variables, without values", async () => {
+    setEnv({ ...BASE, DOKU_ENV: "banana", APP_ENCRYPTION_KEY: "short" });
+    const { validateServerEnv } = await load();
+    const e = errorOf(() => validateServerEnv());
+    expect(e.names).toEqual(expect.arrayContaining(["DOKU_ENV", "APP_ENCRYPTION_KEY"]));
+    expect(e.message).not.toContain("banana");
+  });
+
+  it("validateServerEnv passes with a valid production env", async () => {
+    setEnv(BASE);
+    const { validateServerEnv } = await load();
+    expect(validateServerEnv().DOKU_ENV).toBe("sandbox");
+  });
+
+  describe("instrumentation register()", () => {
+    const run = async () => {
+      vi.resetModules();
+      vi.doMock("server-only", () => ({}));
+      return (await import("../instrumentation")).register();
+    };
+
+    it("throws in production when the env is invalid, naming the variable and logging it", async () => {
+      setEnv({ ...BASE, DOKU_ENV: "banana" });
+      vi.stubEnv("NEXT_RUNTIME", "nodejs");
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      await expect(run()).rejects.toThrow(/DOKU_ENV/);
+      expect(log).toHaveBeenCalledWith(expect.stringContaining("DOKU_ENV"));
+      expect(JSON.stringify(log.mock.calls)).not.toContain("banana");
+    });
+
+    it("only logs outside production, so the dev server keeps running", async () => {
+      setEnv({ ...BASE, DOKU_ENV: "banana" }, "development");
+      vi.stubEnv("NEXT_RUNTIME", "nodejs");
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      await expect(run()).resolves.toBeUndefined();
+      expect(log).toHaveBeenCalled();
+    });
+
+    it("does nothing on the edge runtime and passes silently with a valid env", async () => {
+      setEnv({ ...BASE, DOKU_ENV: "banana" });
+      vi.stubEnv("NEXT_RUNTIME", "edge");
+      await expect(run()).resolves.toBeUndefined();
+      setEnv(BASE);
+      vi.stubEnv("NEXT_RUNTIME", "nodejs");
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      await expect(run()).resolves.toBeUndefined();
+      expect(log).not.toHaveBeenCalled();
+    });
   });
 });
