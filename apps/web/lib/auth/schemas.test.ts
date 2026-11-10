@@ -20,6 +20,23 @@ describe("signInSchema", () => {
   });
 });
 
+describe("locale (hidden field)", () => {
+  const ok = { fullName: "Ayu", email: "a@x.test", password: "correct horse" };
+  it("defaults to id when missing and keeps en and id", () => {
+    expect(signUpSchema.parse(ok).locale).toBe("id");
+    expect(signUpSchema.parse({ ...ok, locale: "en" }).locale).toBe("en");
+    expect(signUpSchema.parse({ ...ok, locale: "id" }).locale).toBe("id");
+    expect(requestPasswordResetSchema.parse({ email: "a@x.test" }).locale).toBe("id");
+    expect(requestPasswordResetSchema.parse({ email: "a@x.test", locale: "en" }).locale).toBe("en");
+  });
+  it("any other value falls back to id instead of failing the action", () => {
+    for (const v of ["fr", "EN", "", " en", "en\n", "<script>", undefined]) {
+      expect(signUpSchema.parse({ ...ok, locale: v }).locale).toBe("id");
+      expect(requestPasswordResetSchema.safeParse({ email: "a@x.test", locale: v })).toMatchObject({ success: true, data: { locale: "id" } });
+    }
+  });
+});
+
 describe("signUpSchema", () => {
   const ok = { fullName: " Ayu ", email: "a@x.test", password: "correct horse" };
   it("accepts a valid signup and trims the name", () => {
