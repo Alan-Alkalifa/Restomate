@@ -100,6 +100,25 @@ describe("signUp", () => {
     expect(guard).toHaveBeenCalledWith("signup", { email: "new@x.test" });
     expect(track).toHaveBeenCalledWith("signup_started", { distinctId: "u-1" });
   });
+  it("locale=en puts lang=en on the confirmation link, after the validated next; other values add nothing", async () => {
+    expect(await signUp(null, form({ ...input, next: "/invite/tok", locale: "en" }))).toEqual({ ok: true });
+    expect(auth.signUp).toHaveBeenLastCalledWith(
+      expect.objectContaining({ options: expect.objectContaining({ emailRedirectTo: "https://app.restomate.app/auth/confirm?next=%2Finvite%2Ftok&lang=en" }) }),
+    );
+    for (const locale of ["id", "xx", ""]) {
+      auth.signUp.mockClear();
+      expect(await signUp(null, form({ ...input, locale }))).toEqual({ ok: true });
+      expect(auth.signUp).toHaveBeenCalledWith(
+        expect.objectContaining({ options: expect.objectContaining({ emailRedirectTo: "https://app.restomate.app/auth/confirm?next=%2Fonboarding" }) }),
+      );
+    }
+  });
+  it("the locale hint cannot smuggle a different next (an open redirect stays closed)", async () => {
+    await signUp(null, form({ ...input, next: "https://evil.test", locale: "en" }));
+    expect(auth.signUp).toHaveBeenLastCalledWith(
+      expect.objectContaining({ options: expect.objectContaining({ emailRedirectTo: "https://app.restomate.app/auth/confirm?next=%2Fonboarding&lang=en" }) }),
+    );
+  });
   it("defaults next to /onboarding and rejects an unsafe next", async () => {
     await signUp(null, form(input));
     expect(auth.signUp.mock.calls[0][0].options.emailRedirectTo).toBe("https://app.restomate.app/auth/confirm?next=%2Fonboarding");
@@ -147,6 +166,19 @@ describe("requestPasswordReset", () => {
     expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("a@x.test", {
       redirectTo: "https://app.restomate.app/auth/confirm?next=%2Freset-password",
     });
+  });
+  it("locale=en puts lang=en on the emailed link; id, a missing or an unknown locale add nothing", async () => {
+    await requestPasswordReset(null, form({ email: "a@x.test", locale: "en" }));
+    expect(auth.resetPasswordForEmail).toHaveBeenLastCalledWith("a@x.test", {
+      redirectTo: "https://app.restomate.app/auth/confirm?next=%2Freset-password&lang=en",
+    });
+    for (const locale of ["id", "fr", "EN", "", "<script>"]) {
+      auth.resetPasswordForEmail.mockClear();
+      expect(await requestPasswordReset(null, form({ email: "a@x.test", locale }))).toEqual({ ok: true }); // never blocks
+      expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("a@x.test", {
+        redirectTo: "https://app.restomate.app/auth/confirm?next=%2Freset-password",
+      });
+    }
   });
   it("answers the same when the provider errors (unknown email, cooldown, outage)", async () => {
     auth.resetPasswordForEmail.mockResolvedValue({ error: { code: "over_email_send_rate_limit", message: "wait 60s", status: 429 } });
