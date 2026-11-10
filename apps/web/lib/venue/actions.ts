@@ -149,7 +149,9 @@ export const setTableActive: VenueAction = async (orgSlug, locationId, _prev, fo
 export const saveTablePositions: VenueAction = async (orgSlug, locationId, _prev, formData) => {
   const { supabase, orgId } = await authorize(orgSlug, locationId);
   const parsed = parseForm(positionsSchema, formData);
-  if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error) };
+  if (!parsed.success) {
+    return { ok: false, fieldErrors: fieldErrors(parsed.error), formError: "Table positions must stay inside the floor plan (0 to 999)." };
+  }
   const positions = parsed.data.positions;
   const { data: owned } = await supabase.from("tables").select("id").eq("organization_id", orgId).eq("location_id", locationId)
     .in("id", positions.map((p) => p.tableId));
