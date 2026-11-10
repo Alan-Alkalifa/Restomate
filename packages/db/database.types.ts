@@ -584,14 +584,26 @@ isOneToOne: false
             "accept_invitation":
 { Args: { "token": string }; Returns: Json
                            },
+"admin_create_package":
+{ Args: { "input": Json }; Returns: string
+                           },
 "admin_get_platform_settings":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
 "admin_list_tenants":
 { Args: { "org_id"?: string,"package_code"?: string,"page_offset"?: number,"page_size"?: number,"q"?: string,"status_filter"?: string }; Returns: Json
                            },
+"admin_set_default_package":
+{ Args: { "package_id": string }; Returns: boolean
+                           },
 "admin_set_org_status":
 { Args: { "org": string,"reason": string,"status": string }; Returns: boolean
+                           },
+"admin_set_package_active":
+{ Args: { "active": boolean,"package_id": string }; Returns: boolean
+                           },
+"admin_update_package":
+{ Args: { "input": Json,"package_id": string }; Returns: boolean
                            },
 "admin_update_platform_setting":
 { Args: { "key": string,"value": Json }; Returns: boolean
@@ -648,6 +660,9 @@ isOneToOne: false
                            },
 "my_permissions":
 { Args: { "org": string }; Returns: (string)[]
+                           },
+"org_active_table_count":
+{ Args: { "org_id": string }; Returns: number
                            },
 "resolve_table_qr":
 { Args: { "token": string }; Returns: {

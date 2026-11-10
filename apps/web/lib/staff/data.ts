@@ -1,4 +1,5 @@
 import "server-only";
+import { connection } from "next/server";
 import { requireOrgContext, requirePermission } from "@/lib/auth/dal";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
@@ -60,6 +61,9 @@ export async function listStaff(orgSlug: string): Promise<{
     };
   });
 
+  // Invite status depends on the current time: read it at request time only. Under Cache Components a clock read
+  // during prerender/instant validation is an error (and `instant = false` cannot clear it); connection() defers it.
+  await connection();
   const now = Date.now();
   const invitations: StaffInvitation[] = (invRes.data ?? []).map((i) => ({
     id: i.id, email: i.email, roleId: i.role_id, roleName: roleById.get(i.role_id)?.name ?? "",
