@@ -58,6 +58,15 @@ describe("auth forms in Bahasa Indonesia and English", () => {
   });
 });
 
+describe("locale hint for email links", () => {
+  it("signup and forgot-password post the route's locale, so the mail link carries lang", () => {
+    for (const [l, d] of [["en", en], ["id", id]] as const) {
+      expect(renderToStaticMarkup(<SignupForm action={action} passwordHint={hint} t={d.auth.signup} locale={l} />)).toContain(`<input type="hidden" name="locale" value="${l}"/>`);
+      expect(renderToStaticMarkup(<ForgotPasswordForm action={action} t={d.auth.forgot} locale={l} />)).toContain(`<input type="hidden" name="locale" value="${l}"/>`);
+    }
+  });
+});
+
 describe("language switcher", () => {
   it("links to the other locale, keeping the path and a sanitised next", () => {
     const html = renderToStaticMarkup(<LanguageSwitcher locale="id" path="/login" next="/invite/abc" t={id.auth.switcher} />);
