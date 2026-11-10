@@ -1,21 +1,27 @@
-import { PER_PAGE, PRINT_CSS, chunk, type Layout, type QrCell } from "./sheet";
+import { FACE_PADDING_MM, PER_PAGE, PRINT_CSS, QR_MM, TENT_FACE, chunk, type Layout, type QrCell } from "./sheet";
 
 type Brand = { orgName: string; locationName: string; logoUrl: string | null };
 
-function Face({ cell, brand, flip, big }: { cell: QrCell; brand: Brand; flip?: boolean; big?: boolean }) {
+function Face({ cell, brand, flip, tent }: { cell: QrCell; brand: Brand; flip?: boolean; tent?: boolean }) {
+  const qr = tent ? QR_MM.tents : QR_MM.grid;
+  // Sizes in mm, from the same constants as the print CSS. Text sits beside the code so the face stays short.
+  const f = tent ? { brand: 6, label: 16, area: 5, scan: 6.5, logo: 12 } : { brand: 3.4, label: 8, area: 3, scan: 3.4, logo: 6 };
   return (
-    <div className={`face ${flip ? "flip" : ""} flex flex-col items-center justify-center gap-1 text-center text-black`} style={{ padding: "4mm" }}>
-      <div className="flex items-center gap-2">
-        {brand.logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- print sheet: a plain https <img> prints reliably; next/image adds nothing here
-          <img src={brand.logoUrl} alt="" style={{ height: big ? "14mm" : "9mm", width: "auto" }} />
-        )}
-        <p style={{ fontWeight: 700, fontSize: big ? "6mm" : "4.2mm" }}>{brand.orgName}</p>
+    <div className={`face ${flip ? "flip" : ""} flex items-center justify-center gap-[3mm] text-left text-black`}
+      style={{ padding: `${FACE_PADDING_MM}mm`, height: tent ? `${TENT_FACE.heightMm}mm` : "100%" }}>
+      <div role="img" aria-label={`QR code for table ${cell.label}`} className="shrink-0" style={{ width: `${qr}mm`, height: `${qr}mm` }} dangerouslySetInnerHTML={{ __html: cell.svg }} />
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-[1mm] overflow-hidden">
+        <div className="flex items-center gap-[2mm]">
+          {brand.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element -- print sheet: a plain https <img> prints reliably; next/image adds nothing here
+            <img src={brand.logoUrl} alt="" style={{ height: `${f.logo}mm`, width: "auto" }} />
+          )}
+          <p className="break-words" style={{ fontWeight: 700, fontSize: `${f.brand}mm`, lineHeight: 1.1 }}>{brand.orgName}</p>
+        </div>
+        <p style={{ fontWeight: 800, fontSize: `${f.label}mm`, lineHeight: 1 }}>{cell.label}</p>
+        <p className="break-words" style={{ fontSize: `${f.area}mm`, lineHeight: 1.1 }}>{cell.areaName} · {brand.locationName}</p>
+        <p style={{ fontWeight: 600, fontSize: `${f.scan}mm`, lineHeight: 1.1 }}>Scan to order</p>
       </div>
-      <div role="img" aria-label={`QR code for table ${cell.label}`} style={{ width: big ? "62mm" : "48mm", height: big ? "62mm" : "48mm" }} dangerouslySetInnerHTML={{ __html: cell.svg }} />
-      <p style={{ fontWeight: 800, fontSize: big ? "11mm" : "8mm", lineHeight: 1 }}>{cell.label}</p>
-      <p style={{ fontSize: big ? "4.5mm" : "3.6mm" }}>{cell.areaName} · {brand.locationName}</p>
-      <p style={{ fontWeight: 600, fontSize: big ? "5mm" : "4mm" }}>Scan to order</p>
     </div>
   );
 }
@@ -24,7 +30,7 @@ function Face({ cell, brand, flip, big }: { cell: QrCell; brand: Brand; flip?: b
 export function QrSheet({ cells, layout, brand }: { cells: QrCell[]; layout: Layout; brand: Brand }) {
   const pages = chunk(cells, PER_PAGE[layout]);
   return (
-    <div className="qr-print flex flex-col gap-6" data-layout={layout}>
+    <div className="qr-print flex flex-col gap-6 overflow-x-auto print:gap-0 print:overflow-visible" data-layout={layout}>
       <style>{PRINT_CSS}</style>
       {pages.map((page, i) => (
         <section key={i} className={`qr-page ${layout} rounded-lg border border-neutral-300 bg-white print:rounded-none print:border-0`} aria-label={`Page ${i + 1} of ${pages.length}`}>
@@ -35,8 +41,8 @@ export function QrSheet({ cells, layout, brand }: { cells: QrCell[]; layout: Lay
               </div>
             ) : (
               <div key={cell.tableId} className="qr-tent">
-                <Face cell={cell} brand={brand} flip big />
-                <Face cell={cell} brand={brand} big />
+                <Face cell={cell} brand={brand} flip tent />
+                <Face cell={cell} brand={brand} tent />
               </div>
             ),
           )}
