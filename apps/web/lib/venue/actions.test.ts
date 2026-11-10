@@ -178,6 +178,20 @@ describe("saveTablePositions", () => {
     expect(await saveTablePositions("demo", LOC, null, body([p(TABLE), p(TABLE2)]))).toMatchObject({ ok: false, code: "FORBIDDEN" });
     expect(sent("tables.update")).toHaveLength(0);
   });
+  it("rejects positions outside the 0..999 canvas before touching the database", async () => {
+    for (const bad of [{ tableId: TABLE, posX: -1, posY: 0 }, { tableId: TABLE, posX: 1000, posY: 0 }, { tableId: TABLE, posX: 0, posY: -1 }, { tableId: TABLE, posX: 0, posY: 1000 }]) {
+      expect(await saveTablePositions("demo", LOC, null, body([bad]))).toMatchObject({ ok: false, formError: expect.stringContaining("floor plan") });
+    }
+    expect(sent("tables.update")).toHaveLength(0);
+    expect(sent("tables.select")).toHaveLength(0);
+  });
+  it("maps a position CHECK violation from the database to a friendly message", async () => {
+    results["tables.select"] = { data: [{ id: TABLE }] };
+    results["tables.update"] = { error: { code: "23514", message: 'new row violates check constraint "tables_pos_x_range"' } };
+    const r = await saveTablePositions("demo", LOC, null, body([p(TABLE)]));
+    expect(r).toMatchObject({ ok: false, formError: expect.stringContaining("floor plan") });
+    expect(JSON.stringify(r)).not.toContain("tables_pos_x_range");
+  });
   it("saves positions for tables of this location", async () => {
     results["tables.select"] = { data: [{ id: TABLE }, { id: TABLE2 }] };
     expect(await saveTablePositions("demo", LOC, null, body([p(TABLE), p(TABLE2)]))).toEqual({ ok: true });
