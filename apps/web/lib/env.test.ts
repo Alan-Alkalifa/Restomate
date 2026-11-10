@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ENV_SLICES, EnvError, envSliceSchemas, parseEnv, PRODUCTION_REQUIRED, publicEnvSchema, serverEnvSchema, sliceOfEnvKey } from "./env";
+import { assertVercelBuildEnv, ENV_SLICES, EnvError, envSliceSchemas, parseEnv, PRODUCTION_REQUIRED, publicEnvSchema, serverEnvSchema, sliceOfEnvKey } from "./env";
 
 const PUBLIC = {
   NEXT_PUBLIC_APP_URL: "http://localhost:3000",
@@ -290,6 +290,67 @@ describe("serverEnv (per-slice proxy) and boot validation", () => {
       const log = vi.spyOn(console, "error").mockImplementation(() => {});
       await expect(run()).resolves.toBeUndefined();
       expect(log).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("Vercel build-time env check (B1-T19)", () => {
+  const GOOD = { ...SERVER, ...PROD, DOKU_ENV: "sandbox" };
+
+  it("does nothing outside Vercel, even with an invalid or empty env (CI and local builds)", () => {
+    expect(() => assertVercelBuildEnv({})).not.toThrow();
+    expect(() => assertVercelBuildEnv({ ...GOOD, DOKU_ENV: "banana" })).not.toThrow();
+    expect(() => assertVercelBuildEnv({ VERCEL: "0" })).not.toThrow();
+  });
+
+  it("passes on Vercel with a complete, valid env", () => {
+    expect(() => assertVercelBuildEnv({ ...GOOD, VERCEL: "1" })).not.toThrow();
+  });
+
+  it("fails the build on Vercel naming every bad variable, never the values", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const e = errorOf(() => assertVercelBuildEnv({ ...GOOD, VERCEL: "1", DOKU_ENV: "banana", APP_ENCRYPTION_KEY: "short-secret" }));
+    expect(e.names).toEqual(expect.arrayContaining(["DOKU_ENV", "APP_ENCRYPTION_KEY"]));
+    const logged = JSON.stringify(log.mock.calls);
+    expect(logged).toContain("DOKU_ENV");
+    expect(logged).not.toContain("banana");
+    expect(logged).not.toContain("short-secret");
+    log.mockRestore();
+  });
+
+  it("treats a Vercel build as production: missing production-only variables fail it", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const e = errorOf(() => assertVercelBuildEnv({ ...SERVER, VERCEL: "1" }));
+    expect(e.names).toEqual(expect.arrayContaining([...PRODUCTION_REQUIRED]));
+    log.mockRestore();
+  });
+
+  describe("next.config.ts phase gating", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    });
+    const configFor = async (vars: Record<string, string>) => {
+      vi.unstubAllEnvs();
+      for (const k of Object.keys(process.env)) if (k in GOOD || k.startsWith("NEXT_PUBLIC_") || k === "VERCEL") vi.stubEnv(k, "");
+      for (const [k, v] of Object.entries(vars)) vi.stubEnv(k, v);
+      vi.resetModules();
+      return (await import("../next.config")).default;
+    };
+
+    it("only the production-build phase on Vercel validates", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      const config = await configFor({ VERCEL: "1" }); // nothing else set: invalid
+      expect(() => config("phase-production-build")).toThrow(/Invalid environment/);
+      expect(() => config("phase-development-server")).not.toThrow();
+      expect(() => config("phase-production-server")).not.toThrow();
+      log.mockRestore();
+    });
+
+    it("without VERCEL the build phase is unaffected and the config keeps its options", async () => {
+      const config = await configFor({});
+      const c = config("phase-production-build");
+      expect(c.cacheComponents).toBe(true);
     });
   });
 });

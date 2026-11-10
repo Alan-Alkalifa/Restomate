@@ -5,7 +5,7 @@
 > - **How** we build it (stack, rules, conventions) → `CLAUDE.md`
 > - **In what order, and what's done** → this file
 
-Last updated: 2026-11-09 (night)
+Last updated: 2026-11-10
 
 ---
 
@@ -441,6 +441,9 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-09 | Tenant usage `limit` is 0 when an org has no live subscription (matches the plan-limit triggers); the UI shows "No plan" (MSS-T05) |
 | 2026-11-09 | Packages are written only through the audited `admin_*_package` RPCs; `authenticated` has SELECT only on `packages` (MSS-T01 review) |
 | 2026-11-09 | **User decision: real services go on a STAGING environment first.** Vercel Hobby (`restomate-staging`, `*.vercel.app`, no domain yet, so customer sites use `/s/{slug}`), Supabase `restomate-staging` in ap-southeast-1 created through the Vercel Marketplace, Resend test sender, Arcjet, PostHog, DOKU **sandbox**. Production (domain, Vercel Pro, DOKU production) comes later and needs the user's approval. Staging has no seed users with known passwords (B1-T19) |
+| 2026-11-10 | Staging DB is live: #114 (B1-T19) merged, and the first **Deploy DB (staging)** run applied all 12 migrations to Supabase `restomate-staging` (run 42744236883). The deploy is gated on green CI for the exact `main` SHA (a manual run before CI finished was correctly refused). The Demo seed on staging is manual only (Actions → Deploy DB (staging) → `apply_seed`). S4 from REYKI, deferred: move `SUPABASE_STAGING_DB_URL` into a GitHub Environment |
+| 2026-11-10 | Vercel preview deployments serve the app on their own `VERCEL_URL` / `VERCEL_BRANCH_URL` only when `VERCEL_ENV=preview` (exact `*.vercel.app` match, never from a header); production unknown hosts still 404 (#117, B1-T23). Requires Vercel "Automatically expose System Environment Variables" ON and the Supabase redirect pattern `https://*-alan-alkalifas-projects.vercel.app/**` |
+| 2026-11-10 | B1-T15 (onboarding showed the marketing header) is fixed inside #90 rather than a separate PR: `main` had no marketing layout to branch from |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -449,8 +452,10 @@ _None yet._
 
 ## 15. Next up
 
-1. **REYKI (QA is the bottleneck):** MVM-T02 (venue isolation, closes BUG-M0-01; merges before other M2 PRs) → PR QA in merge order: #73 menu schema → #70 lib/venue → #63 tables pages → #69 floor plan → #81 QR sheet → #76 → #71 → menu stack (#78 → #77 → #79 → #80 → #82 → #84 → #86, with MVM-T07 alongside) → M1: #93 packages lib → #92 packages page → #96 tenant detail lib → #95 tenant detail page (MSS-T03 and MSS-T07 alongside) → #90 marketing.
-2. **DAVIN:** MSS-T08 platform settings (contract first), then B1-T16 (S3 env) and B1-T17 (S4 dev noise).
-3. **ADIT:** #95 rebase onto `main` + "No plan" state → B1-T15. Then the platform settings page against the MSS-T08 contract.
-4. **Staging (in progress):** the user does steps 1–6 (Vercel import, Supabase via Vercel Storage, Resend/Arcjet/PostHog/DOKU sandbox keys in Vercel). DAVIN: B1-T16 (env fail-fast) → B1-T19 (migrations deploy + staging seed + `docs/STAGING.md`). REYKI: smoke test on the staging URL.
+_Resumed 2026-11-10 after the team stopped mid-queue. All three agents were re-assigned._
+
+1. **REYKI (QA is still the bottleneck), MVM-T15:** #81 re-run (BUG-81-1/2 fix pushed by ADIT) → #115 B1-T24 (gate for #113) → #113 i18n (e2e path update on the branch + QA) → #69 floor plan + #111 header (one tablet pass at 360/768/820/864/1024px) → #114 staging workflow → #76 → #71 → menu stack (#78 → #77 → #79 → #80 → #82 → #84 → #86) → M1 (#93 → #92 → #96 → #95 → #90 → #102 → #100 → #106 → #105) → #109 POS shell. MSS-T03 / MSS-T07 alongside the M1 PRs.
+2. **DAVIN:** B1-T23 (proxy: Vercel preview hosts) → B1-T21 (S3 BUG-70-1, org-wide table count) → B1-T17 (dev noise). B1-T18 waits for #102. MSC-T02 (M3 orders contract) waits for MSS-T11 (#106).
+3. **ADIT:** B1-T15 (onboarding header). Then the rebases after #113 lands (#90, #100, #109), and seam swaps as their backend PRs merge (#92, #95, #77, #79, #100, #105).
+4. **Staging:** B1-T19 (#114) and B1-T23 unblock a working preview; REYKI smoke-tests the staging URL after #114 merges.
 5. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.

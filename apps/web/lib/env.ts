@@ -162,6 +162,35 @@ export function parseEnv<S extends z.ZodType>(
   return (result as { data: z.infer<S> }).data;
 }
 
+/**
+ * Validate the WHOLE server env against `source`. `production` defaults to NODE_ENV === "production".
+ * Used at boot (instrumentation.ts, via env.server.ts) and by the Vercel build check below. Throws EnvError naming
+ * every bad variable (names and reasons, never values).
+ */
+export function validateFullServerEnv(
+  source: Record<string, string | undefined> = process.env,
+  production: boolean = process.env.NODE_ENV === "production",
+): ServerEnv {
+  return parseEnv(serverEnvSchema, source, { production, requireInProduction: PRODUCTION_REQUIRED });
+}
+
+/**
+ * Build-time guard for Vercel (B1-T19): when VERCEL=1, a missing or invalid server variable fails the BUILD with a
+ * message that names the variables (never values), instead of a deploy that boots into errors. Does nothing
+ * anywhere else, so CI and local builds need no runtime secrets. Called from next.config.ts (production-build phase).
+ */
+export function assertVercelBuildEnv(source: Record<string, string | undefined> = process.env): void {
+  if (source.VERCEL !== "1") return;
+  try {
+    validateFullServerEnv(source, true); // a Vercel build is always a production build
+  } catch (e) {
+    if (e instanceof EnvError) {
+      console.error(`[env] Vercel build blocked. ${e.message}. Set these in the Vercel project (Settings -> Environment Variables) for this environment, then redeploy.`);
+    }
+    throw e;
+  }
+}
+
 function lazy<T extends object>(load: () => T): T {
   let cached: T | undefined;
   const get = () => (cached ??= load());
