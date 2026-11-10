@@ -123,6 +123,70 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"kitchen_ticket_items": {
+                  Row: {
+                    "id": string,"item_name": string,"location_id": string,"modifiers_text": string,"note": string | null,"order_item_id": string,"organization_id": string,"quantity": number,"status": string,"ticket_id": string,"variant_name": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "id"?: string,"item_name": string,"location_id": string,"modifiers_text"?: string,"note"?: string | null,"order_item_id": string,"organization_id": string,"quantity": number,"status"?: string,"ticket_id": string,"variant_name"?: string | null
+                  }
+                  Update: {
+                    "id"?: string,"item_name"?: string,"location_id"?: string,"modifiers_text"?: string,"note"?: string | null,"order_item_id"?: string,"organization_id"?: string,"quantity"?: number,"status"?: string,"ticket_id"?: string,"variant_name"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "kitchen_ticket_items_order_item_fk"
+      columns: ["order_item_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "order_items"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "kitchen_ticket_items_ticket_fk"
+      columns: ["ticket_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "kitchen_tickets"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"kitchen_tickets": {
+                  Row: {
+                    "accepted_at": string | null,"bumped_at": string | null,"business_date": string,"created_at": string,"id": string,"kitchen_station_id": string,"location_id": string,"order_id": string,"organization_id": string,"ready_at": string | null,"round_id": string,"status": string,"ticket_number": number,"updated_at": string,"updated_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "accepted_at"?: string | null,"bumped_at"?: string | null,"business_date": string,"created_at"?: string,"id"?: string,"kitchen_station_id": string,"location_id": string,"order_id": string,"organization_id": string,"ready_at"?: string | null,"round_id": string,"status"?: string,"ticket_number": number,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Update: {
+                    "accepted_at"?: string | null,"bumped_at"?: string | null,"business_date"?: string,"created_at"?: string,"id"?: string,"kitchen_station_id"?: string,"location_id"?: string,"order_id"?: string,"organization_id"?: string,"ready_at"?: string | null,"round_id"?: string,"status"?: string,"ticket_number"?: number,"updated_at"?: string,"updated_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "kitchen_tickets_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "kitchen_tickets_order_fk"
+      columns: ["order_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "kitchen_tickets_round_fk"
+      columns: ["round_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "order_rounds"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "kitchen_tickets_station_fk"
+      columns: ["kitchen_station_id","location_id"]
+isOneToOne: false
+      referencedRelation: "kitchen_stations"
+      referencedColumns: ["id","location_id"]
+    }
+                  ]
                 },"location_menu_overrides": {
                   Row: {
                     "created_at": string,"id": string,"is_available": boolean,"item_id": string,"kitchen_station_id": string | null,"location_id": string,"organization_id": string,"price_override": number | null,"sold_out_until": string | null,"updated_at": string
@@ -305,6 +369,200 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "modifier_groups"
       referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"order_counters": {
+                  Row: {
+                    "business_date": string,"kind": string,"last_value": number,"location_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "business_date": string,"kind": string,"last_value"?: number,"location_id": string
+                  }
+                  Update: {
+                    "business_date"?: string,"kind"?: string,"last_value"?: number,"location_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_counters_location_id_fkey"
+      columns: ["location_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"order_discounts": {
+                  Row: {
+                    "amount": number,"applied_by": string | null,"created_at": string,"id": string,"location_id": string,"order_id": string,"organization_id": string,"reason": string,"remove_reason": string | null,"removed_at": string | null,"removed_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "amount": number,"applied_by"?: string | null,"created_at"?: string,"id"?: string,"location_id": string,"order_id": string,"organization_id": string,"reason": string,"remove_reason"?: string | null,"removed_at"?: string | null,"removed_by"?: string | null
+                  }
+                  Update: {
+                    "amount"?: number,"applied_by"?: string | null,"created_at"?: string,"id"?: string,"location_id"?: string,"order_id"?: string,"organization_id"?: string,"reason"?: string,"remove_reason"?: string | null,"removed_at"?: string | null,"removed_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_discounts_order_fk"
+      columns: ["order_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"order_events": {
+                  Row: {
+                    "actor_id": string | null,"created_at": string,"event_type": string,"from_status": string | null,"id": number,"location_id": string,"order_id": string,"order_item_id": string | null,"organization_id": string,"payload": NonNullable<Json>,"ticket_id": string | null,"to_status": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id"?: string | null,"created_at"?: string,"event_type": string,"from_status"?: string | null,"id"?: never,"location_id": string,"order_id": string,"order_item_id"?: string | null,"organization_id": string,"payload"?: NonNullable<Json>,"ticket_id"?: string | null,"to_status"?: string | null
+                  }
+                  Update: {
+                    "actor_id"?: string | null,"created_at"?: string,"event_type"?: string,"from_status"?: string | null,"id"?: never,"location_id"?: string,"order_id"?: string,"order_item_id"?: string | null,"organization_id"?: string,"payload"?: NonNullable<Json>,"ticket_id"?: string | null,"to_status"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_events_order_fk"
+      columns: ["order_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"order_item_modifiers": {
+                  Row: {
+                    "id": string,"location_id": string,"modifier_group_id": string | null,"modifier_id": string | null,"name": string,"order_item_id": string,"organization_id": string,"price_delta": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "id"?: string,"location_id": string,"modifier_group_id"?: string | null,"modifier_id"?: string | null,"name": string,"order_item_id": string,"organization_id": string,"price_delta"?: number
+                  }
+                  Update: {
+                    "id"?: string,"location_id"?: string,"modifier_group_id"?: string | null,"modifier_id"?: string | null,"name"?: string,"order_item_id"?: string,"organization_id"?: string,"price_delta"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_item_modifiers_item_fk"
+      columns: ["order_item_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "order_items"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "order_item_modifiers_modifier_group_id_fkey"
+      columns: ["modifier_group_id"]
+isOneToOne: false
+      referencedRelation: "modifier_groups"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "order_item_modifiers_modifier_id_fkey"
+      columns: ["modifier_id"]
+isOneToOne: false
+      referencedRelation: "modifiers"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"order_items": {
+                  Row: {
+                    "created_at": string,"id": string,"item_name": string,"kitchen_station_id": string | null,"line_total": number,"location_id": string,"menu_item_id": string | null,"modifiers_total": number,"note": string | null,"order_id": string,"organization_id": string,"quantity": number,"round_id": string,"status": string,"tax_rate_bps": number,"unit_price": number,"variant_id": string | null,"variant_name": string | null,"void_reason": string | null,"voided_at": string | null,"voided_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"item_name": string,"kitchen_station_id"?: string | null,"line_total": number,"location_id": string,"menu_item_id"?: string | null,"modifiers_total"?: number,"note"?: string | null,"order_id": string,"organization_id": string,"quantity": number,"round_id": string,"status"?: string,"tax_rate_bps": number,"unit_price": number,"variant_id"?: string | null,"variant_name"?: string | null,"void_reason"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"item_name"?: string,"kitchen_station_id"?: string | null,"line_total"?: number,"location_id"?: string,"menu_item_id"?: string | null,"modifiers_total"?: number,"note"?: string | null,"order_id"?: string,"organization_id"?: string,"quantity"?: number,"round_id"?: string,"status"?: string,"tax_rate_bps"?: number,"unit_price"?: number,"variant_id"?: string | null,"variant_name"?: string | null,"void_reason"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_items_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "order_items_menu_item_id_fkey"
+      columns: ["menu_item_id"]
+isOneToOne: false
+      referencedRelation: "menu_items"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "order_items_order_fk"
+      columns: ["order_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "order_items_round_fk"
+      columns: ["round_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "order_rounds"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "order_items_station_fk"
+      columns: ["kitchen_station_id","location_id"]
+isOneToOne: false
+      referencedRelation: "kitchen_stations"
+      referencedColumns: ["id","location_id"]
+    },{
+      foreignKeyName: "order_items_variant_id_fkey"
+      columns: ["variant_id"]
+isOneToOne: false
+      referencedRelation: "item_variants"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"order_rounds": {
+                  Row: {
+                    "client_ref": string,"created_at": string,"created_by": string | null,"id": string,"location_id": string,"order_id": string,"organization_id": string,"request_hash": string,"round_no": number
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "client_ref": string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"location_id": string,"order_id": string,"organization_id": string,"request_hash": string,"round_no": number
+                  }
+                  Update: {
+                    "client_ref"?: string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"location_id"?: string,"order_id"?: string,"organization_id"?: string,"request_hash"?: string,"round_no"?: number
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_rounds_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "order_rounds_order_fk"
+      columns: ["order_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"orders": {
+                  Row: {
+                    "business_date": string,"cancel_reason": string | null,"cancelled_at": string | null,"channel": string,"completed_at": string | null,"created_at": string,"currency": string,"customer_name": string | null,"discount_total": number,"guest_count": number | null,"id": string,"location_id": string,"opened_by": string | null,"order_number": number,"organization_id": string,"placed_at": string,"round_count": number,"served_at": string | null,"status": string,"subtotal": number,"table_id": string | null,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "business_date": string,"cancel_reason"?: string | null,"cancelled_at"?: string | null,"channel": string,"completed_at"?: string | null,"created_at"?: string,"currency": string,"customer_name"?: string | null,"discount_total"?: number,"guest_count"?: number | null,"id"?: string,"location_id": string,"opened_by"?: string | null,"order_number": number,"organization_id": string,"placed_at"?: string,"round_count"?: number,"served_at"?: string | null,"status"?: string,"subtotal"?: number,"table_id"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "business_date"?: string,"cancel_reason"?: string | null,"cancelled_at"?: string | null,"channel"?: string,"completed_at"?: string | null,"created_at"?: string,"currency"?: string,"customer_name"?: string | null,"discount_total"?: number,"guest_count"?: number | null,"id"?: string,"location_id"?: string,"opened_by"?: string | null,"order_number"?: number,"organization_id"?: string,"placed_at"?: string,"round_count"?: number,"served_at"?: string | null,"status"?: string,"subtotal"?: number,"table_id"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "orders_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "orders_table_location_fk"
+      columns: ["table_id","location_id"]
+isOneToOne: false
+      referencedRelation: "tables"
+      referencedColumns: ["id","location_id"]
     }
                   ]
                 },"org_branding": {
@@ -590,6 +848,15 @@ isOneToOne: false
 "admin_set_org_status":
 { Args: { "org": string,"reason": string,"status": string }; Returns: boolean
                            },
+"apply_order_discount":
+{ Args: { "amount": number,"order_id": string,"reason": string }; Returns: Json
+                           },
+"can_receive_location_topic":
+{ Args: { "topic": string }; Returns: boolean
+                           },
+"cancel_order":
+{ Args: { "order_id": string,"reason": string }; Returns: Json
+                           },
 "create_organization":
 { Args: { "branding"?: Json,"location": Json,"name": string,"package_code"?: string,"slug": string }; Returns: Json
                            },
@@ -634,6 +901,9 @@ isOneToOne: false
 "is_slug_available":
 { Args: { "slug": string }; Returns: boolean
                            },
+"mark_table_clean":
+{ Args: { "table_id": string }; Returns: Json
+                           },
 "my_org_membership":
 { Args: { "org_slug": string }; Returns: Json
                            },
@@ -642,6 +912,9 @@ isOneToOne: false
                            },
 "org_active_table_count":
 { Args: { "org_id": string }; Returns: number
+                           },
+"remove_order_discount":
+{ Args: { "discount_id": string,"reason": string }; Returns: Json
                            },
 "resolve_table_qr":
 { Args: { "token": string }; Returns: {
@@ -654,8 +927,23 @@ isOneToOne: false
 "set_item_sold_out":
 { Args: { "item_id": string,"location_id": string,"sold_out": boolean }; Returns: string
                            },
+"set_kot_item_status":
+{ Args: { "ticket_item_id": string,"to_status": string }; Returns: Json
+                           },
 "set_member_locations":
 { Args: { "all_locations": boolean,"location_ids"?: (string)[],"member": string }; Returns: Json
+                           },
+"set_order_status":
+{ Args: { "order_id": string,"to_status": string }; Returns: Json
+                           },
+"submit_order_round":
+{ Args: { "channel": string,"client_ref": string,"customer_name"?: string,"guest_count"?: number,"lines": Json,"location_id": string,"table_id": string }; Returns: Json
+                           },
+"update_kot_status":
+{ Args: { "ticket_id": string,"to_status": string }; Returns: Json
+                           },
+"void_order_item":
+{ Args: { "item_id": string,"reason": string }; Returns: Json
                            }
           }
           Enums: {
