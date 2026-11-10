@@ -5,6 +5,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 SEED=supabase/seed-staging.sql
+# The deploy workflow applies the seed with `psql "$SUPABASE_STAGING_DB_URL" -v ON_ERROR_STOP=1 --single-transaction -f`.
+# This script runs the same psql flags inside the local database container.
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 db() { docker exec -i "$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -1)" psql -U postgres -v ON_ERROR_STOP=1 -tA "$@"; }
@@ -20,7 +22,7 @@ fi
 # 2. migrations only (no local seed), then the staging seed twice
 supabase db reset --no-seed >/dev/null 2>&1 || fail "supabase db reset --no-seed failed"
 [ "$(count auth.users)" = 0 ] || fail "auth.users not empty before the seed"
-run_seed() { db -f - < "$SEED" >/dev/null || fail "seed-staging.sql failed"; }
+run_seed() { db --single-transaction -f - < "$SEED" >/dev/null || fail "seed-staging.sql failed"; }
 snapshot() {
   for t in public.packages public.organizations public.subscriptions public.roles public.locations public.org_branding \
            public.areas public.tables public.menu_categories public.menu_items public.item_variants public.modifier_groups \

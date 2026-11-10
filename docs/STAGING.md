@@ -13,21 +13,21 @@ Real services on a staging environment, before any production work. **Nothing he
 
 1. A PR merges to `main`. **CI** runs (lint, typecheck, unit, build, pgTAP, e2e).
 2. Vercel builds `main` and deploys the app. The build **fails on a bad or missing server variable** (see *Build and boot checks*).
-3. When CI succeeds on that commit, the workflow **Deploy DB (staging)** (`.github/workflows/deploy-db-staging.yml`) links the staging project, prints `supabase db push --remote --dry-run`, then applies the pending migrations. It never runs for a failed CI run, for a pull request, or for an older commit than the tip of `main`. Runs are serialized (one migration at a time).
+3. When CI succeeds on that commit, the workflow **Deploy DB (staging)** (`.github/workflows/deploy-db-staging.yml`) prints `supabase db push --dry-run` against the staging database, then applies the pending migrations. It never runs for a failed CI run, for a pull request, or for an older commit than the tip of `main`. Runs are serialized (one migration at a time).
 
 The app and the database deploy independently. A migration that the new code needs can land slightly after the app; keep migrations backward compatible with the previous app version (add before use, remove in a later release).
 
 ## One-time setup (the project owner)
 
-**GitHub, repository secrets** (Settings -> Secrets and variables -> Actions). Names only:
+**GitHub, one repository secret** (Settings -> Secrets and variables -> Actions -> New repository secret). Name only:
 
 | Secret | What |
 |---|---|
-| `SUPABASE_ACCESS_TOKEN` | A Supabase personal access token (account level; used by the CLI) |
-| `SUPABASE_STAGING_PROJECT_REF` | `hnpcfaecrdilwongitbg` |
-| `SUPABASE_STAGING_DB_PASSWORD` | The staging database password (Supabase -> Project Settings -> Database) |
+| `SUPABASE_STAGING_DB_URL` | The staging project's **Session pooler** connection string, password included |
 
-The workflow stops with an error naming any missing secret. It does not print their values.
+Where to copy it: Supabase dashboard -> the `restomate-staging` project -> **Connect** -> **Session pooler** (not "Direct connection": that host is IPv6 only and GitHub runners are IPv4). It looks like `postgresql://postgres.<project-ref>:<password>@<region>.pooler.supabase.com:5432/postgres`. Replace the `[YOUR-PASSWORD]` placeholder with the database password, URL-encoded if it contains special characters (`@` -> `%40`, `#` -> `%23`, `/` -> `%2F`). Paste the finished string into the secret; never into chat, an issue or a file.
+
+**Why only this one (least privilege):** there is deliberately **no** Supabase personal access token. A token is account-wide, so a leaked CI secret would expose every other project in the account. The connection string reaches this one database and nothing else. The workflow stops with an error naming the secret if it is missing, masks the string (and its password on its own) in the logs, and never prints it.
 
 **Supabase Auth on the staging project** (Authentication):
 - **URL Configuration:** Site URL `https://restomate-staging.vercel.app`; Redirect URLs `https://restomate-staging.vercel.app/**`.
@@ -66,7 +66,7 @@ Mark every variable without the `NEXT_PUBLIC_` prefix as **Sensitive** in Vercel
 
 ## Seed data (optional, manual)
 
-Run the workflow **Deploy DB (staging)** by hand (Actions -> Run workflow, branch `main`) and tick **apply_seed**. It runs `supabase/seed-staging.sql` after the migrations.
+Run the workflow **Deploy DB (staging)** by hand (Actions -> Run workflow, branch `main`) and tick **apply_seed**. It runs `supabase/seed-staging.sql` after the migrations with `psql "$SUPABASE_STAGING_DB_URL" -v ON_ERROR_STOP=1 --single-transaction -f ...` (all or nothing). `psql` rather than the Supabase CLI because `supabase db query -f` sends a file as one prepared statement, which cannot hold a multi-command seed.
 
 - It creates the packages (placeholder prices) and the **Demo Restaurant** (`demo`): subscription, roles, two locations, areas, tables, menu, overrides.
 - It creates **no** auth users, passwords, identities, platform admins, members or other tenants. Table QR tokens are random.

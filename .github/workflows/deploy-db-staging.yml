@@ -1,8 +1,10 @@
 name: Deploy DB (staging)
 
 # Applies supabase/migrations to the STAGING Supabase project after CI is green on main (B1-T19).
-# Never touches production. Needs these repository secrets (the project owner adds them; nothing here prints them):
-#   SUPABASE_ACCESS_TOKEN, SUPABASE_STAGING_PROJECT_REF, SUPABASE_STAGING_DB_PASSWORD
+# Never touches production. Needs ONE repository secret (the project owner adds it; nothing here prints it):
+#   SUPABASE_STAGING_DB_URL = the staging project's Session pooler connection string, password included
+# Least privilege on purpose: no Supabase personal access token (it is account-wide and would expose every other
+# project of the account if this secret leaked). The connection string only reaches the one staging database.
 # Setup, rollback and the manual seed: docs/STAGING.md
 
 on:
@@ -42,9 +44,7 @@ jobs:
     timeout-minutes: 15
     env:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
-      SUPABASE_STAGING_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
+      SUPABASE_STAGING_DB_URL: ${{ secrets.SUPABASE_STAGING_DB_URL }}
     steps:
       - name: Manual runs are allowed from main only
         if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
@@ -56,17 +56,25 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_SHA }}
 
-      # Names only: the values are never printed.
-      - name: Required secrets are set
+      # Names only: the value is never printed. Also masked here as defence in depth (GitHub already masks secrets),
+      # including the password on its own, in case a tool echoes only that part.
+      - name: Required secret is set
         run: |
-          missing=0
-          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_STAGING_PROJECT_REF; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Missing repository secret for $name (see docs/STAGING.md)"
-              missing=1
-            fi
-          done
-          exit $missing
+          if [ -z "$SUPABASE_STAGING_DB_URL" ]; then
+            echo "::error::Missing repository secret SUPABASE_STAGING_DB_URL (see docs/STAGING.md)"
+            exit 1
+          fi
+          echo "::add-mask::$SUPABASE_STAGING_DB_URL"
+          rest="${SUPABASE_STAGING_DB_URL#*://}"
+          creds="${rest%%@*}"
+          password="${creds#*:}"
+          if [ -n "$password" ] && [ "$password" != "$creds" ]; then
+            echo "::add-mask::$password"
+          fi
+          case "$SUPABASE_STAGING_DB_URL" in
+            postgres://*|postgresql://*) ;;
+            *) echo "::error::SUPABASE_STAGING_DB_URL must be a postgresql:// connection string"; exit 1 ;;
+          esac
 
       # CI is the gate: a push run of the CI workflow for exactly this commit must have succeeded.
       - name: CI is green for this commit
@@ -106,20 +114,17 @@ jobs:
         with:
           version: 3.0.0
 
-      - name: Link the staging project
-        if: steps.fresh.outputs.skip != 'true'
-        run: supabase link --project-ref "$SUPABASE_STAGING_PROJECT_REF"
-
       # Printed first so the log shows exactly which migrations are about to run.
       - name: Dry run (pending migrations)
         if: steps.fresh.outputs.skip != 'true'
-        run: supabase db push --remote --dry-run
+        run: supabase db push --remote="$SUPABASE_STAGING_DB_URL" --dry-run
 
       - name: Apply migrations
         if: steps.fresh.outputs.skip != 'true'
-        run: supabase db push --remote --yes
+        run: supabase db push --remote="$SUPABASE_STAGING_DB_URL" --yes
 
-      # Manual only. Idempotent; creates no auth users and no passwords.
+      # Manual only. Idempotent; creates no auth users and no passwords. psql, not `supabase db query`: the CLI sends
+      # a file as one prepared statement, which cannot hold the seed's many commands. One transaction: all or nothing.
       - name: Apply the staging seed
         if: steps.fresh.outputs.skip != 'true' && github.event_name == 'workflow_dispatch' && inputs.apply_seed
-        run: supabase db query --remote --yes -f supabase/seed-staging.sql
+        run: psql "$SUPABASE_STAGING_DB_URL" -v ON_ERROR_STOP=1 --single-transaction -f supabase/seed-staging.sql
