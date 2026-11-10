@@ -1,9 +1,11 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { Pagination, TenantFilters, TenantsTable } from "@/components/admin/TenantsTable";
 import { parseTenantParams } from "@/components/admin/params";
 import { listTenants, requirePlatformAdmin, setOrgStatus } from "../../_data";
 
 async function Tenants({ searchParams }: { searchParams: PageProps<"/admin/tenants">["searchParams"] }) {
+  await connection(); // the session check below reads the clock: render at request time, never in the prerender
   await requirePlatformAdmin(); // pages re-check; the layout guard is not the only protection
   const input = parseTenantParams(await searchParams);
   const { rows, total } = await listTenants(input);

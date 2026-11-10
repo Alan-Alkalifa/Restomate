@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { requirePlatformAdmin } from "@/app/(superadmin)/_data";
 
 export const ADMIN_NAV = [
@@ -14,6 +15,8 @@ export const ADMIN_NAV = [
  * anything added to the admin layout belongs in here, after the guard.
  */
 export async function AdminShell({ children }: { children: React.ReactNode }) {
+  // Request-time work follows (session expiry checks read the clock): opt out of prerendering explicitly first.
+  await connection();
   await requirePlatformAdmin();
   return (
     <div className="flex min-h-screen flex-col">

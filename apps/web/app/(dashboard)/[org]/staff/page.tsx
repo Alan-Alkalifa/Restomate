@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { ForbiddenNotice } from "@/components/dashboard/notices";
 import { InvitationsTable, InviteButton, MembersTable, type StaffActions } from "@/components/staff/StaffTables";
 import { requireOrgContext, requirePermission } from "../../_data";
@@ -6,6 +7,7 @@ import { listStaff } from "@/lib/staff/data";
 import * as staff from "@/lib/staff/actions";
 
 async function Staff({ params }: { params: PageProps<"/[org]/staff">["params"] }) {
+  await connection(); // session checks read the clock: request time only, never the prerender
   const { org } = await params;
   const ctx = await requireOrgContext(org);
   if (!ctx.permissions.includes("staff.manage")) return <ForbiddenNotice />;

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { requirePlatformAdmin } from "../../_data";
 
@@ -12,6 +13,7 @@ async function Placeholder({ params }: { params: PageProps<"/admin/[section]">["
   const { section } = await params;
   const s = SECTIONS[section];
   if (!s) notFound();
+  await connection(); // the session check below reads the clock: request time only, never the prerender
   await requirePlatformAdmin();
   return (
     <main className="flex flex-col gap-2">

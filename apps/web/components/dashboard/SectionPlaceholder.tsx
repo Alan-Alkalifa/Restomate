@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { hasFeature, requireOrgContext, requirePermission } from "@/app/(dashboard)/_data";
 import { ForbiddenNotice, UpgradeNotice } from "./notices";
 import { NAV_ITEMS } from "./nav";
@@ -15,6 +16,7 @@ export async function SectionPlaceholder({
 }) {
   const item = NAV_ITEMS.find((i) => i.key === section && (locationId ? i.scope === "location" : i.scope === "org"));
   if (!item) notFound();
+  await connection(); // session checks read the clock: request time only, never the prerender
   const ctx = await requireOrgContext(orgSlug);
   let locationName: string | null = null;
   if (locationId) {

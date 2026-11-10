@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { requireOrgContext, requirePermission } from "@/app/(dashboard)/_data";
 import { ForbiddenNotice } from "@/components/dashboard/notices";
@@ -11,6 +12,7 @@ import { TablesSkeleton } from "./skeleton";
 export const metadata: Metadata = { title: "Tables · Restomate" };
 
 async function Tables({ params }: { params: PageProps<"/[org]/[location]/tables">["params"] }) {
+  await connection(); // session checks read the clock: request time only, never the prerender
   const { org, location } = await params;
   const ctx = await requireOrgContext(org);
   // Same answer for an unknown location and one this member cannot access.
