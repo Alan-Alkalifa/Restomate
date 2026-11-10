@@ -5,10 +5,11 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { FormAlert } from "@/components/ui/form-alert";
+import type { AuthDictionary } from "@/i18n/types";
 import type { AuthAction } from "./types";
 import { errorsFor, formErrorOf, useFocusOnError } from "./use-form-focus";
 
-export function ResetPasswordForm({ action, passwordHint }: { action: AuthAction; passwordHint: string }) {
+export function ResetPasswordForm({ action, passwordHint, t }: { action: AuthAction; passwordHint: string; t: AuthDictionary["reset"] }) {
   const [serverState, formAction, pending] = useActionState(action, null);
   const [mismatch, setMismatch] = useState(false);
   const formRef = useFocusOnError(serverState);
@@ -30,8 +31,8 @@ export function ResetPasswordForm({ action, passwordHint }: { action: AuthAction
   if (serverState?.ok) {
     return (
       <div className="flex flex-col gap-4">
-        <FormAlert tone="info" message="Your password has been updated." />
-        <Link href="/" className="underline">Continue</Link>
+        <FormAlert tone="info" message={t.done} />
+        <Link href="/" className="underline">{t.continue}</Link>
       </div>
     );
   }
@@ -39,17 +40,17 @@ export function ResetPasswordForm({ action, passwordHint }: { action: AuthAction
   return (
     <form ref={formRef} action={formAction} onSubmit={guard} noValidate className="flex flex-col gap-4">
       <FormAlert message={formErrorOf(serverState)} />
-      <Field name="password" label="New password" type="password" autoComplete="new-password" required hint={passwordHint} errors={errorsFor(serverState, "password")} />
+      <Field name="password" label={t.newPassword} type="password" autoComplete="new-password" required hint={passwordHint} errors={errorsFor(serverState, "password")} />
       <Field
         name="confirmPassword"
-        label="Confirm new password"
+        label={t.confirmPassword}
         type="password"
         autoComplete="new-password"
         required
-        errors={mismatch ? ["Passwords do not match."] : errorsFor(serverState, "confirmPassword")}
+        errors={mismatch ? [t.mismatch] : errorsFor(serverState, "confirmPassword")}
       />
       <Button type="submit" pending={pending}>
-        {pending ? "Saving…" : "Set new password"}
+        {pending ? t.pending : t.submit}
       </Button>
     </form>
   );

@@ -6,7 +6,7 @@ import { sanitizeNext } from "@/lib/auth/redirect";
 /** Where a signed-in user who opened /login or /signup is sent. Same-site `next` only; never back to an auth page. */
 export function signedInDestination(next: string | string[] | undefined): string {
   const target = typeof next === "string" ? sanitizeNext(next, "/") : "/";
-  return /^\/(login|signup)(?:[/?#]|$)/.test(target) ? "/" : target;
+  return /^(?:\/en)?\/(login|signup)(?:[/?#]|$)/.test(target) ? "/" : target;
 }
 
 /**
