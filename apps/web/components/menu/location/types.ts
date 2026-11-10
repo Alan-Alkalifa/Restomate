@@ -1,16 +1,10 @@
 import type { BoundMenuAction } from "../types";
 
-// SEAM: replaced with `import type { ... } from "@/lib/menu/data"` when MVM-T08 merges (names from docs/contracts/menu.md).
-export type KitchenStation = { id: string; name: string; sortOrder: number; isActive: boolean };
-export type LocationMenuRow = {
-  itemId: string; categoryId: string; name: string; isPublished: boolean; isActive: boolean;
-  basePrice: number; priceOverride: number | null; effectivePrice: number;
-  isAvailable: boolean; soldOutUntil: string | null; kitchenStationId: string | null;
-};
-export type LocationMenuData = {
-  currency: string; timezone: string; rows: LocationMenuRow[]; stations: KitchenStation[];
-  canManage: boolean; canToggleSoldOut: boolean;
-};
+// Data shapes come from the real lib/menu/data (type-only import: erased at build, nothing server-only reaches the client).
+import type { getLocationMenu } from "@/lib/menu/data";
+export type { KitchenStation, LocationMenuRow } from "@/lib/menu/data";
+
+export type LocationMenuData = Awaited<ReturnType<typeof getLocationMenu>>;
 
 /** Actions with orgSlug AND locationId already bound on the server. */
 export type LocationMenuActions = {

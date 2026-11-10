@@ -4,8 +4,8 @@ import { Suspense } from "react";
 import { requireOrgContext } from "@/app/(dashboard)/_data";
 import { LocationMenu } from "@/components/menu/location/LocationMenu";
 import { MenuTabs } from "@/components/menu/MenuTabs";
-import * as menu from "./_actions";
-import { getLocationMenu } from "./_data";
+import * as menu from "@/lib/menu/actions";
+import { getLocationMenu } from "@/lib/menu/data";
 import { LocationMenuSkeleton } from "./skeleton";
 
 export const metadata: Metadata = { title: "Location menu · Restomate" };
