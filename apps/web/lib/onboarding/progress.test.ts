@@ -51,6 +51,7 @@ const fresh = (): Record<string, Res> => ({
   org_branding: { data: { logo_url: null, logo_path: null, primary_color: null }, error: null },
   organization_members: { count: 0, error: null },
   tables: { count: 0, error: null },
+  menu_items: { count: 0, error: null },
 });
 const doneOf = async (over: Record<string, Res> = {}, c = ctx()) => {
   db.results = { ...fresh(), ...over };
@@ -110,8 +111,27 @@ describe("done rules (both states)", () => {
     expect(db.filters.some(([t]) => t === "tables")).toBe(false);
   });
 
-  it("menu: false until menu_items exists", async () => {
+  it("menu: done once at least one item is active and published; the query is org-scoped", async () => {
     expect((await doneOf()).menu).toBe(false);
+    db.filters = [];
+    expect((await doneOf({ menu_items: { count: 1, error: null } })).menu).toBe(true);
+    const f = db.filters.filter(([t]) => t === "menu_items");
+    expect(f).toContainEqual(["menu_items", "eq", ["organization_id", ORG]]);
+    expect(f).toContainEqual(["menu_items", "eq", ["is_active", true]]);
+    expect(f).toContainEqual(["menu_items", "eq", ["is_published", true]]);
+    expect(f).toContainEqual(["menu_items", "select", ["id", { count: "exact", head: true }]]);
+  });
+  it("menu: a failed read shows every step as not done (logged, page does not break)", async () => {
+    const d = await doneOf({ menu_items: { count: 3, error: { message: "boom" } }, tables: { count: 2, error: null } });
+    expect(Object.values(d).every((v) => v === false)).toBe(true);
+  });
+  it("all five steps can now be done", async () => {
+    const d = await doneOf({
+      locations: { data: [{ id: LOC1, address: "Jl. Braga 1" }], error: null }, tables: { count: 1, error: null },
+      menu_items: { count: 1, error: null }, organization_members: { count: 1, error: null },
+      org_branding: { data: { logo_url: "https://x.test/l.png", logo_path: null, primary_color: null }, error: null },
+    });
+    expect(Object.values(d)).toEqual([true, true, true, true, true]);
   });
 
   it("staff: another active member OR a pending invitation", async () => {

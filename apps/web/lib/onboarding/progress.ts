@@ -63,21 +63,24 @@ async function loadDone(orgId: string): Promise<DoneMap> {
   const ownerIds = (ownerRoles.data ?? []).map((r) => r.id);
   if (ownerIds.length > 0) members = members.not("role_id", "in", `(${ownerIds.join(",")})`);
 
-  const [membersRes, tablesRes] = await Promise.all([
+  const [membersRes, tablesRes, menuRes] = await Promise.all([
     members,
     locationIds.length > 0
       ? supabase.from("tables").select("id", { count: "exact", head: true }).in("location_id", locationIds).eq("is_active", true)
       : Promise.resolve({ count: 0, error: null }),
+    // At least one item guests could order: active and published (under RLS, scoped to this org).
+    supabase.from("menu_items").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("is_active", true).eq("is_published", true),
   ]);
   if (membersRes.error) throw new Error(`getSetupProgress read failed: ${membersRes.error.message}`);
   if (tablesRes.error) throw new Error(`getSetupProgress read failed: ${tablesRes.error.message}`);
+  if (menuRes.error) throw new Error(`getSetupProgress read failed: ${menuRes.error.message}`);
 
   const b = branding.data;
   const primary = b?.primary_color?.trim().toLowerCase() ?? "";
   return {
     location: locations.length >= 2 || locations.some((l) => (l.address ?? "").trim() !== ""),
     tables: (tablesRes.count ?? 0) > 0,
-    menu: false, // menu_items is not on main yet (MVM-T06); switch to an available-item check when it lands
+    menu: (menuRes.count ?? 0) > 0,
     staff: (membersRes.count ?? 0) > 0 || (invites.count ?? 0) > 0,
     branding: Boolean(b?.logo_url?.trim() || b?.logo_path?.trim()) || (primary !== "" && primary !== DEFAULT_PRIMARY.toLowerCase()),
   };
