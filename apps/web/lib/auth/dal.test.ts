@@ -4,6 +4,8 @@ vi.mock("server-only", () => ({}));
 
 const cacheTag = vi.fn();
 const cacheLife = vi.fn();
+const connection = vi.fn(async () => undefined);
+vi.mock("next/server", () => ({ connection: () => connection() }));
 vi.mock("next/cache", () => ({ cacheTag: (...a: unknown[]) => cacheTag(...a), cacheLife: (...a: unknown[]) => cacheLife(...a) }));
 
 class Redirect extends Error {
@@ -101,6 +103,11 @@ beforeEach(() => {
 });
 
 describe("getCurrentUser", () => {
+  it("waits for a request (connection) before the cached read", async () => {
+    connection.mockClear();
+    await getCurrentUser();
+    expect(connection).toHaveBeenCalledTimes(1);
+  });
   it("returns id + email from verified claims", async () => {
     signedIn();
     expect(await getCurrentUser()).toEqual({ id: "u-1", email: "a@x.test" });
