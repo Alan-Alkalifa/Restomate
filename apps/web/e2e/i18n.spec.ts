@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { SEED_PASSWORD, seedUsers } from "./support/users";
 
 /**
  * i18n (MSS-T12): Bahasa Indonesia is the default at unprefixed URLs, English lives under /en.
@@ -87,13 +88,22 @@ test.describe("language switcher", () => {
     expect(await page.getByRole("link", { name: "Bahasa Indonesia" }).getAttribute("href")).toBe("/signup?next=%2Fonboarding");
   });
 
-  for (const evil of ["//evil.com", "https://evil.com", "/\\evil.com", "javascript:alert(1)", "/%2F%2Fevil.com"]) {
+  for (const evil of ["//evil.com", "https://evil.com", "/\\evil.com", "javascript:alert(1)"]) {
     test(`drops an unsafe next (${evil})`, async ({ page }) => {
       await open(page, `/login?next=${encodeURIComponent(evil)}`);
       const href = await page.getByRole("link", { name: "English" }).getAttribute("href");
       expect(href).toBe("/en/login");
     });
   }
+
+  test("an encoded double slash in next is a same-origin path, not a redirect target", async ({ page, baseURL }) => {
+    await open(page, `/login?next=${encodeURIComponent("/%2F%2Fevil.com")}`);
+    await page.getByLabel("Email").fill(seedUsers.owner);
+    await page.getByLabel("Kata sandi").fill(SEED_PASSWORD);
+    await page.getByRole("button", { name: "Masuk" }).click();
+    await page.waitForURL((u) => !/login/.test(u.pathname), { timeout: 60_000 });
+    expect(new URL(page.url()).origin).toBe(new URL(baseURL!).origin);
+  });
 
   test("each page's switcher goes to the same page in the other language", async ({ page }) => {
     for (const p of ["/signup", "/forgot-password"]) {
