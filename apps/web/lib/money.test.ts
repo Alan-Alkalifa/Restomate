@@ -126,6 +126,10 @@ describe("parseMoneyInput", () => {
     return r.ok ? "" : r.message;
   };
 
+  it("IDR: \"0.500\" is 500 (the dot is the id-ID thousands separator, not a decimal point); documented on purpose", () => {
+    ok("0.500", "IDR", 500);
+    ok("0,500", "IDR", 500);
+  });
   it("IDR: plain, grouped and prefixed input", () => {
     ok("35000", "IDR", 35000);
     ok("35.000", "IDR", 35000);
