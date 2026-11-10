@@ -4,7 +4,7 @@ import {
   envSliceSchemas,
   parseEnv,
   PRODUCTION_REQUIRED,
-  serverEnvSchema,
+  validateFullServerEnv,
   sliceOfEnvKey,
   type EnvSlice,
   type EnvSliceName,
@@ -18,7 +18,7 @@ const production = () => process.env.NODE_ENV === "production";
  * variable (names and reasons, never values).
  */
 export function validateServerEnv(): ServerEnv {
-  return parseEnv(serverEnvSchema, process.env, { production: production(), requireInProduction: PRODUCTION_REQUIRED });
+  return validateFullServerEnv(process.env, production());
 }
 
 const slices = new Map<EnvSliceName, unknown>();

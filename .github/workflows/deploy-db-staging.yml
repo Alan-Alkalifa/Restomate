@@ -1,0 +1,125 @@
+name: Deploy DB (staging)
+
+# Applies supabase/migrations to the STAGING Supabase project after CI is green on main (B1-T19).
+# Never touches production. Needs these repository secrets (the project owner adds them; nothing here prints them):
+#   SUPABASE_ACCESS_TOKEN, SUPABASE_STAGING_PROJECT_REF, SUPABASE_STAGING_DB_PASSWORD
+# Setup, rollback and the manual seed: docs/STAGING.md
+
+on:
+  # Runs when the CI workflow finishes on main. The job below only continues for a successful PUSH run of this repo.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # Manual run (from main only). Optionally applies the staging seed (supabase/seed-staging.sql).
+  workflow_dispatch:
+    inputs:
+      apply_seed:
+        description: "Also apply supabase/seed-staging.sql (Demo Restaurant, no auth users). Safe to repeat."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read # to look up the CI run for the commit
+
+# One migration run at a time; a later push waits instead of running in parallel (never cancel a migration midway).
+concurrency:
+  group: deploy-db-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Migrate staging
+    # workflow_run also fires for pull-request CI runs whose head branch is named "main" (forks), so require a push
+    # run of this very repository that succeeded.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
+      SUPABASE_STAGING_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
+    steps:
+      - name: Manual runs are allowed from main only
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run this workflow from main (selected: $GITHUB_REF)."
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      # Names only: the values are never printed.
+      - name: Required secrets are set
+        run: |
+          missing=0
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_STAGING_PROJECT_REF; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing repository secret for $name (see docs/STAGING.md)"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      # CI is the gate: a push run of the CI workflow for exactly this commit must have succeeded.
+      - name: CI is green for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${DEPLOY_SHA}&event=push&status=success&per_page=1" --jq '.total_count')
+          if [ "${n:-0}" -lt 1 ]; then
+            echo "::error::No successful CI push run found for ${DEPLOY_SHA}. Not deploying."
+            exit 1
+          fi
+          echo "CI is green for ${DEPLOY_SHA}"
+
+      # Migrations are forward-only. If a newer commit already landed on main, its own run will migrate; applying an
+      # older checkout could trip over remote migrations it does not know about.
+      - name: Skip if main has moved on
+        id: fresh
+        run: |
+          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$tip" != "$DEPLOY_SHA" ]; then
+            echo "main is at $tip, not $DEPLOY_SHA: a newer run will migrate. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The CLI download from GitHub returns transient 504s; retry once (same reason as ci.yml, B1-T11).
+      - id: cli1
+        if: steps.fresh.outputs.skip != 'true'
+        uses: supabase/setup-cli@v1
+        continue-on-error: true
+        with:
+          version: 3.0.0 # keep in step with ci.yml
+      - name: Wait before retrying the CLI download
+        if: steps.fresh.outputs.skip != 'true' && steps.cli1.outcome == 'failure'
+        run: sleep 20
+      - if: steps.fresh.outputs.skip != 'true' && steps.cli1.outcome == 'failure'
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0
+
+      - name: Link the staging project
+        if: steps.fresh.outputs.skip != 'true'
+        run: supabase link --project-ref "$SUPABASE_STAGING_PROJECT_REF"
+
+      # Printed first so the log shows exactly which migrations are about to run.
+      - name: Dry run (pending migrations)
+        if: steps.fresh.outputs.skip != 'true'
+        run: supabase db push --remote --dry-run
+
+      - name: Apply migrations
+        if: steps.fresh.outputs.skip != 'true'
+        run: supabase db push --remote --yes
+
+      # Manual only. Idempotent; creates no auth users and no passwords.
+      - name: Apply the staging seed
+        if: steps.fresh.outputs.skip != 'true' && github.event_name == 'workflow_dispatch' && inputs.apply_seed
+        run: supabase db query --remote --yes -f supabase/seed-staging.sql
