@@ -1,8 +1,12 @@
 import Link from "next/link";
+import { RootDocument, defaultMetadata } from "@/components/ui/RootDocument";
+
+// Root layout of this group (see RootDocument). Marketing is not translated yet: lang stays "en".
+export const metadata = defaultMetadata;
 
 export default function FrontendLayout({ children }: LayoutProps<"/">) {
   return (
-    <>
+    <RootDocument lang="en">
       <header className="border-b border-neutral-200 dark:border-neutral-800">
         <nav aria-label="Main" className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/" className="text-lg font-semibold text-teal-700 dark:text-teal-400">Restomate</Link>
@@ -16,6 +20,6 @@ export default function FrontendLayout({ children }: LayoutProps<"/">) {
       <footer className="border-t border-neutral-200 px-4 py-6 text-center text-sm text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
         © Restomate
       </footer>
-    </>
+    </RootDocument>
   );
 }

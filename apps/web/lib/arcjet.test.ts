@@ -130,10 +130,10 @@ describe("production misconfiguration", () => {
 describe("proxy shield", () => {
   it("shields public + auth paths only, never the webhook or the app areas", async () => {
     const { isShieldedPath } = await load();
-    for (const p of ["/", "/login", "/signup", "/invite/abc", "/pricing", "/s/demo", "/onboarding", "/auth/confirm"]) {
+    for (const p of ["/", "/login", "/signup", "/invite/abc", "/pricing", "/s/demo", "/onboarding", "/auth/confirm", "/en", "/en/login", "/en/forgot-password"]) {
       expect(isShieldedPath(p)).toBe(true);
     }
-    for (const p of ["/api/webhooks/doku", "/demo/pos", "/admin/tenants", "/loginx", "/sx"]) {
+    for (const p of ["/api/webhooks/doku", "/demo/pos", "/admin/tenants", "/loginx", "/sx", "/english"]) {
       expect(isShieldedPath(p)).toBe(false);
     }
   });

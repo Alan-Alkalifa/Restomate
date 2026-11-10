@@ -159,7 +159,7 @@ export async function protect(preset: ArcjetPreset, opts: { email?: string } = {
 }
 
 /** Public + auth surfaces the proxy shields. Authenticated app areas (/[org], /admin) are not listed. */
-const SHIELDED_PREFIXES = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/onboarding", "/auth", "/pricing", "/s"];
+const SHIELDED_PREFIXES = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite", "/onboarding", "/auth", "/pricing", "/s", "/en"];
 
 export function isShieldedPath(pathname: string): boolean {
   if (pathname === "/") return true;
