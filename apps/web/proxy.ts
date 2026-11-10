@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isShieldedPath, shieldRequest } from "@/lib/arcjet";
 import { publicEnv } from "@/lib/env";
-import { parseTenantOverride, resolveHost, tenantPath } from "@/lib/routing/host";
+import { parseTenantOverride, resolveHost, tenantPath, vercelPreviewHosts } from "@/lib/routing/host";
 import { updateSession } from "@/lib/supabase/proxy";
 
 /**
@@ -14,7 +14,12 @@ export async function proxy(request: NextRequest) {
   if (STATIC_ASSET.test(request.nextUrl.pathname)) return NextResponse.next();
   const allowLocalhost = process.env.NODE_ENV !== "production";
   // Only the Host header is trusted. X-Forwarded-Host is client-controllable and ignored.
-  const surface = resolveHost(request.headers.get("host"), publicEnv.NEXT_PUBLIC_ROOT_DOMAIN, { allowLocalhost });
+  // On a Vercel preview deployment (VERCEL_ENV=preview only) its own *.vercel.app hosts are the app, so PR previews are
+  // usable. The allow-list comes from Vercel's system env vars, not from a header. Production: empty, so unknown hosts 404.
+  const surface = resolveHost(request.headers.get("host"), publicEnv.NEXT_PUBLIC_ROOT_DOMAIN, {
+    allowLocalhost,
+    extraAppHosts: vercelPreviewHosts(process.env),
+  });
   const { pathname } = request.nextUrl;
 
   // Arcjet shield on public and auth surfaces (tenant hosts, marketing, auth). Never on the DOKU webhook

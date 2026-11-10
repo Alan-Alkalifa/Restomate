@@ -87,8 +87,15 @@ async function queueInviteEmail(ctx: OrgContext, args: {
       expiresAt: args.expiresAt, logoUrl: brand?.logo_url ?? null, brandColor: brand?.primary_color ?? null, timeZone: ctx.org.timezone,
     },
   };
-  // Email never blocks or fails the action; sendStaffInvite never throws.
-  after(async () => { await sendStaffInvite(input); });
+  // Email never blocks or fails the action. A failure is logged with the email type and the entity id (never the
+  // address or the error text, which could contain it); the manual resend path stays available.
+  after(async () => {
+    try {
+      await sendStaffInvite(input);
+    } catch (e) {
+      console.error(`[email] staff_invite failed invitation=${args.invitationId} error=${e instanceof Error ? e.name : "unknown"}`);
+    }
+  });
 }
 
 async function inviterName(supabase: Supabase, userId: string) {

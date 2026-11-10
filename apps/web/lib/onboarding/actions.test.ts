@@ -52,6 +52,15 @@ describe("checkSlug", () => {
     rpc.mockResolvedValueOnce({ data: true, error: null });
     expect(await checkSlug("free-one")).toEqual({ status: "available" });
   });
+  it("a short reserved locale slug (en, id) reports reserved; other short slugs stay invalid without a DB availability call", async () => {
+    maybeSingle.mockResolvedValueOnce({ data: { slug: "en" } });
+    expect(await checkSlug("en")).toEqual({ status: "reserved" });
+    maybeSingle.mockResolvedValueOnce({ data: { slug: "id" } });
+    expect(await checkSlug(" ID ")).toEqual({ status: "reserved" });
+    maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    expect(await checkSlug("ab")).toEqual({ status: "invalid" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it("requires a signed-in user and never says available on a failed lookup", async () => {
     getCurrentUser.mockResolvedValue(null);
     expect(await checkSlug("free-one")).toEqual({ status: "invalid" });

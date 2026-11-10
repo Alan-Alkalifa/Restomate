@@ -17,9 +17,11 @@ function req(host: string, path = "/") {
   return new NextRequest(`http://internal${path}`, { headers: { host } });
 }
 
-async function run(nodeEnv: string, host: string, path = "/") {
+async function run(nodeEnv: string, host: string, path = "/", extra: Record<string, string> = {}) {
   vi.resetModules();
   vi.stubEnv("NODE_ENV", nodeEnv);
+  for (const k of ["VERCEL_ENV", "VERCEL_URL", "VERCEL_BRANCH_URL"]) vi.stubEnv(k, ""); // never leak the host machine's values
+  for (const [k, v] of Object.entries(extra)) vi.stubEnv(k, v);
   for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
   const { proxy } = await import("./proxy");
   return proxy(req(host, path));
@@ -84,5 +86,44 @@ describe("proxy", () => {
     // The DOKU webhook is excluded by the matcher, so the proxy never runs for it.
     expect(new RegExp(`^${config.matcher[0]}$`).test("/api/webhooks/doku")).toBe(false);
     vi.doUnmock("@/lib/arcjet");
+  });
+
+  describe("Vercel preview deployments (B1-T23)", () => {
+    const DEPLOY = "restomate-staging-abc123-alan-alkalifas-projects.vercel.app";
+    const BRANCH = "restomate-staging-git-feat-x-alan-alkalifas-projects.vercel.app";
+    const preview = { VERCEL_ENV: "preview", VERCEL_URL: DEPLOY, VERCEL_BRANCH_URL: BRANCH };
+
+    it("preview env: the deployment and branch hosts serve the app (/login, /, dashboard paths)", async () => {
+      for (const host of [DEPLOY, BRANCH]) {
+        expect((await run("production", host, "/login", preview)).status).toBe(200);
+        expect((await run("production", host, "/", preview)).status).toBe(200);
+        expect((await run("production", host, "/demo/pos", preview)).status).toBe(200);
+      }
+    });
+
+    it("production env with the very same host stays 404 (unknown hosts are not served)", async () => {
+      expect((await run("production", DEPLOY, "/login", { ...preview, VERCEL_ENV: "production" })).status).toBe(404);
+      expect((await run("production", DEPLOY, "/login")).status).toBe(404); // no Vercel env at all
+    });
+
+    it("preview env does not open other hosts", async () => {
+      expect((await run("production", "other-abc-alan-alkalifas-projects.vercel.app", "/login", preview)).status).toBe(404);
+      expect((await run("production", "bistro.example.com", "/login", preview)).status).toBe(404);
+    });
+
+    it("a client-supplied X-Forwarded-Host cannot make an unknown host the app", async () => {
+      vi.resetModules();
+      vi.stubEnv("NODE_ENV", "production");
+      for (const [k, v] of Object.entries({ ...env, ...preview })) vi.stubEnv(k, v);
+      const { proxy } = await import("./proxy");
+      const spoof = new NextRequest("http://internal/login", { headers: { host: "bistro.example.com", "x-forwarded-host": DEPLOY } });
+      expect((await proxy(spoof)).status).toBe(404);
+    });
+
+    it("tenant subdomains and /s/ paths are unchanged in a preview", async () => {
+      const res = await run("production", "demo.restomate.app", "/menu", preview);
+      expect(res.headers.get("x-middleware-rewrite")).toContain("/s/demo/menu");
+      expect((await run("production", "admin.restomate.app", "/", preview)).status).toBe(404);
+    });
   });
 });
