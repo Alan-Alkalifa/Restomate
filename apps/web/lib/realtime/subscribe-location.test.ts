@@ -15,10 +15,10 @@ function fakeClient() {
 }
 
 describe("subscribeLocation", () => {
-  it("joins channel location:{id} and filters both tables to that location", () => {
+  it("joins channel menu:{id} and filters both tables to that location", () => {
     const f = fakeClient();
     subscribeLocation(f.client, LOC, {});
-    expect(f.raw.channel).toHaveBeenCalledWith(`location:${LOC}`);
+    expect(f.raw.channel).toHaveBeenCalledWith(`menu:${LOC}`);
     expect(f.listeners.map((l) => [l.cfg.table, l.cfg.filter])).toEqual([
       ["location_menu_overrides", `location_id=eq.${LOC}`],
       ["tables", `location_id=eq.${LOC}`],

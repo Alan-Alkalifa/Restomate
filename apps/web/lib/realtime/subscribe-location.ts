@@ -8,7 +8,7 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload, SupabaseClient } 
  *    to the location). Other orgs and location-scoped staff without access receive nothing.
  *  - `tables` is published with a column list that excludes qr_token / qr_rotated_at, so a token can never be in a
  *    payload. Do not widen that list (see migration 20261109120000_realtime_location.sql).
- *  - The channel name `location:{id}` is only a label; it grants nothing. Authorization is the table RLS.
+ *  - The channel name `menu:{id}` is only a label (the private order channel is `location:{id}`; the names must not collide in supabase-js); it grants nothing. Authorization is the table RLS.
  *
  * Reconnects (REQUIRED reading for callers): Realtime does not replay events missed while offline, and event order is
  * not guaranteed. Treat every event as a hint to refetch or merge by id, never as the source of truth. `onResync` fires
@@ -54,7 +54,7 @@ export function subscribeLocation(
   let closed = false;
 
   const channel: RealtimeChannel = client
-    .channel(`location:${locationId}`)
+    .channel(`menu:${locationId}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "location_menu_overrides", filter }, (p) =>
       handlers.onOverride?.(p as RealtimePostgresChangesPayload<OverrideRow>))
     .on("postgres_changes", { event: "*", schema: "public", table: "tables", filter }, (p) =>
