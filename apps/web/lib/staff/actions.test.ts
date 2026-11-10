@@ -112,6 +112,16 @@ describe("inviteStaff", () => {
     expect(capture).toHaveBeenCalledWith("staff_invited", expect.objectContaining({ organizationId: ORG }));
     expect(JSON.stringify(capture.mock.calls)).not.toContain("x.test");
   });
+  it("a failing email send is logged with the type and invitation id (no address) and does not fail the invite", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    sendStaffInvite.mockRejectedValueOnce(new Error("provider rejected new@x.test"));
+    const r = await inviteStaff("demo", null, form([["email", "new@x.test"], ["roleId", ROLE_CASHIER], ["allLocations", "true"]]));
+    expect(r).toEqual({ ok: true });
+    await afterCbs[0]!();
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/^\[email\] staff_invite failed invitation=\S+ error=Error$/));
+    expect(JSON.stringify(log.mock.calls)).not.toContain("x.test");
+    log.mockRestore();
+  });
   it("a manager cannot invite an owner (403); an owner can", async () => {
     results["roles.select"] = { data: { id: ROLE_OWNER, key: "owner", name: "Owner", is_system: true } };
     await expect(inviteStaff("demo", null, form([["email", "a@b.test"], ["roleId", ROLE_OWNER], ["allLocations", "true"]]))).rejects.toBeInstanceOf(Forbidden);

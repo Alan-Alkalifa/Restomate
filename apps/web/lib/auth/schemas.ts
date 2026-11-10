@@ -39,6 +39,15 @@ const password = z
 /** Hidden `next` field: kept as raw text here and validated with `sanitizeNext` in the action. */
 const next = z.string().max(2048).optional();
 
+/**
+ * Optional hidden `locale` field, posted by the form when it was submitted from an /en page. It only picks the language
+ * of the page the emailed link lands on (`lang=en` on the confirm link), so a missing or unknown value falls back to the
+ * default (Bahasa, "id") instead of failing the action.
+ */
+export const LOCALES = ["id", "en"] as const;
+export type Locale = (typeof LOCALES)[number];
+const locale = z.enum(LOCALES).catch("id");
+
 export const signInSchema = z.object({
   email,
   password: z.string().min(1, "Enter your password.").max(PASSWORD_MAX * 4),
@@ -50,9 +59,10 @@ export const signUpSchema = z.object({
   email,
   password,
   next,
+  locale,
 });
 
-export const requestPasswordResetSchema = z.object({ email });
+export const requestPasswordResetSchema = z.object({ email, locale });
 
 export const updatePasswordSchema = z
   .object({ password, confirmPassword: z.string().optional() })

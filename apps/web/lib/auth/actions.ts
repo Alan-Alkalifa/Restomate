@@ -14,6 +14,7 @@ import {
   signUpSchema,
   updatePasswordSchema,
   type ActionResult,
+  type Locale,
 } from "./schemas";
 import { guard, track, type GuardReason } from "./seams";
 
@@ -42,8 +43,10 @@ function blocked(reason: GuardReason): ActionResult {
   };
 }
 
-function confirmUrl(next: string): string {
-  return `${publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/auth/confirm?next=${encodeURIComponent(next)}`;
+/** The link in the auth emails. English users get `&lang=en` so /auth/confirm lands them on the /en pages; "id" is the default and adds nothing. */
+function confirmUrl(next: string, locale: Locale = "id"): string {
+  const base = `${publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/auth/confirm?next=${encodeURIComponent(next)}`;
+  return locale === "en" ? `${base}&lang=en` : base;
 }
 
 /** Sign in with email + password, then go to the validated `next` (default "/"). */
@@ -75,7 +78,7 @@ export async function signIn(_prev: ActionResult | null, formData: FormData): Pr
 export async function signUp(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const parsed = signUpSchema.safeParse(formDataToObject(formData));
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsOf(parsed.error) };
-  const { fullName, email, password, next } = parsed.data;
+  const { fullName, email, password, next, locale } = parsed.data;
 
   const decision = await guard("signup", { email });
   if (!decision.allowed) return blocked(decision.reason);
@@ -87,7 +90,7 @@ export async function signUp(_prev: ActionResult | null, formData: FormData): Pr
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName }, emailRedirectTo: confirmUrl(sanitizeNext(next, "/onboarding")) },
+    options: { data: { full_name: fullName }, emailRedirectTo: confirmUrl(sanitizeNext(next, "/onboarding"), locale) },
   });
   if (error) {
     if (error.code === "weak_password") {
@@ -115,7 +118,7 @@ export async function requestPasswordReset(_prev: ActionResult | null, formData:
   const supabase = await createClient();
   // Provider errors (including the per-address cooldown, which only exists for real accounts) are swallowed so the
   // response never reveals whether the address is registered.
-  await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo: confirmUrl("/reset-password") });
+  await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo: confirmUrl("/reset-password", parsed.data.locale) });
   return { ok: true };
 }
 
