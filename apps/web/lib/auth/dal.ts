@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { forbidden, notFound, redirect } from "next/navigation";
+import { connection } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isPermissionKey, type PermissionKey } from "./permissions";
@@ -35,10 +36,11 @@ export type OrgContext = {
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /**
- * The signed-in user, from a verified JWT (`getClaims`; never `getSession`, which trusts the cookie).
- * Returns null when signed out. Call only inside a <Suspense> boundary.
+ * The cached read. `getClaims()` checks the JWT expiry against the clock, and a clock read inside a prerender or
+ * instant-validation pass is an error. `connection()` is not allowed inside a cache scope, so it lives in the
+ * uncached wrapper below.
  */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+async function readCurrentUser(): Promise<CurrentUser | null> {
   "use cache: private";
   cacheLife({ stale: 30 });
 
@@ -47,6 +49,17 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const claims = data?.claims;
   if (error || !claims || typeof claims.sub !== "string" || claims.sub.length === 0) return null;
   return { id: claims.sub, email: typeof claims.email === "string" ? claims.email : "" };
+}
+
+/**
+ * The signed-in user, from a verified JWT (`getClaims`; never `getSession`, which trusts the cookie).
+ * Returns null when signed out. Waits for a real request first (`connection()`), so the JWT expiry clock read never
+ * happens while prerendering; requireUser / getOrgContext / requireOrgContext / requirePlatformAdmin inherit this.
+ * Call only inside a <Suspense> boundary.
+ */
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  await connection();
+  return readCurrentUser();
 }
 
 /**

@@ -842,11 +842,23 @@ isOneToOne: false
             "accept_invitation":
 { Args: { "token": string }; Returns: Json
                            },
+"admin_create_package":
+{ Args: { "input": Json }; Returns: string
+                           },
 "admin_list_tenants":
 { Args: { "org_id"?: string,"package_code"?: string,"page_offset"?: number,"page_size"?: number,"q"?: string,"status_filter"?: string }; Returns: Json
                            },
+"admin_set_default_package":
+{ Args: { "package_id": string }; Returns: boolean
+                           },
 "admin_set_org_status":
 { Args: { "org": string,"reason": string,"status": string }; Returns: boolean
+                           },
+"admin_set_package_active":
+{ Args: { "active": boolean,"package_id": string }; Returns: boolean
+                           },
+"admin_update_package":
+{ Args: { "input": Json,"package_id": string }; Returns: boolean
                            },
 "apply_order_discount":
 { Args: { "amount": number,"order_id": string,"reason": string }; Returns: Json

@@ -21,7 +21,12 @@ export type ActionErrorCode =
   | "ALREADY_REMOVED"
   | "INVALID_TRANSITION"
   | "DISCOUNT_EXCEEDS_SUBTOTAL"
-  | "CLIENT_REF_CONFLICT";
+  | "CLIENT_REF_CONFLICT"
+  | "DUPLICATE_CODE"
+  | "NOT_FOUND"
+  | "PACKAGE_IN_USE"
+  | "DEFAULT_PACKAGE"
+  | "PACKAGE_INACTIVE";
 
 /** Result shape of every form action (the `useActionState` state). */
 export type ActionResult =
