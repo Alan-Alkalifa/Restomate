@@ -6,6 +6,7 @@ import { ForbiddenNotice } from "@/components/dashboard/notices";
 import { VenueManager } from "@/components/venue/VenueManager";
 import { createArea, createTable, renameArea, reorderAreas, rotateTableQr, setAreaActive, setTableActive, updateTable } from "@/lib/venue/actions";
 import { getVenue } from "@/lib/venue/data";
+import { TablesNav } from "./nav";
 import { TablesSkeleton } from "./skeleton";
 
 export const metadata: Metadata = { title: "Tables · Restomate" };
@@ -37,6 +38,7 @@ async function Tables({ params }: { params: PageProps<"/[org]/[location]/tables"
         <h1 className="text-2xl font-semibold">Tables</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">{loc.name}</p>
       </header>
+      <TablesNav base={`/${slug}/${loc.id}/tables`} current="list" />
       {/* key: switching location remounts everything, so no dialog or notice from the old location survives. */}
       <VenueManager key={loc.id} data={data} actions={actions} upgradeHref={`/${slug}/settings`} />
     </main>
