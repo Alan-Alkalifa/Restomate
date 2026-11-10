@@ -441,6 +441,9 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-09 | Tenant usage `limit` is 0 when an org has no live subscription (matches the plan-limit triggers); the UI shows "No plan" (MSS-T05) |
 | 2026-11-09 | Packages are written only through the audited `admin_*_package` RPCs; `authenticated` has SELECT only on `packages` (MSS-T01 review) |
 | 2026-11-09 | **User decision: real services go on a STAGING environment first.** Vercel Hobby (`restomate-staging`, `*.vercel.app`, no domain yet, so customer sites use `/s/{slug}`), Supabase `restomate-staging` in ap-southeast-1 created through the Vercel Marketplace, Resend test sender, Arcjet, PostHog, DOKU **sandbox**. Production (domain, Vercel Pro, DOKU production) comes later and needs the user's approval. Staging has no seed users with known passwords (B1-T19) |
+| 2026-11-10 | Staging DB is live: #114 (B1-T19) merged, and the first **Deploy DB (staging)** run applied all 12 migrations to Supabase `restomate-staging` (run 42744236883). The deploy is gated on green CI for the exact `main` SHA (a manual run before CI finished was correctly refused). The Demo seed on staging is manual only (Actions → Deploy DB (staging) → `apply_seed`). S4 from REYKI, deferred: move `SUPABASE_STAGING_DB_URL` into a GitHub Environment |
+| 2026-11-10 | Vercel preview deployments serve the app on their own `VERCEL_URL` / `VERCEL_BRANCH_URL` only when `VERCEL_ENV=preview` (exact `*.vercel.app` match, never from a header); production unknown hosts still 404 (#117, B1-T23). Requires Vercel "Automatically expose System Environment Variables" ON and the Supabase redirect pattern `https://*-alan-alkalifas-projects.vercel.app/**` |
+| 2026-11-10 | B1-T15 (onboarding showed the marketing header) is fixed inside #90 rather than a separate PR: `main` had no marketing layout to branch from |
 
 ### `instant = false` opt-outs
 _None yet._
