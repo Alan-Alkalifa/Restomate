@@ -11,7 +11,11 @@ export type ActionErrorCode =
   | "AREA_NOT_EMPTY"
   | "FORBIDDEN"
   | "RATE_LIMITED"
-  | "NOT_FOUND";
+  | "DUPLICATE_CODE"
+  | "NOT_FOUND"
+  | "PACKAGE_IN_USE"
+  | "DEFAULT_PACKAGE"
+  | "PACKAGE_INACTIVE";
 
 /** Result shape of every form action (the `useActionState` state). */
 export type ActionResult =

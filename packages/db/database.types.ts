@@ -584,6 +584,9 @@ isOneToOne: false
             "accept_invitation":
 { Args: { "token": string }; Returns: Json
                            },
+"admin_create_package":
+{ Args: { "input": Json }; Returns: string
+                           },
 "admin_get_tenant_detail":
 { Args: { "org_id": string }; Returns: Json
                            },
@@ -593,8 +596,17 @@ isOneToOne: false
 "admin_prepare_owner_password_reset":
 { Args: { "org_id": string,"user_id": string }; Returns: string
                            },
+"admin_set_default_package":
+{ Args: { "package_id": string }; Returns: boolean
+                           },
 "admin_set_org_status":
 { Args: { "org": string,"reason": string,"status": string }; Returns: boolean
+                           },
+"admin_set_package_active":
+{ Args: { "active": boolean,"package_id": string }; Returns: boolean
+                           },
+"admin_update_package":
+{ Args: { "input": Json,"package_id": string }; Returns: boolean
                            },
 "create_organization":
 { Args: { "branding"?: Json,"location": Json,"name": string,"package_code"?: string,"slug": string }; Returns: Json

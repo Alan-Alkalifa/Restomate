@@ -20,6 +20,9 @@ export function mapVenueError(error: { message?: string; code?: string } | null 
   if (error?.code === "42501" || m.toLowerCase().includes("row-level security") || m.includes("FORBIDDEN")) {
     return { ok: false, code: "FORBIDDEN", formError: "You don't have permission to do that." };
   }
+  if (error?.code === "23514" && m.includes("tables_pos_")) {
+    return { ok: false, formError: "Table positions must stay inside the floor plan (0 to 999)." };
+  }
   if (error?.code === "23503") return { ok: false, fieldErrors: { areaId: ["Choose an area from the list."] } };
   return { ok: false, formError: GENERIC };
 }
