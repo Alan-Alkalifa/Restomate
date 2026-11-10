@@ -1,7 +1,7 @@
 -- MSC-T04: orders + kitchen tickets. Transition matrix, submit_order_round (recompute, idempotency, all-or-nothing),
 -- derived statuses, creator self-void, discounts, cancel, numbering, Realtime policy, isolation.
 begin;
-select plan(95);
+select plan(96);
 
 insert into public.packages (code, name, limits) values ('t-ord', 'Orders', '{}');
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, created_at, updated_at)
@@ -200,6 +200,12 @@ select is((select count(*)::int from public.orders) + (select count(*)::int from
 reset role;
 select pg_temp.act_as(pg_temp.uid(6));
 select is((select count(*)::int from public.orders), 0, 'a waiter limited to L2 cannot read L1 orders');
+reset role;
+-- a platform admin who is not a member of the org reads nothing (counts come later through a definer function)
+insert into public.platform_admins (user_id) values (pg_temp.uid(7));
+select pg_temp.act_as(pg_temp.uid(7));
+select is((select count(*)::int from public.orders) + (select count(*)::int from public.order_items), 0,
+  'a non-member platform admin reads 0 orders and 0 order items');
 reset role;
 select pg_temp.act_as(pg_temp.uid(2));
 select throws_ok($$update public.orders set subtotal = 1$$, '42501', null, 'no direct UPDATE on orders, even for a manager');

@@ -375,8 +375,7 @@ create policy order_counters_deny on public.order_counters for all to authentica
 
 create policy orders_select on public.orders
   for select to authenticated
-  using ((public.has_permission(organization_id, 'orders.view') and public.has_location_access(location_id))
-         or public.is_platform_admin());
+  using (public.has_permission(organization_id, 'orders.view') and public.has_location_access(location_id));
 create policy order_rounds_select on public.order_rounds
   for select to authenticated
   using (public.has_permission(organization_id, 'orders.view') and public.has_location_access(location_id));

@@ -357,6 +357,19 @@ Decided 2026-11-10 (ALAN review and the user):
 
 No open questions remain for this contract.
 
+## Implementation notes (MSC-T04, accepted by ALAN)
+
+Deviations found while building, all accepted:
+
+1. `mark_table_clean` writes an `audit_logs` row (`table.cleaned`), not `order_events`: a clean-up has no order and `order_events.order_id` is NOT NULL.
+2. `tables.status` keeps its M2 column grants for now (tables.manage can still set it from the tables UI); table transitions are enforced inside the RPCs. Locking it to the RPC paths is B1-T27.
+3. Seating a table that is `needs_cleaning` is refused with `INVALID_TRANSITION`; a waiter marks it clean first.
+4. `cancel_order` marks the order's active discounts removed (reason "Order cancelled") so totals stay consistent.
+5. `order_counters` has an explicit deny policy for clients (the repo guard test requires a policy on every public table).
+6. `INVALID_INPUT` is added to `ActionErrorCode`, and `ActionResult` gains optional `data` (success) and `details` (failure).
+
+Also: orders are not readable by platform admins through RLS (`orders_select` has no `is_platform_admin()` branch); super admin counts will come through a definer function.
+
 ## Out of scope here
 
 Bills, bill items, payments, partial/split payments, refunds, cash sessions, tax and service charge computation, printing, reservations, QR guest intake (`submit_guest_order`, M4), online pickup, loyalty. Each gets its own contract.
