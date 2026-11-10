@@ -21,7 +21,7 @@ function chain(table: string) {
   const c: Record<string, unknown> = {};
   for (const m of ["eq", "order"]) c[m] = () => c;
   c.select = (cols: string, opts?: { head?: boolean }) => { selects.push(cols); (c as { head?: boolean }).head = !!opts?.head; return c; };
-  c.then = (res: (v: unknown) => unknown) => res((c as { head?: boolean }).head ? { count: 7, data: null } : { data: rows[table] ?? [], error: null });
+  c.then = (res: (v: unknown) => unknown) => res({ data: rows[table] ?? [], error: null });
   return c;
 }
 const rpc = vi.fn();
@@ -34,6 +34,7 @@ beforeEach(() => {
   selects.length = 0;
   permissions = ["tables.manage"];
   requirePermission.mockResolvedValue(undefined);
+  rpc.mockResolvedValue({ data: 7, error: null });
   rows.areas = [{ id: "a1", name: "Indoor", sort_order: 0, is_active: true }];
   rows.tables = [
     { id: T1, area_id: "a1", label: "T1", capacity: 4, shape: "round", status: "available", pos_x: 1, pos_y: 2, is_active: true },
@@ -49,6 +50,7 @@ describe("getVenue", () => {
     expect(v.tables[1]).toMatchObject({ shape: "square", status: "available" });
     expect(v.canManage).toBe(true);
     expect(v.tableLimit).toEqual({ used: 7, max: 20 });
+    expect(rpc).toHaveBeenCalledWith("org_active_table_count", { org_id: expect.any(String) }); // org-wide, not RLS-scoped
     expect(selects.join(" ")).not.toMatch(/qr_token|\*/);
     expect(JSON.stringify(v)).not.toContain("qr");
   });
