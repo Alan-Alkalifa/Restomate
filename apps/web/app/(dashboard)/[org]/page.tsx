@@ -1,19 +1,14 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { resolveNav } from "@/components/dashboard/nav";
+import { SetupChecklist } from "@/components/dashboard/SetupChecklist";
+import { getSetupProgress } from "@/lib/onboarding/progress";
 import { requireOrgContext } from "../_data";
-
-// Static M0 checklist; real progress tracking is M1.
-const CHECKLIST = [
-  { key: "settings", label: "Add location details", href: "settings" },
-  { key: "staff", label: "Invite your staff", href: "staff" },
-  { key: "settings", label: "Set your branding", href: "settings" },
-] as const;
 
 async function Home({ params }: { params: PageProps<"/[org]">["params"] }) {
   const { org } = await params;
   const ctx = await requireOrgContext(org);
-  const can = new Set(ctx.permissions);
+  const progress = await getSetupProgress(ctx); // read after requireOrgContext, inside this Suspense child
   const firstLocation = ctx.locations[0];
   const firstSection = resolveNav(ctx).find((i) => i.scope === "location" && !i.locked);
   return (
@@ -24,21 +19,7 @@ async function Home({ params }: { params: PageProps<"/[org]">["params"] }) {
           Open {firstLocation.name}
         </Link>
       )}
-      <section aria-labelledby="setup" className="flex flex-col gap-3">
-        <h2 id="setup" className="text-lg font-semibold">Set up your restaurant</h2>
-        <ul className="flex flex-col gap-2">
-          {CHECKLIST.map((c) => (
-            <li key={c.label} className="flex min-h-12 items-center gap-3 rounded-lg border border-neutral-300 px-3 dark:border-neutral-700">
-              <span aria-hidden>☐</span>
-              {can.has(c.key === "staff" ? "staff.manage" : "settings.manage") ? (
-                <Link href={`/${ctx.org.slug}/${c.href}`} className="underline">{c.label}</Link>
-              ) : (
-                <span>{c.label}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <SetupChecklist progress={progress} orgSlug={ctx.org.slug} />
     </main>
   );
 }
