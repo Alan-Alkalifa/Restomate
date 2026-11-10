@@ -1,5 +1,4 @@
-import { LIMIT_KEYS, LIMIT_LABELS, type LimitKey } from "@/lib/admin/package-schemas";
-import type { TenantAuditEntry, TenantDetail, TenantSubscription } from "@/lib/admin/tenant-detail-types";
+import { TENANT_LIMIT_KEYS, type TenantAuditEntry, type TenantLimitKey, TenantDetail, TenantSubscription } from "@/lib/admin/tenant-detail-types";
 import type { AuthAction } from "@/components/auth/types";
 import { OwnerResetDialog } from "./OwnerResetDialog";
 
@@ -12,6 +11,16 @@ const STATUS_BADGE: Record<TenantDetail["org"]["status"], string> = {
   past_due: "bg-amber-100 text-amber-900",
   read_only: "bg-neutral-200 text-neutral-900",
 };
+
+const LIMIT_LABELS: Record<TenantLimitKey, string> = {
+  max_locations: "Locations",
+  max_staff: "Staff",
+  max_tables: "Tables",
+  max_orders_per_month: "Orders per month",
+};
+
+/** Without a live subscription every limit is 0 ("no plan"), which is not the same as a plan that allows 0. */
+export const hasNoPlan = (sub: TenantSubscription | null) => !sub || sub.status === "canceled";
 
 const TZ = "Asia/Jakarta";
 export const formatDate = (iso: string | null) =>
@@ -63,9 +72,11 @@ export function LocationsSection({ locations }: { locations: TenantDetail["locat
   );
 }
 
-export function usageLabel(key: LimitKey, { used, limit }: { used: number; limit: number | null }) {
+export function usageLabel(key: TenantLimitKey, { used, limit }: { used: number; limit: number | null }, noPlan = false) {
   if (key === "max_orders_per_month") return "Not tracked yet";
-  return limit === null ? `${used} · Unlimited` : `${used} of ${limit}`;
+  if (limit === null) return `${used} · Unlimited`;
+  if (noPlan && limit === 0) return `${used} · No plan`;
+  return `${used} of ${limit}`;
 }
 
 export function UsageSection({ usage, subscription }: { usage: TenantDetail["usage"]; subscription: TenantSubscription | null }) {
@@ -74,17 +85,18 @@ export function UsageSection({ usage, subscription }: { usage: TenantDetail["usa
       <h2 id="usage-h" className={h2}>Plan &amp; usage</h2>
       <p className={muted}>{subscription ? `${subscription.packageName} · ${subscription.status.replace("_", " ")}` : "No subscription"}</p>
       <ul className="grid gap-3 sm:grid-cols-2">
-        {LIMIT_KEYS.map((k) => {
+        {TENANT_LIMIT_KEYS.map((k) => {
           const u = usage[k];
-          const tracked = k !== "max_orders_per_month";
+          const noPlan = hasNoPlan(subscription) && u.limit === 0;
+          const tracked = k !== "max_orders_per_month" && !noPlan;
           const over = tracked && u.limit !== null && u.used > u.limit;
           const full = tracked && u.limit !== null && u.used === u.limit;
           const pct = tracked && u.limit ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 0;
           return (
             <li key={k} data-over-limit={over || undefined} className={`rounded-lg p-3 ring-1 ${over ? "bg-red-50 ring-red-400 dark:bg-red-950" : "ring-neutral-300 dark:ring-neutral-700"}`}>
               <p className="text-sm font-medium">{LIMIT_LABELS[k]}</p>
-              <p className="text-base">{usageLabel(k, u)}{over ? <strong className="ml-2 text-red-800 dark:text-red-300">Over limit</strong> : full ? <span className="ml-2 text-amber-800 dark:text-amber-300">At limit</span> : null}</p>
-              {tracked && u.limit !== null ? (
+              <p className="text-base">{usageLabel(k, u, noPlan)}{over ? <strong className="ml-2 text-red-800 dark:text-red-300">Over limit</strong> : full ? <span className="ml-2 text-amber-800 dark:text-amber-300">At limit</span> : null}</p>
+              {tracked && u.limit !== null && u.limit > 0 ? (
                 <div role="progressbar" aria-label={`${LIMIT_LABELS[k]} usage`} aria-valuemin={0} aria-valuemax={u.limit} aria-valuenow={Math.min(u.used, u.limit)}
                   className="mt-2 h-2 overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800">
                   <div className={`h-full ${over ? "bg-red-600" : "bg-teal-700"}`} style={{ width: `${pct}%` }} />

@@ -35,6 +35,26 @@ describe("usage meters", () => {
   });
 });
 
+describe("no plan", () => {
+  it("shows No plan, not '0 allowed' or over limit, when there is no live subscription", () => {
+    const zero: TenantDetail["usage"] = {
+      max_locations: { used: 1, limit: 0 }, max_staff: { used: 2, limit: 0 },
+      max_tables: { used: 0, limit: 0 }, max_orders_per_month: { used: 0, limit: 0 },
+    };
+    for (const s of [null, { ...sub, status: "canceled" as const }]) {
+      const html = renderToStaticMarkup(<UsageSection usage={zero} subscription={s} />);
+      expect(html.match(/No plan/g)).toHaveLength(3);
+      expect(html).not.toContain("Over limit");
+      expect(html).not.toContain("of 0");
+      expect(html).toContain("Not tracked yet");
+    }
+    expect(usageLabel("max_tables", { used: 3, limit: null }, true)).toBe("3 · Unlimited");
+  });
+  it("a live plan with a real limit of 0 still reads 'of 0'", () => {
+    expect(usageLabel("max_tables", { used: 0, limit: 0 }, false)).toBe("0 of 0");
+  });
+});
+
 describe("sections and empty states", () => {
   it("renders every section", () => {
     const html = renderToStaticMarkup(<TenantDetailView detail={detail()} reset={noop} rootDomain="restomate.app" />);
