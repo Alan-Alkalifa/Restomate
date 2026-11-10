@@ -7,6 +7,7 @@ export const EVENTS = {
   staffInvited: "staff_invited",
   invitationAccepted: "invitation_accepted",
   orgStatusChanged: "org_status_changed",
+  tenantPasswordResetSent: "tenant_password_reset_sent",
   packageCreated: "package_created",
   packageUpdated: "package_updated",
   packageArchived: "package_archived",
