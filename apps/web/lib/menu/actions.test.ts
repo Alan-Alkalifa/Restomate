@@ -210,6 +210,30 @@ describe("writes", () => {
     expect(await A.updateItem("demo", null, form([["itemId", ITEM], ["categoryId", CAT], ["name", "N"], ["basePrice", "100"]]))).toEqual({ ok: true });
     expect(capture).toHaveBeenCalledWith("menu_item_updated", { distinctId: "user-self", organizationId: ORG });
   });
+  it("item writes that can change the menu setup step also refresh the setup checklist", async () => {
+    const tag = `setup-progress:${ORG}`;
+    const cases: [string, () => Promise<unknown>][] = [
+      ["createItem", () => A.createItem("demo", null, form([["categoryId", CAT], ["name", "Nasi"], ["basePrice", "35000"], ["isPublished", "true"]]))],
+      ["updateItem", () => A.updateItem("demo", null, form([["itemId", ITEM], ["categoryId", CAT], ["name", "N"], ["basePrice", "100"]]))],
+      ["setItemActive", () => A.setItemActive("demo", null, form([["itemId", ITEM], ["active", "false"]]))],
+      ["setItemPublished", () => A.setItemPublished("demo", null, form([["itemId", ITEM], ["published", "false"]]))],
+    ];
+    for (const [name, call] of cases) {
+      updateTag.mockClear();
+      expect(await call(), name).toEqual({ ok: true });
+      expect(updateTag, name).toHaveBeenCalledWith(tag);
+      expect(updateTag, name).toHaveBeenCalledWith(`menu:${ORG}`);
+    }
+  });
+  it("a failed item write refreshes nothing; category, variant and reorder writes do not touch the checklist", async () => {
+    results["menu_items.update"] = { error: { code: "42501", message: "denied" } };
+    expect(await A.setItemActive("demo", null, form([["itemId", ITEM], ["active", "false"]]))).toMatchObject({ ok: false });
+    expect(updateTag).not.toHaveBeenCalled();
+    results["menu_items.update"] = { data: null, error: null };
+    await A.reorderItems("demo", null, form([["categoryId", CAT], ["itemIds", ITEM]]));
+    await A.setCategoryActive("demo", null, form([["categoryId", CAT], ["active", "false"]]));
+    expect(updateTag).not.toHaveBeenCalledWith(`setup-progress:${ORG}`);
+  });
   it("duplicate names surface as DUPLICATE_NAME with fieldErrors.name and do not tag", async () => {
     results["menu_categories.insert"] = { error: { code: "23505", message: "duplicate key" } };
     expect(await A.createCategory("demo", null, form([["name", "Makanan"]]))).toMatchObject({ ok: false, code: "DUPLICATE_NAME", fieldErrors: { name: [expect.any(String)] } });
