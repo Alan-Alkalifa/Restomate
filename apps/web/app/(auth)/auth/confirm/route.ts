@@ -17,8 +17,11 @@ const paramsSchema = z.object({
  * Redirects are always built on our own app URL with a sanitized relative path, never an arbitrary `next`.
  */
 export async function GET(request: NextRequest) {
-  const base = publicEnv.NEXT_PUBLIC_APP_URL;
+  // Read the request FIRST. With Cache Components Next tries to prerender GET handlers at build time and stops at the
+  // first request access; touching env before that made a build without runtime variables fail on this route
+  // ("Error occurred prerendering page /auth/confirm"). This route is inherently dynamic (query token, cookies).
   const params = request.nextUrl.searchParams;
+  const base = publicEnv.NEXT_PUBLIC_APP_URL;
   const parsed = paramsSchema.safeParse({ token_hash: params.get("token_hash"), type: params.get("type") });
   const fail = () => NextResponse.redirect(new URL("/login?error=link_expired", base));
   if (!parsed.success) return fail();
