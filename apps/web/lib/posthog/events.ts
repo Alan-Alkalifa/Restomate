@@ -8,6 +8,7 @@ export const EVENTS = {
   invitationAccepted: "invitation_accepted",
   orgStatusChanged: "org_status_changed",
   platformSettingUpdated: "platform_setting_updated",
+  tenantPasswordResetSent: "tenant_password_reset_sent",
   packageCreated: "package_created",
   packageUpdated: "package_updated",
   packageArchived: "package_archived",
