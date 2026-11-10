@@ -652,6 +652,9 @@ isOneToOne: false
 "my_permissions":
 { Args: { "org": string }; Returns: (string)[]
                            },
+"org_active_table_count":
+{ Args: { "org_id": string }; Returns: number
+                           },
 "resolve_table_qr":
 { Args: { "token": string }; Returns: {
               "label": string,"location_id": string,"org_slug": string,"table_id": string
