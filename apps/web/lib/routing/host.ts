@@ -8,6 +8,7 @@
  *   anything else                      -> custom (verified custom domains, resolved later)
  *
  * Local dev (`allowLocalhost`): `localhost` = frontend, `app.localhost` = app, `demo.localhost` = tenant.
+ * Vercel previews (`extraAppHosts`, from `vercelPreviewHosts`): this deployment's own *.vercel.app hosts = app.
  *
  * Only the `Host` header is trusted by callers; never X-Forwarded-Host (client-controllable).
  */
@@ -47,14 +48,34 @@ export function normalizeHost(rawHost: string | null | undefined): string {
   return host;
 }
 
+/**
+ * The hosts of THIS Vercel preview deployment, to be served as the app (B1-T23). Empty unless VERCEL_ENV is exactly
+ * "preview", so production and local behaviour never change. The values come from Vercel's system environment variables
+ * (VERCEL_URL: the deployment URL; VERCEL_BRANCH_URL: the branch alias), never from a request header. Each must be a
+ * plain hostname under .vercel.app (no scheme, no path, no port); anything else is ignored.
+ */
+export function vercelPreviewHosts(env: Record<string, string | undefined>): string[] {
+  if (env.VERCEL_ENV !== "preview") return [];
+  const hosts: string[] = [];
+  for (const raw of [env.VERCEL_URL, env.VERCEL_BRANCH_URL]) {
+    const host = normalizeHost(raw);
+    if (host && host === raw?.trim().toLowerCase() && /^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.vercel\.app$/.test(host)) {
+      hosts.push(host);
+    }
+  }
+  return hosts;
+}
+
 export function resolveHost(
   rawHost: string | null | undefined,
   rootDomain: string,
-  options: { allowLocalhost?: boolean } = {},
+  options: { allowLocalhost?: boolean; extraAppHosts?: readonly string[] } = {},
 ): Surface {
   const host = normalizeHost(rawHost);
   const root = normalizeHost(rootDomain);
   if (!host) return { kind: "custom", host: "" };
+  // Exact match only (never a suffix match), against hosts the server itself supplied.
+  if (options.extraAppHosts?.some((h) => normalizeHost(h) === host)) return { kind: "app" };
 
   const roots = options.allowLocalhost ? [root, "localhost"] : [root];
   for (const base of roots) {

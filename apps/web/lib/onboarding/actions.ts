@@ -21,7 +21,9 @@ export type SlugStatus = "available" | "taken" | "reserved" | "invalid";
  */
 export async function checkSlug(slug: string): Promise<{ status: SlugStatus }> {
   const value = typeof slug === "string" ? slug.trim().toLowerCase() : "";
-  if (!isValidSlug(value)) return { status: "invalid" };
+  // Cheap character guard first (no DB for obvious garbage). The full format rule (3-40 chars) comes AFTER the reserved
+  // lookup, so a short reserved slug such as "en" or "id" reports "reserved" rather than just "invalid".
+  if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(value)) return { status: "invalid" };
   const decision = await protect(ajProbe);
   if (!decision.allowed) return { status: "invalid" };
   if (!(await getCurrentUser())) return { status: "invalid" };
@@ -30,6 +32,7 @@ export async function checkSlug(slug: string): Promise<{ status: SlugStatus }> {
   const { data: reserved, error: reservedError } = await supabase.from("reserved_slugs").select("slug").eq("slug", value).maybeSingle();
   if (reservedError) return { status: "invalid" }; // never report "available" on a failed lookup
   if (reserved) return { status: "reserved" };
+  if (!isValidSlug(value)) return { status: "invalid" };
   const { data: available, error } = await supabase.rpc("is_slug_available", { slug: value });
   if (error) return { status: "invalid" };
   return { status: available ? "available" : "taken" };
