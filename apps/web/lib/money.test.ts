@@ -4,6 +4,15 @@ import { allocate, applyBps, calculateBill, currencyExponent, formatMoney, parse
 describe("currencyExponent", () => {
   it.each([["IDR", 0], ["USD", 2], ["JPY", 0]])("%s -> %i", (c, e) => expect(currencyExponent(c)).toBe(e));
   it("rejects unknown currency", () => expect(() => currencyExponent("XXX")).toThrow(RangeError));
+  it.each(["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf", "prototype", "", "idr"])(
+    "rejects %j (own keys only, case-sensitive)", (c) => expect(() => currencyExponent(c)).toThrow(RangeError));
+  it("every public entry point refuses a prototype key", () => {
+    expect(() => formatMoney(100, "__proto__")).toThrow(RangeError);
+    expect(() => formatMoney(100, "constructor")).toThrow(RangeError);
+    for (const c of ["__proto__", "constructor", "toString"]) {
+      expect(parseMoneyInput("10", c)).toEqual({ ok: false, message: "This currency is not supported." });
+    }
+  });
 });
 
 describe("formatMoney", () => {
