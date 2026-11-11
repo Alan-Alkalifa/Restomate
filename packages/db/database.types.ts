@@ -614,6 +614,12 @@ isOneToOne: false
 "admin_update_platform_setting":
 { Args: { "key": string,"value": Json }; Returns: boolean
                            },
+"before_user_created_signup_guard":
+{ Args: { "event": Json }; Returns: Json
+                           },
+"can_signup_with_invitation":
+{ Args: { "invite_email": string,"invite_token": string }; Returns: boolean
+                           },
 "create_organization":
 { Args: { "branding"?: Json,"location": Json,"name": string,"package_code"?: string,"slug": string }; Returns: Json
                            },

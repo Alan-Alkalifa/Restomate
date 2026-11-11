@@ -1,6 +1,6 @@
 -- B1-T18: before_user_created hook.
 begin;
-select plan(11);
+select plan(18);
 
 delete from public.platform_settings where key = 'signup';
 
@@ -43,6 +43,24 @@ select is(public.before_user_created_signup_guard(pg_temp.ev('Pending@Hook.test'
 select ok(public.before_user_created_signup_guard(pg_temp.ev('revoked@hook.test')) ? 'error', 'revoked invitee refused');
 select ok(public.before_user_created_signup_guard(pg_temp.ev('expired@hook.test')) ? 'error'
       and public.before_user_created_signup_guard(pg_temp.ev('accepted@hook.test')) ? 'error', 'expired and already-accepted invitees refused');
+
+-- ---- can_signup_with_invitation(token, email): token-bound ---------------------------------------------------
+-- staff_invitations rows above use fake hashes; add one whose token we know.
+set local session_replication_role = replica;
+insert into public.staff_invitations (all_locations, organization_id, email, role_id, token_hash, expires_at)
+values (true, '00000000-0000-0000-0000-0000000000f1', 'tok@hook.test', '00000000-0000-0000-0000-0000000000f2',
+        encode(extensions.digest('known-invite-token-0123456789', 'sha256'), 'hex'), now() + interval '1 day');
+set local session_replication_role = origin;
+
+select ok(public.can_signup_with_invitation('known-invite-token-0123456789', 'tok@hook.test'), 'valid token + matching email allowed');
+select ok(public.can_signup_with_invitation('known-invite-token-0123456789', ' TOK@Hook.test '), 'email match is case/space-insensitive');
+select ok(not public.can_signup_with_invitation('known-invite-token-0123456789', 'other@hook.test'), 'valid token with a different email refused');
+select ok(not public.can_signup_with_invitation('wrong-invite-token-0123456789', 'tok@hook.test'), 'wrong token refused (email alone is not enough)');
+select ok(not public.can_signup_with_invitation('short', 'tok@hook.test') and not public.can_signup_with_invitation(null, 'tok@hook.test')
+      and not public.can_signup_with_invitation('known-invite-token-0123456789', null), 'short / null input refused');
+update public.staff_invitations set revoked_at = now() where email = 'tok@hook.test';
+select ok(not public.can_signup_with_invitation('known-invite-token-0123456789', 'tok@hook.test'), 'revoked invitation refused');
+select ok(has_function_privilege('anon', 'public.can_signup_with_invitation(text,text)', 'execute'), 'anon can execute (pre-session)');
 
 select * from finish();
 rollback;

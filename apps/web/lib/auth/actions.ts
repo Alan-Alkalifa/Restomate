@@ -55,6 +55,11 @@ function confirmUrl(next: string, locale: Locale = "id"): string {
   return locale === "en" ? `${base}&lang=en` : base;
 }
 
+/** The token of a same-site `/invite/{token}` (or `/en/invite/{token}`) path, else null. */
+function inviteTokenFromNext(path: string): string | null {
+  return /^\/(?:en\/)?invite\/([A-Za-z0-9_-]{16,256})$/.exec(path)?.[1] ?? null;
+}
+
 /** Sign in with email + password, then go to the validated `next` (default "/"). */
 export async function signIn(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const parsed = signInSchema.safeParse(formDataToObject(formData));
@@ -89,10 +94,17 @@ export async function signUp(_prev: ActionResult | null, formData: FormData): Pr
   const decision = await guard("signup", { email });
   if (!decision.allowed) return blocked(decision.reason);
 
-  // Server-side, uncached: hiding the form is not enough (MSS-T08). Sign-in is not affected.
-  if (!(await isSignupEnabled())) return SIGNUP_DISABLED_RESULT;
-
   const supabase = await createClient();
+
+  // Server-side, uncached: hiding the form is not enough (MSS-T08). Sign-in is not affected.
+  // While signup is off, only an invitee may continue: the invite TOKEN in `next` (/invite/{token}) must be pending
+  // and belong to this email. The check is a boolean RPC, so the form cannot be used to probe for invitations.
+  if (!(await isSignupEnabled())) {
+    const token = inviteTokenFromNext(sanitizeNext(next, "/onboarding"));
+    if (!token) return SIGNUP_DISABLED_RESULT;
+    const { data: allowed, error: inviteError } = await supabase.rpc("can_signup_with_invitation", { invite_token: token, invite_email: email });
+    if (inviteError || allowed !== true) return SIGNUP_DISABLED_RESULT;
+  }
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
