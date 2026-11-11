@@ -6,3 +6,9 @@
  */
 export const orgTag = (orgId: string): string => `org:${orgId}`;
 export const memberTag = (userId: string, orgId: string): string => `member:${userId}:${orgId}`;
+
+/**
+ * Setup checklist progress for one org (lib/onboarding/progress.ts). Org id only, no user data. Call `updateTag` from
+ * actions that change an input: location, table or menu item created, staff invited/accepted/deactivated, branding saved.
+ */
+export const setupProgressTag = (orgId: string): string => `setup-progress:${orgId}`;

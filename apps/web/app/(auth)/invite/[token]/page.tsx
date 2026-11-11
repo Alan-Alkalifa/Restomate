@@ -69,9 +69,12 @@ async function Invite({ params }: { params: PageProps<"/invite/[token]">["params
 }
 
 export default function InvitePage({ params }: PageProps<"/invite/[token]">) {
+  // Not translated yet (it uses components/staff): mark the content as English inside the Indonesian page.
   return (
-    <Suspense fallback={<div role="status" aria-label="Loading" className="h-48 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
-      <Invite params={params} />
-    </Suspense>
+    <div lang="en" className="contents">
+      <Suspense fallback={<div role="status" aria-label="Loading" className="h-48 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />}>
+        <Invite params={params} />
+      </Suspense>
+    </div>
   );
 }

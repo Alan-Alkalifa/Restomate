@@ -12,7 +12,7 @@ export async function open(page: Page, url: string) {
 export async function newConfirmedUser(page: Page, tag = "e2e"): Promise<{ email: string }> {
   const email = uniqueEmail(tag);
   const since = new Date(Date.now() - 1000);
-  await open(page, "/signup");
+  await open(page, "/en/signup");
   await page.getByLabel("Full name").fill("E2E Owner");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(SEED_PASSWORD);
@@ -33,7 +33,7 @@ import { SEED_PASSWORD as SEED_PW } from "./users";
 
 /** Sign in through the UI and wait until the session exists. */
 export async function signInAs(page: Page, email: string, password = SEED_PW) {
-  await open(page, "/login");
+  await open(page, "/en/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();

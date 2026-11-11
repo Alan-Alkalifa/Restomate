@@ -28,8 +28,9 @@ const ONE = BigInt(1);
 const TWO = BigInt(2);
 
 export function currencyExponent(currency: string): number {
-  const exp = EXPONENTS[currency];
-  if (exp === undefined) throw new RangeError(`Unsupported currency: ${currency}`);
+  // Own keys only: "__proto__", "constructor", "toString" … must not resolve through the prototype chain.
+  const exp = Object.hasOwn(EXPONENTS, currency) ? EXPONENTS[currency] : undefined;
+  if (typeof exp !== "number") throw new RangeError(`Unsupported currency: ${currency}`);
   return exp;
 }
 
@@ -81,6 +82,71 @@ export function formatMoney(amount: number, currency: string, locale = "id-ID"):
     maximumFractionDigits: exp,
   }).format(decimal as unknown as number); // Intl accepts exact decimal strings; avoids float conversion
   return out.replace(/[  ]/g, " ");
+}
+
+export type ParseMoneyResult = { ok: true; value: number } | { ok: false; message: string };
+
+/** Largest absolute amount accepted from user input, in minor units (matches the menu price bounds). */
+export const MAX_MONEY_INPUT = 1_000_000_000_000;
+
+const CURRENCY_PREFIX = /^(?:rp\.?|idr|usd|sgd|eur|myr|jpy|s\$|us\$|rm|\$|€|¥)/i;
+
+/**
+ * Parse what a person typed into integer minor units. String parsing only, never floats.
+ *  - Spaces and non-breaking spaces are ignored; one leading currency marker ("Rp", "Rp.", "IDR", "$", ...) is dropped.
+ *  - Exponent 0 (IDR): digits, optionally grouped by "." or "," in threes ("35.000", "1,250,000"). Decimals are rejected.
+ *  - Exponent 2 (USD...): one decimal separator ("." or ",") followed by at most 2 digits; the other character may group
+ *    thousands ("1,234.56", "1.234,56"). A single separator is always a decimal separator, so "1,234" is rejected
+ *    rather than guessed; repeated same-character grouping ("1,234,567") is accepted.
+ *  - A leading "-" is accepted only with `allowNegative`. |value| must be <= MAX_MONEY_INPUT.
+ * Pure and client-safe: components may import it.
+ */
+export function parseMoneyInput(text: string, currency: string, opts: { allowNegative?: boolean } = {}): ParseMoneyResult {
+  const fail = (message: string): ParseMoneyResult => ({ ok: false, message });
+  let exp: number;
+  try { exp = currencyExponent(currency); } catch { return fail("This currency is not supported."); }
+
+  let t = String(text ?? "").replace(/[\s\u00a0\u202f]+/g, "");
+  if (t === "") return fail("Enter an amount.");
+  let negative = false;
+  if (t.startsWith("-")) { negative = true; t = t.slice(1); }
+  t = t.replace(CURRENCY_PREFIX, "");
+  if (t.startsWith("-")) { if (negative) return fail("Enter a valid amount."); negative = true; t = t.slice(1); }
+  if (t === "") return fail("Enter an amount.");
+  if (!/^[0-9.,]+$/.test(t) || !/^\d/.test(t) || /[.,]$/.test(t)) return fail("Enter a valid amount, using digits only.");
+  if (negative && !opts.allowNegative) return fail("Negative amounts are not allowed.");
+
+  const group = (s: string, sep: string) => new RegExp(`^\\d{1,3}(?:\\${sep}\\d{3})*$`).test(s);
+  let whole: string;
+  let frac = "";
+  if (/^\d+$/.test(t)) {
+    whole = t;
+  } else {
+    const seps = t.match(/[.,]/g) ?? [];
+    const last = Math.max(t.lastIndexOf("."), t.lastIndexOf(","));
+    const sep = t[last]!;
+    const head = t.slice(0, last);
+    const tail = t.slice(last + 1);
+    const allSame = seps.every((c) => c === sep);
+    if (allSame && group(t, sep) && (exp === 0 || seps.length >= 2)) {
+      whole = t.replace(/[.,]/g, ""); // grouping only
+    } else if (exp === 0) {
+      return fail(/^\d+$/.test(tail) && tail.length <= 2 && !head.includes(sep) ? "Enter a whole amount without decimals." : "Enter a valid amount.");
+    } else {
+      const other = sep === "." ? "," : ".";
+      // head: digits, optionally grouped in threes with the *other* character; it must not contain the decimal separator
+      const headOk = head !== "" && !head.includes(sep) && (/^\d+$/.test(head) || group(head, other));
+      if (!headOk || !/^\d+$/.test(tail)) return fail("Enter a valid amount.");
+      if (tail.length > exp) return fail(`Use at most ${exp} decimal places.`);
+      whole = head.split(other).join("");
+      frac = tail;
+    }
+  }
+  whole = whole.replace(/^0+(?=\d)/, "");
+  if (whole.length + exp > 15) return fail("That amount is too large.");
+  const value = Number(whole + frac.padEnd(exp, "0")) * (negative ? -1 : 1);
+  if (!Number.isSafeInteger(value) || Math.abs(value) > MAX_MONEY_INPUT) return fail("That amount is too large.");
+  return { ok: true, value: value === 0 ? 0 : value };
 }
 
 export interface BillInput {

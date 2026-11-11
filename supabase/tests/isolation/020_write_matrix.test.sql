@@ -43,8 +43,8 @@ insert into tests.write_specs (actor, stmt, expect, label) values
  ('ob','update public.packages set features = ''{custom_domain}'' where code = ''iso-pub''','blocked','tenant cannot grant itself features'),
  ('ob','insert into public.packages (code, name) values (''iso-evil'', ''Evil'')','blocked','tenant cannot create plans'),
  ('anon','insert into public.packages (code, name) values (''iso-evil'', ''Evil'')','blocked','anon cannot create plans'),
- ('padmin','insert into public.packages (code, name) values (''iso-new'', ''New'')','ok','platform admin creates a plan'),
- ('padmin','update public.packages set name = ''Iso Public 2'' where code = ''iso-pub''','ok','platform admin edits a plan'),
+ ('padmin','insert into public.packages (code, name) values (''iso-new'', ''New'')','blocked','platform admin cannot insert a plan directly (admin_create_package RPC only)'),
+ ('padmin','update public.packages set name = ''Iso Public 2'' where code = ''iso-pub''','blocked','platform admin cannot edit a plan directly (admin_update_package RPC only)'),
 -- reserved_slugs, permissions, default_role_permissions: service role only
  ('oa','insert into public.reserved_slugs (slug) values (''iso-r'')','blocked','owner cannot add reserved slug'),
  ('padmin','insert into public.reserved_slugs (slug) values (''iso-r'')','blocked','padmin cannot add reserved slug (service role only)'),
