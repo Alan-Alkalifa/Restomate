@@ -2,6 +2,7 @@ import Link from "next/link";
 import { localePath, type Locale } from "@/i18n/config";
 import type { MarketingDictionary } from "@/i18n/types";
 import { getDemoUrl } from "./demo-url";
+import { SignupGate } from "./SignupGate";
 
 const link =
   "rounded px-1 py-2 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700";
@@ -19,11 +20,11 @@ export function MarketingHeader({ t, locale }: { t: MarketingDictionary; locale:
           <li><Link href={localePath(locale, "/pricing")} className={link}>{nav.pricing}</Link></li>
           <li><Link href={getDemoUrl()} className={link}>{nav.demo}</Link></li>
           <li><Link href={localePath(locale, "/login")} className={link}>{nav.login}</Link></li>
-          <li>
+          <SignupGate><li>
             <Link href={localePath(locale, "/signup")} className="flex min-h-10 items-center rounded-lg bg-teal-700 px-3 font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
               {nav.signup}
             </Link>
-          </li>
+          </li></SignupGate>
         </ul>
       </nav>
     </header>

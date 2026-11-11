@@ -9,6 +9,7 @@ import { getDictionary } from "@/i18n/dictionaries";
 import type { ModuleKey } from "@/i18n/types";
 import { formatMoney } from "@/lib/money";
 import { getPublicPackages } from "@/lib/public/packages";
+import { PlatformBannerSlot } from "@/components/ui/PlatformBannerSlot";
 import { CtaButtons } from "./CtaButtons";
 import { MarketingFooter } from "./MarketingFooter";
 import { MarketingHeader } from "./MarketingHeader";
@@ -42,6 +43,9 @@ export async function MarketingShell({ locale, children }: { locale: Locale; chi
   const t = (await getDictionary(locale)).marketing;
   return (
     <>
+      <Suspense fallback={null}>
+        <PlatformBannerSlot />
+      </Suspense>
       <MarketingHeader t={t} locale={locale} />
       <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">{children}</div>
       <MarketingFooter t={t} locale={locale} />

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { localePath, type Locale } from "@/i18n/config";
 import type { MarketingDictionary } from "@/i18n/types";
 import { getDemoUrl } from "./demo-url";
+import { SignupGate } from "./SignupGate";
 
 const link = "rounded underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700";
 
@@ -27,7 +28,7 @@ export function MarketingFooter({ t, locale }: { t: MarketingDictionary; locale:
             <h2 className="font-semibold">{footer.accountHeading}</h2>
             <ul className="mt-2 flex flex-col gap-2">
               <li><Link href={localePath(locale, "/login")} className={link}>{nav.login}</Link></li>
-              <li><Link href={localePath(locale, "/signup")} className={link}>{nav.signup}</Link></li>
+              <SignupGate><li><Link href={localePath(locale, "/signup")} className={link}>{nav.signup}</Link></li></SignupGate>
             </ul>
           </div>
         </nav>

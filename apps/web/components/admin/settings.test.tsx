@@ -102,12 +102,12 @@ describe("public banner", () => {
 
 describe("signup closed", () => {
   it("shows the closed message and a sign-in link", () => {
-    const html = renderToStaticMarkup(<SignupClosed t={en.auth.signupClosed} locale="en" />);
+    const html = renderToStaticMarkup(<SignupClosed t={en.auth.signupClosed} locale="id" />);
     expect(html).toContain("Sign-ups are closed right now.");
     expect(html).toContain('href="/login"');
   });
   it("login hides the create-account link only when closed", () => {
-    expect(renderToStaticMarkup(<LoginForm action={noop} t={en.auth.login} locale="en" />)).toContain('href="/signup"');
-    expect(renderToStaticMarkup(<LoginForm action={noop} t={en.auth.login} locale="en" signupOpen={false} />)).not.toContain('href="/signup"');
+    expect(renderToStaticMarkup(<LoginForm action={noop} t={en.auth.login} locale="id" />)).toContain('href="/signup"');
+    expect(renderToStaticMarkup(<LoginForm action={noop} t={en.auth.login} locale="id" signupOpen={false} />)).not.toContain('href="/signup"');
   });
 });
