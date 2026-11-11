@@ -66,7 +66,7 @@ When `signup.enabled` is false:
 
 Both actions check the flag through `isSignupEnabled()` in `lib/public/platform-flags.ts`, which calls `get_public_platform_flags` **uncached**. The cached `getPublicPlatformFlags()` is for display only, so a stale cache can never let a signup through.
 
-**Known limit (not fixed here):** the Server Action cannot stop someone from calling Supabase Auth's `/signup` endpoint directly with the public key. Such an account can exist but can never create an organization (point 3). Closing it completely needs a Supabase Auth `before_user_created` hook (`supabase/config.toml` and the dashboard setting), which is outside this task's files. Proposed as a follow-up.
+**Direct Auth `/signup` (closed by B1-T18):** a `before_user_created` Auth hook, `public.before_user_created_signup_guard(event jsonb)`, reads the `signup` setting (through `private.platform_setting_get`, uncached) and, when signups are off, rejects with HTTP 403 and a message starting `SIGNUP_DISABLED`. Decision: an email with a pending staff invitation (not accepted, not revoked, not expired) is still allowed, so invited staff can accept an invitation. Phone-only and anonymous sign-ups have no email and are refused while signup is off. The function is executable only by `supabase_auth_admin`. Local wiring is `[auth.hook.before_user_created]` in `supabase/config.toml`; hosted projects need the dashboard step: Authentication > Hooks > Before User Created > Postgres function > `public.before_user_created_signup_guard`. Note the `signUp` Server Action still refuses everyone while signup is off, including invitees; it is outside this task.
 
 ## `apps/web/lib/admin/platform-settings-schemas.ts` (shared, no `server-only`)
 
