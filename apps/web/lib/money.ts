@@ -28,8 +28,9 @@ const ONE = BigInt(1);
 const TWO = BigInt(2);
 
 export function currencyExponent(currency: string): number {
-  const exp = EXPONENTS[currency];
-  if (exp === undefined) throw new RangeError(`Unsupported currency: ${currency}`);
+  // Own keys only: "__proto__", "constructor", "toString" … must not resolve through the prototype chain.
+  const exp = Object.hasOwn(EXPONENTS, currency) ? EXPONENTS[currency] : undefined;
+  if (typeof exp !== "number") throw new RangeError(`Unsupported currency: ${currency}`);
   return exp;
 }
 
