@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { sanitizeNext } from "@/lib/auth/redirect";
 import { track } from "@/lib/auth/seams";
-import { localeFromHints, localePath } from "@/i18n/config";
+import { localeFromHints, localePath, parseLocalePath, type Locale } from "@/i18n/config";
 import { publicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,6 +11,20 @@ const paramsSchema = z.object({
   token_hash: z.string().min(1).max(512),
   type: z.enum(OTP_TYPES),
 });
+
+// Pages that exist in both languages. Others (onboarding, the home page) are not translated yet, so they stay unprefixed.
+const TRANSLATED_PATHS = new Set(["/login", "/signup", "/forgot-password", "/reset-password"]);
+
+/** Puts an English user on the /en version of a translated page. `next` is already sanitized (same-site relative path). */
+function localizeNext(next: string, locale: Locale): string {
+  if (locale === "id") return next;
+  const [pathAndQuery] = next.split("#", 1);
+  const q = pathAndQuery.indexOf("?");
+  const pathname = q === -1 ? pathAndQuery : pathAndQuery.slice(0, q);
+  const parsed = parseLocalePath(pathname);
+  if (parsed.locale === "en" || !TRANSLATED_PATHS.has(parsed.path)) return next;
+  return localePath("en", next);
+}
 
 /**
  * Email link landing (confirmation, recovery, ...): verifies the one-time token, sets the session cookies and
@@ -38,5 +52,7 @@ export async function GET(request: NextRequest) {
 
   // Only pages that exist in both languages are localized (onboarding and the home page are not translated yet).
   const fallback = type === "signup" ? "/onboarding" : type === "recovery" ? localePath(locale, "/reset-password") : "/";
-  return NextResponse.redirect(new URL(sanitizeNext(params.get("next"), fallback), base));
+  // The language hint applies to `next` too: the reset mail always carries next=/reset-password. sanitizeNext stays the
+  // open-redirect guard and runs first; localizing only ever prepends the fixed "/en" prefix.
+  return NextResponse.redirect(new URL(localizeNext(sanitizeNext(params.get("next"), fallback), locale), base));
 }

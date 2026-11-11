@@ -49,6 +49,7 @@ export function SignupForm({ action, next, passwordHint, t, locale }: { action: 
   return (
     <form ref={formRef} action={formAction} noValidate className="flex flex-col gap-4">
       {next && <input type="hidden" name="next" value={next} />}
+      <input type="hidden" name="locale" value={locale} />
       <FormAlert message={formErrorOf(state)} />
       <Field name="fullName" label={t.fullName} autoComplete="name" required errors={errorsFor(state, "fullName")} />
       <Field name="email" label={t.email} type="email" autoComplete="email" required errors={errorsFor(state, "email")} />
