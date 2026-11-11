@@ -1,15 +1,7 @@
-import type { Metadata } from "next";
-import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
-import { requestPasswordReset } from "@/lib/auth/actions";
+import { ForgotPasswordPage, authMetadata } from "@/components/auth/pages/pages";
 
-export const metadata: Metadata = { title: "Forgot password · Restomate" };
+export const generateMetadata = () => authMetadata("id", "forgot", "/forgot-password");
 
-export default function ForgotPasswordPage() {
-  return (
-    <>
-      <h1 className="text-xl font-semibold">Forgot your password?</h1>
-      <p className="text-sm">Enter your email and we&apos;ll send you a link to reset it.</p>
-      <ForgotPasswordForm action={requestPasswordReset} />
-    </>
-  );
+export default function Page() {
+  return <ForgotPasswordPage locale="id" />;
 }

@@ -41,6 +41,14 @@ describe("GET /auth/confirm", () => {
     expect(location(await call("token_hash=a&type=recovery"))).toBe("https://app.restomate.app/reset-password");
     expect(location(await call("token_hash=a&type=email"))).toBe("https://app.restomate.app/");
   });
+  it("keeps the user's language: lang hint or /en next", async () => {
+    expect(location(await call("token_hash=a&type=recovery&lang=en"))).toBe("https://app.restomate.app/en/reset-password");
+    expect(location(await call("token_hash=a&type=recovery&next=/en/reset-password"))).toBe("https://app.restomate.app/en/reset-password");
+    expect(location(await call("token_hash=a&type=recovery&lang=fr"))).toBe("https://app.restomate.app/reset-password");
+    verifyOtp.mockResolvedValue({ data: {}, error: { message: "expired" } });
+    expect(location(await call("token_hash=a&type=signup&lang=en"))).toBe("https://app.restomate.app/en/login?error=link_expired");
+    expect(location(await call("token_hash=a&type=signup"))).toBe("https://app.restomate.app/login?error=link_expired");
+  });
   it.each(["https://evil.test", "//evil.test", "/\\evil.test", "javascript:alert(1)"])("never redirects off-site (next=%s)", async (next) => {
     const r = await call(`token_hash=a&type=signup&next=${encodeURIComponent(next)}`);
     expect(location(r)).toBe("https://app.restomate.app/onboarding");

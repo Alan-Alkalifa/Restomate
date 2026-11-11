@@ -1,12 +1,15 @@
 import Link from "next/link";
+import { localePath, type Locale } from "@/i18n/config";
+import type { AuthDictionary } from "@/i18n/types";
 
-export const SIGNUP_CLOSED_MESSAGE = "Sign-ups are closed right now.";
-
-export function SignupClosed() {
+/** Cosmetic: the signUp action and the database trigger refuse when sign-ups are closed. */
+export function SignupClosed({ t, locale }: { t: AuthDictionary["signupClosed"]; locale: Locale }) {
   return (
     <div role="status" className="flex flex-col gap-3 rounded-lg border border-neutral-300 p-4 dark:border-neutral-700">
-      <p className="font-medium">{SIGNUP_CLOSED_MESSAGE}</p>
-      <p className="text-sm text-neutral-600 dark:text-neutral-400">Already have an account? <Link href="/login" className="underline">Sign in</Link>.</p>
+      <p className="font-medium">{t.message}</p>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        {t.haveAccount} <Link href={localePath(locale, "/login")} className="underline">{t.signIn}</Link>.
+      </p>
     </div>
   );
 }

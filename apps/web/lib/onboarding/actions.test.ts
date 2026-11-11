@@ -21,6 +21,9 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ rpc, from: () => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }) }),
 }));
 
+const isSignupEnabled = vi.fn();
+vi.mock("@/lib/public/platform-flags", () => ({ isSignupEnabled: () => isSignupEnabled() }));
+
 import { checkSlug, createOrganization } from "./actions";
 import type { OnboardingInput } from "./schemas";
 
@@ -34,6 +37,7 @@ const input = {
 beforeEach(() => {
   vi.clearAllMocks();
   protect.mockResolvedValue({ allowed: true });
+  isSignupEnabled.mockResolvedValue(true);
   getCurrentUser.mockResolvedValue({ id: "u-1", email: "a@x.test" });
   maybeSingle.mockResolvedValue({ data: null, error: null });
   rpc.mockResolvedValue({ data: { organization_id: "o-1", slug: "warung-sedap" }, error: null });
@@ -52,6 +56,15 @@ describe("checkSlug", () => {
     rpc.mockResolvedValueOnce({ data: true, error: null });
     expect(await checkSlug("free-one")).toEqual({ status: "available" });
   });
+  it("a short reserved locale slug (en, id) reports reserved; other short slugs stay invalid without a DB availability call", async () => {
+    maybeSingle.mockResolvedValueOnce({ data: { slug: "en" } });
+    expect(await checkSlug("en")).toEqual({ status: "reserved" });
+    maybeSingle.mockResolvedValueOnce({ data: { slug: "id" } });
+    expect(await checkSlug(" ID ")).toEqual({ status: "reserved" });
+    maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    expect(await checkSlug("ab")).toEqual({ status: "invalid" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it("requires a signed-in user and never says available on a failed lookup", async () => {
     getCurrentUser.mockResolvedValue(null);
     expect(await checkSlug("free-one")).toEqual({ status: "invalid" });
@@ -67,6 +80,15 @@ describe("checkSlug", () => {
 });
 
 describe("createOrganization", () => {
+  it("refuses with SIGNUP_DISABLED, without calling the RPC, while signup is off", async () => {
+    isSignupEnabled.mockResolvedValue(false);
+    expect(await createOrganization(input)).toMatchObject({ ok: false, code: "SIGNUP_DISABLED" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("maps the database trigger's SIGNUP_DISABLED to the same result", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "SIGNUP_DISABLED" } });
+    expect(await createOrganization(input)).toMatchObject({ ok: false, code: "SIGNUP_DISABLED" });
+  });
   it("calls the RPC once with snake_case location, no org id/role/package, tags, captures and redirects", async () => {
     await expect(createOrganization({ ...input, organization_id: "evil", package_code: "enterprise" } as never)).rejects.toMatchObject({ url: "/warung-sedap" });
     expect(rpc).toHaveBeenCalledTimes(1);

@@ -109,8 +109,19 @@ describe("inviteStaff", () => {
     expect(arg).toMatchObject({ sendCount: 1, to: "new@x.test", replyTo: "hello@demo.test" });
     expect(arg.props.timeZone).toBe("Asia/Jakarta");
     expect(updateTag).toHaveBeenCalledWith(`org:${ORG}`);
+    expect(updateTag).toHaveBeenCalledWith(`setup-progress:${ORG}`);
     expect(capture).toHaveBeenCalledWith("staff_invited", expect.objectContaining({ organizationId: ORG }));
     expect(JSON.stringify(capture.mock.calls)).not.toContain("x.test");
+  });
+  it("a failing email send is logged with the type and invitation id (no address) and does not fail the invite", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    sendStaffInvite.mockRejectedValueOnce(new Error("provider rejected new@x.test"));
+    const r = await inviteStaff("demo", null, form([["email", "new@x.test"], ["roleId", ROLE_CASHIER], ["allLocations", "true"]]));
+    expect(r).toEqual({ ok: true });
+    await afterCbs[0]!();
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/^\[email\] staff_invite failed invitation=\S+ error=Error$/));
+    expect(JSON.stringify(log.mock.calls)).not.toContain("x.test");
+    log.mockRestore();
   });
   it("a manager cannot invite an owner (403); an owner can", async () => {
     results["roles.select"] = { data: { id: ROLE_OWNER, key: "owner", name: "Owner", is_system: true } };
@@ -174,6 +185,7 @@ describe("resend / revoke", () => {
     results["staff_invitations.select"] = { data: { id: INV, role_id: ROLE_CASHIER } };
     expect(await revokeInvitation("demo", null, form([["invitationId", INV]]))).toEqual({ ok: true });
     expect(sent("staff_invitations.update")[0]!.payload).toHaveProperty("revoked_at");
+    expect(updateTag).toHaveBeenCalledWith(`setup-progress:${ORG}`);
   });
 });
 
@@ -187,6 +199,7 @@ describe("member changes", () => {
     expect(await changeMemberRole("demo", null, form([["memberId", MEMBER], ["roleId", ROLE_CASHIER]]))).toEqual({ ok: true });
     expect(updateTag).toHaveBeenCalledWith(`member:u-other:${ORG}`);
     expect(updateTag).toHaveBeenCalledWith(`org:${ORG}`);
+    expect(updateTag).toHaveBeenCalledWith(`setup-progress:${ORG}`);
   });
   it("cannot change your own role", async () => {
     member("user-self", "manager");
@@ -207,6 +220,7 @@ describe("member changes", () => {
     member("u-owner2", "owner");
     results["organization_members.update"] = { error: { message: "LAST_OWNER", code: "P0001" } };
     expect(await deactivateMember("demo", null, form([["memberId", MEMBER]]))).toMatchObject({ ok: false, code: "LAST_OWNER" });
+    expect(updateTag).not.toHaveBeenCalledWith(`setup-progress:${ORG}`); // a failed write refreshes nothing
     member("user-self", "owner");
     expect(await deactivateMember("demo", null, form([["memberId", SELF_MEMBER]]))).toMatchObject({ ok: false, code: "FORBIDDEN" });
   });
@@ -242,6 +256,7 @@ describe("acceptInvitation / preview", () => {
     rpc.mockResolvedValue({ data: { organization_id: ORG, slug: "demo" }, error: null });
     await expect(acceptInvitation(null, form([["token", "t".repeat(43)]]))).rejects.toMatchObject({ url: "/demo" });
     expect(updateTag).toHaveBeenCalledWith(`member:user-self:${ORG}`);
+    expect(updateTag).toHaveBeenCalledWith(`setup-progress:${ORG}`);
     expect(capture).toHaveBeenCalledWith("invitation_accepted", expect.objectContaining({ organizationId: ORG }));
   });
   it("any failure (wrong email, expired, revoked, reused) is the same generic error", async () => {

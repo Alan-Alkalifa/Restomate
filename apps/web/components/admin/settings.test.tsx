@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { en } from "@/i18n/en";
 import { SignupClosed } from "@/components/auth/SignupClosed";
 import { PlatformBanner } from "@/components/ui/PlatformBanner";
 import { DEFAULT_PLATFORM_SETTINGS as S } from "@/lib/admin/platform-settings-schemas";
@@ -101,12 +102,12 @@ describe("public banner", () => {
 
 describe("signup closed", () => {
   it("shows the closed message and a sign-in link", () => {
-    const html = renderToStaticMarkup(<SignupClosed />);
+    const html = renderToStaticMarkup(<SignupClosed t={en.auth.signupClosed} locale="en" />);
     expect(html).toContain("Sign-ups are closed right now.");
     expect(html).toContain('href="/login"');
   });
   it("login hides the create-account link only when closed", () => {
-    expect(renderToStaticMarkup(<LoginForm action={noop} />)).toContain('href="/signup"');
-    expect(renderToStaticMarkup(<LoginForm action={noop} signupOpen={false} />)).not.toContain('href="/signup"');
+    expect(renderToStaticMarkup(<LoginForm action={noop} t={en.auth.login} locale="en" />)).toContain('href="/signup"');
+    expect(renderToStaticMarkup(<LoginForm action={noop} t={en.auth.login} locale="en" signupOpen={false} />)).not.toContain('href="/signup"');
   });
 });

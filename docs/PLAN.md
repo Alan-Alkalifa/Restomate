@@ -5,7 +5,7 @@
 > - **How** we build it (stack, rules, conventions) → `CLAUDE.md`
 > - **In what order, and what's done** → this file
 
-Last updated: 2026-11-09 (night)
+Last updated: 2026-11-11
 
 ---
 
@@ -263,7 +263,7 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [ ] Onboarding polish: sample menu/tables option, setup checklist that tracks real progress
 - [ ] Super admin **Tenants**: detail page with usage vs. limits, subscription history, owner contact, password-reset trigger, audit trail
 - [ ] Super admin **Packages**: create/edit/archive plans, limits, feature flags; pricing page updates immediately (`updateTag`)
-- [ ] Super admin **Platform settings**: signup on/off, maintenance banner, tax presets
+- [ ] Super admin **Platform settings**: signup on/off, maintenance banner, tax presets — lib + RPCs + server-side enforcement ✅ #102 (MSS-T08); settings page + public banner: #100 (MSS-T09); Auth-hook signup refusal: B1-T18
 - [ ] Feature gating: `hasFeature(org, key)` on the server + locked UI with upgrade prompt
 - [ ] PostHog signup funnel dashboard
 
@@ -440,6 +440,15 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-09 | M0 signed off by REYKI (#97). An HQ task only starts when it's *assigned* (`assign_task`); a message alone doesn't wake an agent with no current task (REYKI sat idle on MF-T32) |
 | 2026-11-09 | Tenant usage `limit` is 0 when an org has no live subscription (matches the plan-limit triggers); the UI shows "No plan" (MSS-T05) |
 | 2026-11-09 | Packages are written only through the audited `admin_*_package` RPCs; `authenticated` has SELECT only on `packages` (MSS-T01 review) |
+| 2026-11-09 | **User decision: real services go on a STAGING environment first.** Vercel Hobby (`restomate-staging`, `*.vercel.app`, no domain yet, so customer sites use `/s/{slug}`), Supabase `restomate-staging` in ap-southeast-1 created through the Vercel Marketplace, Resend test sender, Arcjet, PostHog, DOKU **sandbox**. Production (domain, Vercel Pro, DOKU production) comes later and needs the user's approval. Staging has no seed users with known passwords (B1-T19) |
+| 2026-11-10 | Staging DB is live: #114 (B1-T19) merged, and the first **Deploy DB (staging)** run applied all 12 migrations to Supabase `restomate-staging` (run 42744236883). The deploy is gated on green CI for the exact `main` SHA (a manual run before CI finished was correctly refused). The Demo seed on staging is manual only (Actions → Deploy DB (staging) → `apply_seed`). S4 from REYKI, deferred: move `SUPABASE_STAGING_DB_URL` into a GitHub Environment |
+| 2026-11-10 | Vercel preview deployments serve the app on their own `VERCEL_URL` / `VERCEL_BRANCH_URL` only when `VERCEL_ENV=preview` (exact `*.vercel.app` match, never from a header); production unknown hosts still 404 (#117, B1-T23). Requires Vercel "Automatically expose System Environment Variables" ON and the Supabase redirect pattern `https://*-alan-alkalifas-projects.vercel.app/**` |
+| 2026-11-10 | B1-T15 (onboarding showed the marketing header) is fixed inside #90 rather than a separate PR: `main` had no marketing layout to branch from |
+| 2026-11-10 | M3 orders + KOT contract merged (`docs/contracts/orders.md`, #121). **User decisions:** (1) a waiter or cashier may void an item they entered, with a reason, only while its kitchen ticket is still `new`; after that, and for any item without a station, `orders.void` (owner, manager) is required; (2) items with no kitchen station skip the KDS (no ticket) but stay on the order and bill; an order with no live tickets derives `accepted → preparing → ready` in one transaction |
+| 2026-11-10 | M3 orders, ALAN's calls: waiters (`orders.create`) mark tables clean; QR/online approval is decided in the M4 contract; `remove_order_discount` ships in M3 (no deletes, removal columns + audit); no auto-ready for tickets; order and ticket numbers reset daily per location (`business_date` in the location's timezone, locked `order_counters` row); KDS timers fixed at 10/20 min (per-location setting → M7 backlog); the kitchen role may read prices through RLS, but the KDS payload omits them. Realtime uses private `location:{id}` channels only, with ids/status payloads |
+| 2026-11-10 | MSC-T02's implementation no longer waits for #106 (that wait only throttled the QA queue); the draft opens early so REYKI's MSC-T03 suite can run against it, and it merges after #106 |
+| 2026-11-10 | The local repo for ALAN's session is on a Windows mount: a host-side `git status` holds `index.lock` often and fetches are slow. ALAN works in a scratchpad `git worktree` for Markdown PRs |
+| 2026-11-11 | Resumed after a usage-limit stop. QA throughput is the bottleneck (14 approved PRs waiting only on QA), so REYKI's PR QA batch 2 (MVM-T16) goes **before** the orders pgTAP suite (MSC-T03, put back to todo). #123 (MSC-T04) therefore merges after MVM-T16 + MSC-T03 |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -448,7 +457,11 @@ _None yet._
 
 ## 15. Next up
 
-1. **REYKI (QA is the bottleneck):** MVM-T02 (venue isolation, closes BUG-M0-01; merges before other M2 PRs) → PR QA in merge order: #73 menu schema → #70 lib/venue → #63 tables pages → #69 floor plan → #81 QR sheet → #76 → #71 → menu stack (#78 → #77 → #79 → #80 → #82 → #84 → #86, with MVM-T07 alongside) → M1: #93 packages lib → #92 packages page → #96 tenant detail lib → #95 tenant detail page (MSS-T03 and MSS-T07 alongside) → #90 marketing.
-2. **DAVIN:** MSS-T08 platform settings (contract first), then B1-T16 (S3 env) and B1-T17 (S4 dev noise).
-3. **ADIT:** #95 rebase onto `main` + "No plan" state → B1-T15. Then the platform settings page against the MSS-T08 contract.
-4. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.
+_Resumed 2026-11-11 after a usage-limit stop. #102 (MSS-T08) merged; all three agents re-assigned._
+
+1. **REYKI, MVM-T16 (PR QA batch 2):** #127 → #128 → #126 → menu stack #77 → #79 → #80 → #82 → #84 → #86 → M1 #92 → #95 → #105 → #100 → #109 POS shell. Then MSC-T03 (orders pgTAP, gate for #123), then MSS-T03 / MSS-T07.
+2. **DAVIN:** B1-T18 (before_user_created hook: refuse sign-ups when signup is off; the staging hook wiring is a dashboard step for the user). Then confirm migration timestamps on #123/#82/#84/#86 are after `20261110260000_platform_settings`. B1-T27 waits for #123.
+3. **ADIT:** MSS-T13 (marketing site in Bahasa + `/en`) → #100 seam removal on the merged #102 + the (frontend) banner → #79 fix for the real e2e failure (`staff.spec.ts:191`, Cashier refusal on the per-location menu route).
+4. **Merge order once QA passes:** #127, #128, #126 (any order) → #77 → #79 → #80 → #82 → #84 → #86 → #92 → #95 → #105 → #100 → #109 → #123. Rename-check migrations before each DB PR (staging `db push` refuses out-of-order timestamps).
+5. **CI flake:** `supabase start` sometimes fails with a Storage transport error (`GET /storage/v1/bucket`); rerun the job. If it keeps recurring, open a B1 task to wait for Storage health before `db reset`.
+6. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.

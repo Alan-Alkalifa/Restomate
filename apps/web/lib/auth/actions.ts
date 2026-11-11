@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { publicEnv } from "@/lib/env";
+import { isSignupEnabled } from "@/lib/public/platform-flags";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "./dal";
 import { sanitizeNext } from "./redirect";
@@ -13,6 +14,7 @@ import {
   signUpSchema,
   updatePasswordSchema,
   type ActionResult,
+  type Locale,
 } from "./schemas";
 import { guard, track, type GuardReason } from "./seams";
 
@@ -28,19 +30,29 @@ const GENERIC_ERROR = "Something went wrong. Please try again.";
 /** A password change needs a sign-in via an emailed link (recovery / OTP) no older than this. */
 const RECENT_LINK_WINDOW_SECONDS = 10 * 60;
 
+const SIGNUP_DISABLED_RESULT: ActionResult = { ok: false, code: "SIGNUP_DISABLED", formError: "Sign-ups are closed right now." };
+
+const RATE_LIMIT_MESSAGE = "Too many attempts. Please wait a moment and try again.";
+const UNVERIFIED_MESSAGE = "We couldn't verify this request. Please try again from a normal browser, or contact support.";
+
+/**
+ * Map an Arcjet denial to a result. Only a real rate limit says "Too many attempts" (code RATE_LIMITED). A bot or
+ * shield denial gets a generic message and no code, and never reveals which rule fired; the reason is logged
+ * server-side only (no email, IP or other personal data).
+ */
 function blocked(reason: GuardReason): ActionResult {
-  return {
-    ok: false,
-    code: "RATE_LIMITED",
-    formError:
-      reason === "EMAIL_INVALID"
-        ? "Please use a valid, non-disposable email address."
-        : "Too many attempts. Please wait a moment and try again.",
-  };
+  if (reason === "EMAIL_INVALID") {
+    return { ok: false, code: "RATE_LIMITED", formError: "Please use a valid, non-disposable email address." };
+  }
+  if (reason === "RATE_LIMITED") return { ok: false, code: "RATE_LIMITED", formError: RATE_LIMIT_MESSAGE };
+  console.warn("[auth] request denied by Arcjet", { reason });
+  return { ok: false, formError: UNVERIFIED_MESSAGE };
 }
 
-function confirmUrl(next: string): string {
-  return `${publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/auth/confirm?next=${encodeURIComponent(next)}`;
+/** The link in the auth emails. English users get `&lang=en` so /auth/confirm lands them on the /en pages; "id" is the default and adds nothing. */
+function confirmUrl(next: string, locale: Locale = "id"): string {
+  const base = `${publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/auth/confirm?next=${encodeURIComponent(next)}`;
+  return locale === "en" ? `${base}&lang=en` : base;
 }
 
 /** Sign in with email + password, then go to the validated `next` (default "/"). */
@@ -72,16 +84,19 @@ export async function signIn(_prev: ActionResult | null, formData: FormData): Pr
 export async function signUp(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const parsed = signUpSchema.safeParse(formDataToObject(formData));
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsOf(parsed.error) };
-  const { fullName, email, password, next } = parsed.data;
+  const { fullName, email, password, next, locale } = parsed.data;
 
   const decision = await guard("signup", { email });
   if (!decision.allowed) return blocked(decision.reason);
+
+  // Server-side, uncached: hiding the form is not enough (MSS-T08). Sign-in is not affected.
+  if (!(await isSignupEnabled())) return SIGNUP_DISABLED_RESULT;
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName }, emailRedirectTo: confirmUrl(sanitizeNext(next, "/onboarding")) },
+    options: { data: { full_name: fullName }, emailRedirectTo: confirmUrl(sanitizeNext(next, "/onboarding"), locale) },
   });
   if (error) {
     if (error.code === "weak_password") {
@@ -109,7 +124,7 @@ export async function requestPasswordReset(_prev: ActionResult | null, formData:
   const supabase = await createClient();
   // Provider errors (including the per-address cooldown, which only exists for real accounts) are swallowed so the
   // response never reveals whether the address is registered.
-  await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo: confirmUrl("/reset-password") });
+  await supabase.auth.resetPasswordForEmail(parsed.data.email, { redirectTo: confirmUrl("/reset-password", parsed.data.locale) });
   return { ok: true };
 }
 

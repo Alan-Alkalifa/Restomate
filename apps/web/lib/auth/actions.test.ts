@@ -28,6 +28,9 @@ const guard = vi.fn();
 const track = vi.fn();
 vi.mock("./seams", () => ({ guard: (...a: unknown[]) => guard(...a), track: (...a: unknown[]) => track(...a) }));
 
+const isSignupEnabled = vi.fn();
+vi.mock("@/lib/public/platform-flags", () => ({ isSignupEnabled: () => isSignupEnabled() }));
+
 import { requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./actions";
 
 const form = (o: Record<string, string>) => {
@@ -39,6 +42,7 @@ const form = (o: Record<string, string>) => {
 beforeEach(() => {
   vi.clearAllMocks();
   guard.mockResolvedValue({ allowed: true });
+  isSignupEnabled.mockResolvedValue(true);
   auth.signInWithPassword.mockResolvedValue({ error: null });
   auth.signUp.mockResolvedValue({ data: { user: { id: "u-1" } }, error: null });
   auth.resetPasswordForEmail.mockResolvedValue({ error: null });
@@ -73,6 +77,20 @@ describe("signIn", () => {
     expect(r).toMatchObject({ ok: false, code: "RATE_LIMITED" });
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
+  it.each(["BOT", "SHIELD"] as const)("%s denial shows the generic verify message, no RATE_LIMITED code, and logs the reason", async (reason) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    guard.mockResolvedValue({ allowed: false, reason });
+    const r = await signIn(null, form(creds));
+    expect(r).toEqual({ ok: false, formError: expect.stringContaining("couldn't verify") });
+    expect(JSON.stringify(r)).not.toMatch(/Too many|BOT|SHIELD|rate/i);
+    expect(warn).toHaveBeenCalledWith("[auth] request denied by Arcjet", { reason });
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+  it("a real rate limit still says Too many attempts", async () => {
+    guard.mockResolvedValue({ allowed: false, reason: "RATE_LIMITED" });
+    expect(await signIn(null, form(creds))).toEqual({ ok: false, code: "RATE_LIMITED", formError: expect.stringContaining("Too many attempts") });
+  });
   it("uses one generic message for wrong password and unknown email, never the provider text", async () => {
     auth.signInWithPassword.mockResolvedValue({ error: { code: "invalid_credentials", message: "Invalid login credentials: leak", status: 400 } });
     const r = await signIn(null, form(creds));
@@ -100,6 +118,36 @@ describe("signUp", () => {
     expect(guard).toHaveBeenCalledWith("signup", { email: "new@x.test" });
     expect(track).toHaveBeenCalledWith("signup_started", { distinctId: "u-1" });
   });
+  it("refuses with SIGNUP_DISABLED, before touching Supabase Auth, while signup is off", async () => {
+    isSignupEnabled.mockResolvedValue(false);
+    expect(await signUp(null, form(input))).toMatchObject({ ok: false, code: "SIGNUP_DISABLED" });
+    expect(auth.signUp).not.toHaveBeenCalled();
+    expect(track).not.toHaveBeenCalled();
+  });
+  it("does not block sign-in while signup is off", async () => {
+    isSignupEnabled.mockResolvedValue(false);
+    await expect(signIn(null, form({ email: "a@x.test", password: "pw" }))).rejects.toMatchObject({ url: "/" });
+    expect(isSignupEnabled).not.toHaveBeenCalled();
+  });
+  it("locale=en puts lang=en on the confirmation link, after the validated next; other values add nothing", async () => {
+    expect(await signUp(null, form({ ...input, next: "/invite/tok", locale: "en" }))).toEqual({ ok: true });
+    expect(auth.signUp).toHaveBeenLastCalledWith(
+      expect.objectContaining({ options: expect.objectContaining({ emailRedirectTo: "https://app.restomate.app/auth/confirm?next=%2Finvite%2Ftok&lang=en" }) }),
+    );
+    for (const locale of ["id", "xx", ""]) {
+      auth.signUp.mockClear();
+      expect(await signUp(null, form({ ...input, locale }))).toEqual({ ok: true });
+      expect(auth.signUp).toHaveBeenCalledWith(
+        expect.objectContaining({ options: expect.objectContaining({ emailRedirectTo: "https://app.restomate.app/auth/confirm?next=%2Fonboarding" }) }),
+      );
+    }
+  });
+  it("the locale hint cannot smuggle a different next (an open redirect stays closed)", async () => {
+    await signUp(null, form({ ...input, next: "https://evil.test", locale: "en" }));
+    expect(auth.signUp).toHaveBeenLastCalledWith(
+      expect.objectContaining({ options: expect.objectContaining({ emailRedirectTo: "https://app.restomate.app/auth/confirm?next=%2Fonboarding&lang=en" }) }),
+    );
+  });
   it("defaults next to /onboarding and rejects an unsafe next", async () => {
     await signUp(null, form(input));
     expect(auth.signUp.mock.calls[0][0].options.emailRedirectTo).toBe("https://app.restomate.app/auth/confirm?next=%2Fonboarding");
@@ -119,7 +167,7 @@ describe("signUp", () => {
   it("maps a blocked request (EMAIL_INVALID gets its own message)", async () => {
     guard.mockResolvedValue({ allowed: false, reason: "EMAIL_INVALID" });
     expect(await signUp(null, form(input))).toMatchObject({ ok: false, code: "RATE_LIMITED", formError: expect.stringContaining("valid") });
-    guard.mockResolvedValue({ allowed: false, reason: "BOT" });
+    guard.mockResolvedValue({ allowed: false, reason: "RATE_LIMITED" });
     expect(await signUp(null, form(input))).toMatchObject({ ok: false, code: "RATE_LIMITED", formError: expect.stringContaining("Too many") });
     expect(auth.signUp).not.toHaveBeenCalled();
   });
@@ -147,6 +195,19 @@ describe("requestPasswordReset", () => {
     expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("a@x.test", {
       redirectTo: "https://app.restomate.app/auth/confirm?next=%2Freset-password",
     });
+  });
+  it("locale=en puts lang=en on the emailed link; id, a missing or an unknown locale add nothing", async () => {
+    await requestPasswordReset(null, form({ email: "a@x.test", locale: "en" }));
+    expect(auth.resetPasswordForEmail).toHaveBeenLastCalledWith("a@x.test", {
+      redirectTo: "https://app.restomate.app/auth/confirm?next=%2Freset-password&lang=en",
+    });
+    for (const locale of ["id", "fr", "EN", "", "<script>"]) {
+      auth.resetPasswordForEmail.mockClear();
+      expect(await requestPasswordReset(null, form({ email: "a@x.test", locale }))).toEqual({ ok: true }); // never blocks
+      expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("a@x.test", {
+        redirectTo: "https://app.restomate.app/auth/confirm?next=%2Freset-password",
+      });
+    }
   });
   it("answers the same when the provider errors (unknown email, cooldown, outage)", async () => {
     auth.resetPasswordForEmail.mockResolvedValue({ error: { code: "over_email_send_rate_limit", message: "wait 60s", status: 429 } });

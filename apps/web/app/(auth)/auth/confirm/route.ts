@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { sanitizeNext } from "@/lib/auth/redirect";
 import { track } from "@/lib/auth/seams";
+import { localeFromHints, localePath } from "@/i18n/config";
 import { publicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,10 +18,15 @@ const paramsSchema = z.object({
  * Redirects are always built on our own app URL with a sanitized relative path, never an arbitrary `next`.
  */
 export async function GET(request: NextRequest) {
-  const base = publicEnv.NEXT_PUBLIC_APP_URL;
+  // Read the request FIRST. With Cache Components Next tries to prerender GET handlers at build time and stops at the
+  // first request access; touching env before that made a build without runtime variables fail on this route
+  // ("Error occurred prerendering page /auth/confirm"). This route is inherently dynamic (query token, cookies).
   const params = request.nextUrl.searchParams;
+  const base = publicEnv.NEXT_PUBLIC_APP_URL;
   const parsed = paramsSchema.safeParse({ token_hash: params.get("token_hash"), type: params.get("type") });
-  const fail = () => NextResponse.redirect(new URL("/login?error=link_expired", base));
+  // Land in the language the user started in: an explicit `lang` hint, else the locale prefix of `next`, else id.
+  const locale = localeFromHints(params.get("lang"), params.get("next"));
+  const fail = () => NextResponse.redirect(new URL(localePath(locale, "/login?error=link_expired"), base));
   if (!parsed.success) return fail();
 
   const { token_hash, type } = parsed.data;
@@ -30,6 +36,7 @@ export async function GET(request: NextRequest) {
 
   if (type === "signup" && data.user) track("signup_completed", { distinctId: data.user.id });
 
-  const fallback = type === "signup" ? "/onboarding" : type === "recovery" ? "/reset-password" : "/";
+  // Only pages that exist in both languages are localized (onboarding and the home page are not translated yet).
+  const fallback = type === "signup" ? "/onboarding" : type === "recovery" ? localePath(locale, "/reset-password") : "/";
   return NextResponse.redirect(new URL(sanitizeNext(params.get("next"), fallback), base));
 }
