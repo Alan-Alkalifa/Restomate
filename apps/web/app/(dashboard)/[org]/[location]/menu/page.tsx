@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { requireOrgContext } from "@/app/(dashboard)/_data";
+import { requireOrgContext, requirePermission } from "@/app/(dashboard)/_data";
+import { ForbiddenNotice } from "@/components/dashboard/notices";
 import { LocationMenu } from "@/components/menu/location/LocationMenu";
 import { MenuTabs } from "@/components/menu/MenuTabs";
 import * as menu from "@/lib/menu/actions";
@@ -13,6 +14,10 @@ export const metadata: Metadata = { title: "Location menu · Restomate" };
 async function Content({ params }: { params: PageProps<"/[org]/[location]/menu">["params"] }) {
   const { org, location } = await params;
   const ctx = await requireOrgContext(org);
+  // Same refusal as staff/settings/tables: the page needs menu.manage (as the sidebar does). Sold-out toggling for
+  // orders.create roles happens from the POS, not here. Checked before the location lookup, so nothing is revealed.
+  if (!ctx.permissions.includes("menu.manage")) return <ForbiddenNotice />;
+  await requirePermission(ctx.org.id, "menu.manage");
   // Same answer for an unknown location and one this member cannot access.
   const loc = ctx.locations.find((l) => l.id === location);
   if (!loc) notFound();
