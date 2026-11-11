@@ -11,6 +11,7 @@ export type ActionErrorCode =
   | "AREA_NOT_EMPTY"
   | "FORBIDDEN"
   | "RATE_LIMITED"
+  | "SIGNUP_DISABLED"
   | "DUPLICATE_CODE"
   | "NOT_FOUND"
   | "PACKAGE_IN_USE"
