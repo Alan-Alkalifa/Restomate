@@ -96,6 +96,8 @@ export const en = {
       trial: "{days}-day free trial",
       unlimited: "Unlimited",
       cta: "Start free trial",
+      limits: { max_locations: "locations", max_staff: "staff members", max_tables: "tables", max_orders_per_month: "orders per month" },
+      features: { qr_ordering: "QR ordering", reservations: "Reservations", custom_domain: "Custom domain", advanced_reports: "Advanced reports" },
     },
     modules: {
       pos: {

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { en } from "@/i18n/en";
+import { id as id_ } from "@/i18n/id";
 import { PricingGrid } from "../frontend/PricingGrid";
 import { StorefrontHome, StorefrontUnavailable } from "./StorefrontHome";
 
@@ -18,8 +19,18 @@ describe("frontend/storefront views", () => {
     );
     expect(html).toContain("IDR:12345");
     expect(html).toContain("14-day free trial");
-    expect(html).toContain("Unlimited staff");
+    expect(html).toContain("Unlimited");
     expect(html).toContain("Start free trial");
+  });
+  it("translates known limit/feature keys and falls back to humanize for unknown ones", () => {
+    const pkg = { code: "p", name: "P", description: null, currency: "IDR", priceMonthly: 1, priceYearly: 0, trialDays: 0, limits: { max_staff: null, max_locations: 3, brand_new_limit: 2 }, features: ["qr_ordering", "some_new_feature"], isDefault: false };
+    const id = renderToStaticMarkup(<PricingGrid formatMoney={fmt} packages={[pkg]} t={id_.marketing.pricing} locale="id" />);
+    expect(id).toContain("Tanpa batas staf");
+    expect(id).toContain("3 lokasi");
+    expect(id).toContain("Pemesanan QR");
+    expect(id).toContain("2 brand new limit");
+    expect(id).toContain("Some new feature");
+    expect(id).not.toContain("Max staff");
   });
   it("shows an empty state for no packages", () => {
     expect(renderToStaticMarkup(<PricingGrid packages={[]} formatMoney={fmt} {...i18n} />)).toContain("not available");

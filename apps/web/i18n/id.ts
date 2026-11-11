@@ -98,6 +98,8 @@ export const id: Dictionary = {
       trial: "Uji coba gratis {days} hari",
       unlimited: "Tanpa batas",
       cta: "Coba gratis",
+      limits: { max_locations: "lokasi", max_staff: "staf", max_tables: "meja", max_orders_per_month: "pesanan per bulan" },
+      features: { qr_ordering: "Pemesanan QR", reservations: "Reservasi", custom_domain: "Domain kustom", advanced_reports: "Laporan lanjutan" },
     },
     modules: {
       pos: {

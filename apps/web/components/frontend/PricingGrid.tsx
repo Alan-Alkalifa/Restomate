@@ -16,6 +16,9 @@ const humanize = (key: string) =>
 
 // Plan names, descriptions, limit and feature keys come from the database (packages) and are not translated here.
 export function PricingGrid({ packages, formatMoney, t, locale }: Props) {
+  // Known keys (packages contract LIMIT_KEYS / FEATURE_KEYS) are translated; an unknown key falls back to humanize().
+  const limitLabel = (k: string) => (t.limits as Record<string, string>)[k] ?? humanize(k).toLowerCase();
+  const featureLabel = (f: string) => (t.features as Record<string, string>)[f] ?? humanize(f);
   const numberLocale = locale === "id" ? "id-ID" : "en-US";
   if (packages.length === 0) {
     return (
@@ -43,11 +46,11 @@ export function PricingGrid({ packages, formatMoney, t, locale }: Props) {
           <ul className="flex flex-col gap-1 text-sm">
             {Object.entries(p.limits).map(([k, v]) => (
               <li key={k}>
-                {v === null ? t.unlimited : v} {humanize(k).toLowerCase()}
+                {v === null ? t.unlimited : v} {limitLabel(k)}
               </li>
             ))}
             {p.features.map((f) => (
-              <li key={f}>✓ {humanize(f)}</li>
+              <li key={f}>✓ {featureLabel(f)}</li>
             ))}
           </ul>
           <Link
