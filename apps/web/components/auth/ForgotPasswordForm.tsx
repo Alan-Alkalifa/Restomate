@@ -26,6 +26,7 @@ export function ForgotPasswordForm({ action, t, locale }: { action: AuthAction; 
 
   return (
     <form ref={formRef} action={formAction} noValidate className="flex flex-col gap-4">
+      <input type="hidden" name="locale" value={locale} />
       <FormAlert message={formErrorOf(state)} />
       <Field name="email" label={t.email} type="email" autoComplete="email" required errors={errorsFor(state, "email")} />
       <Button type="submit" pending={pending}>
