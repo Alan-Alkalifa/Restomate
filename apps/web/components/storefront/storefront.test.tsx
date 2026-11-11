@@ -1,15 +1,18 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { en } from "@/i18n/en";
 import { PricingGrid } from "../frontend/PricingGrid";
 import { StorefrontHome, StorefrontUnavailable } from "./StorefrontHome";
 
 const fmt = (n: number, c: string) => `${c}:${n}`;
+const i18n = { t: en.marketing.pricing, locale: "en" as const };
 
 describe("frontend/storefront views", () => {
   it("renders packages from props with no hard-coded prices", () => {
     const html = renderToStaticMarkup(
       <PricingGrid
         formatMoney={fmt}
+        {...i18n}
         packages={[{ code: "pro", name: "Pro", description: null, currency: "IDR", priceMonthly: 12345, priceYearly: 0, trialDays: 14, limits: { locations: 3, staff: null }, features: ["qr_ordering"], isDefault: false }]}
       />,
     );
@@ -19,7 +22,7 @@ describe("frontend/storefront views", () => {
     expect(html).toContain("Start free trial");
   });
   it("shows an empty state for no packages", () => {
-    expect(renderToStaticMarkup(<PricingGrid packages={[]} formatMoney={fmt} />)).toContain("not available");
+    expect(renderToStaticMarkup(<PricingGrid packages={[]} formatMoney={fmt} {...i18n} />)).toContain("not available");
   });
   it("storefront shows locations and applies css vars", () => {
     const html = renderToStaticMarkup(

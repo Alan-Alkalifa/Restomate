@@ -39,9 +39,9 @@ test.describe("language of the auth pages", () => {
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
   });
 
-  test("untranslated surfaces stay English (pricing) and keep a correct lang", async ({ page }) => {
-    await open(page, "/pricing");
-    expect(await lang(page)).toBe("en");
+  test("onboarding stays English inside the Bahasa shell and says so", async ({ page }) => {
+    await open(page, "/onboarding");
+    expect(await page.locator("[lang=en]").count()).toBeGreaterThan(0);
   });
 
   test("the invite page is English inside the Bahasa shell and says so", async ({ page }) => {
@@ -139,4 +139,40 @@ test.describe("/auth/confirm lands in the right language", () => {
       expect(new URL(page.url()).pathname).toBe("/login");
     });
   }
+});
+
+test.describe("marketing site (MSS-T13)", () => {
+  const marketing = [
+    { path: "/", id: /Kelola seluruh restoran Anda/, en: /Run your whole restaurant/ },
+    { path: "/features", id: /^Fitur$/, en: /^Features$/ },
+    { path: "/pricing", id: /^Harga$/, en: /^Pricing$/ },
+  ];
+  for (const m of marketing) {
+    const en = m.path === "/" ? "/en" : `/en${m.path}`;
+    test(`${m.path} is Bahasa (lang=id), ${en} is English (lang=en), hreflang + switcher keep the page`, async ({ page, baseURL }) => {
+      await open(page, m.path);
+      expect(await lang(page)).toBe("id");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(m.id);
+      const alts = await page.locator('link[rel="alternate"][hreflang]').evaluateAll((els) => els.map((e) => [e.getAttribute("hreflang"), new URL(e.getAttribute("href")!, location.href).pathname]));
+      expect(Object.fromEntries(alts)).toMatchObject({ id: m.path, en, "x-default": m.path });
+      const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
+      expect(new URL(canonical!, baseURL!).pathname).toBe(m.path);
+      await page.getByRole("link", { name: "English" }).click();
+      await expect(page).toHaveURL(new RegExp(`${en.replace("/", "\\/")}$`));
+      expect(await lang(page)).toBe("en");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(m.en);
+      const canonicalEn = await page.locator('link[rel="canonical"]').getAttribute("href");
+      expect(new URL(canonicalEn!, baseURL!).pathname).toBe(en);
+      await page.getByRole("link", { name: "Bahasa Indonesia" }).click();
+      await expect(page).toHaveURL(new RegExp(`${m.path === "/" ? "\\/" : m.path.replace("/", "\\/")}$`));
+      expect(await lang(page)).toBe("id");
+    });
+  }
+
+  test("header links stay inside the language", async ({ page }) => {
+    await open(page, "/en/features");
+    expect(await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pricing" }).getAttribute("href")).toBe("/en/pricing");
+    await open(page, "/features");
+    expect(await page.getByRole("navigation", { name: "Utama" }).getByRole("link", { name: "Harga" }).getAttribute("href")).toBe("/pricing");
+  });
 });
