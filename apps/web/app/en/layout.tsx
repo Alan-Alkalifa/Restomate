@@ -7,7 +7,6 @@ export const metadata: Metadata = {
   title: "Restomate",
   description: "Restaurant management, POS and ordering in one dashboard.",
   metadataBase: metadataBase(),
-  robots: { index: false },
 };
 
 export default function EnglishRootLayout({ children }: { children: React.ReactNode }) {

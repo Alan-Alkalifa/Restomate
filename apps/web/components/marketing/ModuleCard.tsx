@@ -1,6 +1,6 @@
-import type { FeatureModule } from "@/app/(frontend)/_content/en";
+export type ModuleCopy = { title: string; summary: string; points: readonly string[] };
 
-export function ModuleCard({ module, showPoints = false }: { module: FeatureModule; showPoints?: boolean }) {
+export function ModuleCard({ module, showPoints = false }: { module: ModuleCopy; showPoints?: boolean }) {
   return (
     <li className="rounded-xl border border-neutral-200 p-5 dark:border-neutral-800">
       <h3 className="text-lg font-semibold">{module.title}</h3>
