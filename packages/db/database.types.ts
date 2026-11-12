@@ -63,6 +63,136 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"bill_events": {
+                  Row: {
+                    "actor_id": string | null,"bill_id": string | null,"bill_set_id": string | null,"cash_session_id": string | null,"created_at": string,"event_type": string,"id": number,"location_id": string,"organization_id": string,"payload": NonNullable<Json>,"payment_id": string | null,"refund_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "actor_id"?: string | null,"bill_id"?: string | null,"bill_set_id"?: string | null,"cash_session_id"?: string | null,"created_at"?: string,"event_type": string,"id"?: never,"location_id": string,"organization_id": string,"payload"?: NonNullable<Json>,"payment_id"?: string | null,"refund_id"?: string | null
+                  }
+                  Update: {
+                    "actor_id"?: string | null,"bill_id"?: string | null,"bill_set_id"?: string | null,"cash_session_id"?: string | null,"created_at"?: string,"event_type"?: string,"id"?: never,"location_id"?: string,"organization_id"?: string,"payload"?: NonNullable<Json>,"payment_id"?: string | null,"refund_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "bill_events_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"bill_items": {
+                  Row: {
+                    "bill_id": string | null,"bill_set_id": string,"created_at": string,"id": string,"item_name": string,"line_total": number,"location_id": string,"modifiers_text": string | null,"modifiers_total": number,"order_item_id": string | null,"organization_id": string,"quantity": number,"tax_rate_bps": number,"unit_price": number,"variant_name": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "bill_id"?: string | null,"bill_set_id": string,"created_at"?: string,"id"?: string,"item_name": string,"line_total": number,"location_id": string,"modifiers_text"?: string | null,"modifiers_total": number,"order_item_id"?: string | null,"organization_id": string,"quantity": number,"tax_rate_bps": number,"unit_price": number,"variant_name"?: string | null
+                  }
+                  Update: {
+                    "bill_id"?: string | null,"bill_set_id"?: string,"created_at"?: string,"id"?: string,"item_name"?: string,"line_total"?: number,"location_id"?: string,"modifiers_text"?: string | null,"modifiers_total"?: number,"order_item_id"?: string | null,"organization_id"?: string,"quantity"?: number,"tax_rate_bps"?: number,"unit_price"?: number,"variant_name"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "bill_items_bill_fk"
+      columns: ["bill_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "bill_balances"
+      referencedColumns: ["bill_id","organization_id"]
+    },{
+      foreignKeyName: "bill_items_bill_fk"
+      columns: ["bill_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "bills"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "bill_items_order_item_id_fkey"
+      columns: ["order_item_id"]
+isOneToOne: false
+      referencedRelation: "order_items"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "bill_items_set_fk"
+      columns: ["bill_set_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "bill_sets"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"bill_sets": {
+                  Row: {
+                    "client_ref": string,"created_at": string,"created_by": string | null,"currency": string,"discount_total": number,"id": string,"location_id": string,"order_id": string,"organization_id": string,"request_hash": string,"service_charge": number,"service_charge_bps": number,"split_kind": string,"status": string,"subtotal": number,"tax": number,"tax_on_service_charge": boolean,"tax_rate_bps": number,"total": number,"updated_at": string,"void_reason": string | null,"voided_at": string | null,"voided_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "client_ref": string,"created_at"?: string,"created_by"?: string | null,"currency": string,"discount_total": number,"id"?: string,"location_id": string,"order_id": string,"organization_id": string,"request_hash": string,"service_charge": number,"service_charge_bps": number,"split_kind": string,"status"?: string,"subtotal": number,"tax": number,"tax_on_service_charge": boolean,"tax_rate_bps": number,"total": number,"updated_at"?: string,"void_reason"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
+                  }
+                  Update: {
+                    "client_ref"?: string,"created_at"?: string,"created_by"?: string | null,"currency"?: string,"discount_total"?: number,"id"?: string,"location_id"?: string,"order_id"?: string,"organization_id"?: string,"request_hash"?: string,"service_charge"?: number,"service_charge_bps"?: number,"split_kind"?: string,"status"?: string,"subtotal"?: number,"tax"?: number,"tax_on_service_charge"?: boolean,"tax_rate_bps"?: number,"total"?: number,"updated_at"?: string,"void_reason"?: string | null,"voided_at"?: string | null,"voided_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "bill_sets_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "bill_sets_order_fk"
+      columns: ["order_id","location_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id","location_id"]
+    }
+                  ]
+                },"bills": {
+                  Row: {
+                    "bill_number": number,"bill_set_id": string,"business_date": string,"created_at": string,"discount": number,"id": string,"last_printed_at": string | null,"last_printed_by": string | null,"location_id": string,"order_id": string,"organization_id": string,"print_count": number,"service_charge": number,"share_count": number,"share_no": number,"subtotal": number,"tax": number,"total": number,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "bill_number": number,"bill_set_id": string,"business_date": string,"created_at"?: string,"discount": number,"id"?: string,"last_printed_at"?: string | null,"last_printed_by"?: string | null,"location_id": string,"order_id": string,"organization_id": string,"print_count"?: number,"service_charge": number,"share_count": number,"share_no": number,"subtotal": number,"tax": number,"total": number,"updated_at"?: string
+                  }
+                  Update: {
+                    "bill_number"?: number,"bill_set_id"?: string,"business_date"?: string,"created_at"?: string,"discount"?: number,"id"?: string,"last_printed_at"?: string | null,"last_printed_by"?: string | null,"location_id"?: string,"order_id"?: string,"organization_id"?: string,"print_count"?: number,"service_charge"?: number,"share_count"?: number,"share_no"?: number,"subtotal"?: number,"tax"?: number,"total"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "bills_order_fk"
+      columns: ["order_id","location_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id","location_id"]
+    },{
+      foreignKeyName: "bills_set_fk"
+      columns: ["bill_set_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "bill_sets"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"cash_sessions": {
+                  Row: {
+                    "close_note": string | null,"closed_at": string | null,"closed_by": string | null,"counted_cash": number | null,"expected_cash": number | null,"id": string,"location_id": string,"opened_at": string,"opened_by": string | null,"opening_float": number,"organization_id": string,"status": string,"variance": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "close_note"?: string | null,"closed_at"?: string | null,"closed_by"?: string | null,"counted_cash"?: number | null,"expected_cash"?: number | null,"id"?: string,"location_id": string,"opened_at"?: string,"opened_by"?: string | null,"opening_float": number,"organization_id": string,"status"?: string,"variance"?: number | null
+                  }
+                  Update: {
+                    "close_note"?: string | null,"closed_at"?: string | null,"closed_by"?: string | null,"counted_cash"?: number | null,"expected_cash"?: number | null,"id"?: string,"location_id"?: string,"opened_at"?: string,"opened_by"?: string | null,"opening_float"?: number,"organization_id"?: string,"status"?: string,"variance"?: number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "cash_sessions_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"default_role_permissions": {
                   Row: {
                     "permission_key": string,"role_key": string
@@ -639,6 +769,50 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"payments": {
+                  Row: {
+                    "amount": number,"approval_code": string | null,"bill_id": string,"cash_session_id": string | null,"change_given": number | null,"client_ref": string,"created_at": string,"expires_at": string | null,"gateway_session_id": string | null,"id": string,"invoice_number": string | null,"location_id": string,"method": string,"method_label": string | null,"organization_id": string,"received_by": string | null,"request_hash": string,"status": string,"tendered": number | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "amount": number,"approval_code"?: string | null,"bill_id": string,"cash_session_id"?: string | null,"change_given"?: number | null,"client_ref": string,"created_at"?: string,"expires_at"?: string | null,"gateway_session_id"?: string | null,"id"?: string,"invoice_number"?: string | null,"location_id": string,"method": string,"method_label"?: string | null,"organization_id": string,"received_by"?: string | null,"request_hash": string,"status"?: string,"tendered"?: number | null
+                  }
+                  Update: {
+                    "amount"?: number,"approval_code"?: string | null,"bill_id"?: string,"cash_session_id"?: string | null,"change_given"?: number | null,"client_ref"?: string,"created_at"?: string,"expires_at"?: string | null,"gateway_session_id"?: string | null,"id"?: string,"invoice_number"?: string | null,"location_id"?: string,"method"?: string,"method_label"?: string | null,"organization_id"?: string,"received_by"?: string | null,"request_hash"?: string,"status"?: string,"tendered"?: number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "payments_bill_fk"
+      columns: ["bill_id","location_id"]
+isOneToOne: false
+      referencedRelation: "bill_balances"
+      referencedColumns: ["bill_id","location_id"]
+    },{
+      foreignKeyName: "payments_bill_fk"
+      columns: ["bill_id","location_id"]
+isOneToOne: false
+      referencedRelation: "bills"
+      referencedColumns: ["id","location_id"]
+    },{
+      foreignKeyName: "payments_org_fk"
+      columns: ["bill_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "bill_balances"
+      referencedColumns: ["bill_id","organization_id"]
+    },{
+      foreignKeyName: "payments_org_fk"
+      columns: ["bill_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "bills"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "payments_session_fk"
+      columns: ["cash_session_id","location_id"]
+isOneToOne: false
+      referencedRelation: "cash_sessions"
+      referencedColumns: ["id","location_id"]
+    }
+                  ]
                 },"permissions": {
                   Row: {
                     "category": string,"description": string,"key": string
@@ -694,6 +868,44 @@ isOneToOne: false
                   }
                   Relationships: [
                     
+                  ]
+                },"refunds": {
+                  Row: {
+                    "amount": number,"bill_id": string,"cash_session_id": string | null,"client_ref": string,"created_at": string,"id": string,"kind": string,"location_id": string,"organization_id": string,"payment_id": string,"reason": string,"refunded_by": string | null,"request_hash": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "amount": number,"bill_id": string,"cash_session_id"?: string | null,"client_ref": string,"created_at"?: string,"id"?: string,"kind"?: string,"location_id": string,"organization_id": string,"payment_id": string,"reason": string,"refunded_by"?: string | null,"request_hash": string
+                  }
+                  Update: {
+                    "amount"?: number,"bill_id"?: string,"cash_session_id"?: string | null,"client_ref"?: string,"created_at"?: string,"id"?: string,"kind"?: string,"location_id"?: string,"organization_id"?: string,"payment_id"?: string,"reason"?: string,"refunded_by"?: string | null,"request_hash"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "refunds_bill_fk"
+      columns: ["bill_id","location_id"]
+isOneToOne: false
+      referencedRelation: "bill_balances"
+      referencedColumns: ["bill_id","location_id"]
+    },{
+      foreignKeyName: "refunds_bill_fk"
+      columns: ["bill_id","location_id"]
+isOneToOne: false
+      referencedRelation: "bills"
+      referencedColumns: ["id","location_id"]
+    },{
+      foreignKeyName: "refunds_payment_fk"
+      columns: ["payment_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "payments"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "refunds_session_fk"
+      columns: ["cash_session_id","location_id"]
+isOneToOne: false
+      referencedRelation: "cash_sessions"
+      referencedColumns: ["id","location_id"]
+    }
                   ]
                 },"reserved_slugs": {
                   Row: {
@@ -836,7 +1048,27 @@ isOneToOne: false
                 }
           }
           Views: {
-            [_ in never]: never
+            "bill_balances": {
+                  Row: {
+                    "bill_id": string,"bill_set_id": string,"location_id": string,"order_id": string,"organization_id": string,"outstanding": number | null,"paid_total": number | null,"payment_status": string | null,"refunded_total": number | null,"total": number
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    {
+      foreignKeyName: "bills_order_fk"
+      columns: ["order_id","location_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id","location_id"]
+    },{
+      foreignKeyName: "bills_set_fk"
+      columns: ["bill_set_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "bill_sets"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                }
           }
           Functions: {
             "accept_invitation":
@@ -869,17 +1101,26 @@ isOneToOne: false
 "admin_update_package":
 { Args: { "input": Json,"package_id": string }; Returns: boolean
                            },
+"admin_update_platform_setting":
+{ Args: { "key": string,"value": Json }; Returns: boolean
+                           },
 "apply_order_discount":
 { Args: { "amount": number,"order_id": string,"reason": string }; Returns: Json
                            },
 "can_receive_location_topic":
 { Args: { "topic": string }; Returns: boolean
                            },
+"can_receive_payments_topic":
+{ Args: { "topic": string }; Returns: boolean
+                           },
 "cancel_order":
 { Args: { "order_id": string,"reason": string }; Returns: Json
                            },
-"admin_update_platform_setting":
-{ Args: { "key": string,"value": Json }; Returns: boolean
+"close_cash_session":
+{ Args: { "counted_cash": number,"note"?: string,"session_id": string }; Returns: Json
+                           },
+"create_bills":
+{ Args: { "assignments"?: Json,"client_ref": string,"order_id": string,"split_count"?: number,"split_kind"?: string }; Returns: Json
                            },
 "create_organization":
 { Args: { "branding"?: Json,"location": Json,"name": string,"package_code"?: string,"slug": string }; Returns: Json
@@ -937,8 +1178,20 @@ isOneToOne: false
 "my_permissions":
 { Args: { "org": string }; Returns: (string)[]
                            },
+"open_cash_session":
+{ Args: { "location_id": string,"opening_float": number }; Returns: Json
+                           },
 "org_active_table_count":
 { Args: { "org_id": string }; Returns: number
+                           },
+"record_bill_print":
+{ Args: { "bill_id": string }; Returns: Json
+                           },
+"record_payment":
+{ Args: { "amount": number,"approval_code"?: string,"bill_id": string,"client_ref": string,"method": string,"method_label"?: string,"tendered"?: number }; Returns: Json
+                           },
+"record_refund":
+{ Args: { "amount": number,"client_ref": string,"payment_id": string,"reason": string }; Returns: Json
                            },
 "remove_order_discount":
 { Args: { "discount_id": string,"reason": string }; Returns: Json
@@ -968,6 +1221,9 @@ isOneToOne: false
                            },
 "update_kot_status":
 { Args: { "ticket_id": string,"to_status": string }; Returns: Json
+                           },
+"void_bill_set":
+{ Args: { "bill_set_id": string,"reason": string }; Returns: Json
                            },
 "void_order_item":
 { Args: { "item_id": string,"reason": string }; Returns: Json
