@@ -2,7 +2,7 @@
 
 Draft 2026-11-12 by **DAVIN** for ALAN's review. **DAVIN** implements the schema, the RPCs and `lib/storefront`. **ADIT** builds the customer pages and the staff approval panels against it. **REYKI** writes the isolation tests against it. Changes need agreement from all three, plus ALAN, and are made in this file first. This is the "M4" contract that `docs/contracts/orders.md` defers to (QR/online approval, opening hours, secondary-table QR); it assumes orders.md (including *Table operations*) and `docs/contracts/bills.md`, and changes them only where listed in *Changes to existing contracts and RPCs*. **Payments are not here**: guests pay at the counter until M5 (DOKU).
 
-Everything marked **Proposed** is a decision DAVIN made so the contract is complete; ALAN can overturn it. Product questions are in **Still open** at the end, not decided silently.
+Everything marked **Proposed** is a decision DAVIN made so the contract is complete; ALAN can overturn it. The product questions raised in review were answered by the user on 2026-11-12 and are recorded in the **Decisions log** (15 to 25); nothing is open.
 
 ## Scope and rules that apply everywhere
 
@@ -23,7 +23,7 @@ Everything marked **Proposed** is a decision DAVIN made so the contract is compl
 - The slug is the **only** thing the host tells us. The server resolves it with `get_storefront(slug)` (exists): `null` for an unknown slug, `{ status: 'unavailable' }` for a suspended or non-active organization (the page shows a neutral "not available" screen, never why), otherwise the tenant's public data. A suspended organization can neither be browsed for ordering nor receive orders (`ORDERING_UNAVAILABLE`).
 - **A token never overrides the host.** Every token route (`/t/{qr}`, `/o/{access}`) resolves the token, then compares the token's organization slug with the host's slug; a mismatch is answered exactly like an unknown token. This is what stops tenant A's QR from working on tenant B's domain, and it keeps cross-tenant probing uniform.
 - Routes (all under `apps/web/app/(storefront)/s/[tenant]/`): `/` (menu + hours + order), `/t/[qrToken]` (QR landing, the cart for a table), `/o/[accessToken]` (guest order status). Server components read public data inside `<Suspense>`; the cached menu uses `'use cache'` tagged `storefront:{slug}`; anything time-dependent (open now, pickup slots, status) is **not** cached (`connection()`), so a stale cache can never let an order through.
-- **Package gate:** guest ordering needs the organization's package feature `qr_ordering` (`FEATURE_KEYS`), checked server-side in every guest RPC and shown as "ordering unavailable" in the UI. The same flag gates QR and online pickup in M4 (Still open 12).
+- **Package gate:** guest ordering needs the organization's package feature `qr_ordering` (`FEATURE_KEYS`), checked server-side in every guest RPC and shown as "ordering unavailable" in the UI. One flag gates both QR and online pickup in M4 (Decisions log 23).
 
 ## Public reads (anon)
 
@@ -33,6 +33,8 @@ Everything marked **Proposed** is a decision DAVIN made so the contract is compl
 | `get_public_menu(org_slug, location_id)` (exists) | published, active, currently available items with the effective price, variants and modifier groups. Never costs, stock, stations or staff |
 | `get_public_location_info(org_slug, location_id)` (new) | `{ name, currency, timezone, address, city, phone, taxRateBps, serviceChargeBps, taxOnServiceCharge, hours: [{ day, opens, closes }], openNow, ordering: { qr, online, accepting }, minOrderAmount, pickup: { leadMinutes, slotMinutes } }`. `null` for an unknown/inactive location, a location of another org, a suspended org |
 | `get_pickup_slots(org_slug, location_id)` (new) | up to 24 upcoming pickup times today (ISO UTC), computed from the hours, the lead time and the slot length, in the location's timezone; `[]` when closed or online ordering is off |
+
+`ordering.online` is false when the location has no hours rows, and `get_pickup_slots` is `[]`.
 
 Nothing else is readable by `anon`: no staff, no other tenant's data, no costs, no orders, no tokens. Location ids are already public (the menu function takes one), so they are not secrets, but they confer nothing: every write validates the location server-side.
 
@@ -46,9 +48,10 @@ Prices on the storefront are item prices; the page states service charge and tax
 |---|---|
 | `location_id` (pk), `organization_id` | composite FK `(location_id, organization_id)` → `locations` |
 | `qr_enabled` | boolean, default **true** |
-| `online_enabled` | boolean, default **false** (the restaurant opts in) |
+| `online_enabled` | boolean, default **false** (the restaurant opts in). **Can only be true while the location has at least one `location_hours` row** (Decisions log 18): `updateOrderingSettings` refuses it with a field error on `onlineEnabled`, and a database trigger raises `HOURS_REQUIRED` as the backstop (also when the last hours row of an online-enabled location would be deleted) |
 | `accepting_orders` | boolean, default true: the "pause ordering" switch, applies to both channels |
-| `auto_accept_qr`, `auto_accept_online` | boolean, default **false** (Still open 1) |
+| `auto_accept_qr` | boolean, default **false**. When on it applies **only to add-on rounds on a table whose open order already exists**; the first order at an empty table always waits for staff (Decisions log 15) |
+| `auto_accept_online` | boolean, default **false**. When on, online pickup orders are accepted at submission |
 | `pickup_lead_minutes` | integer 5..240, default 20 |
 | `pickup_slot_minutes` | integer 5..60, default 15 |
 | `pickup_max_orders_per_slot` | integer null (null = unlimited), 1..200 |
@@ -60,7 +63,7 @@ Writes: direct update through RLS + a column grant with **`locations.manage`** (
 
 ### `location_hours` (opening hours; guests only)
 
-`id`, `organization_id`, `location_id`, `day_of_week` (0 = Sunday .. 6), `opens_min` (0..1439), `closes_min` (1..1440), `opens_min < closes_min`. Several rows per day are allowed (lunch and dinner); a late night past midnight is two rows (Friday 18:00 to 24:00, Saturday 00:00 to 02:00). An exclusion constraint on `(location_id, day_of_week, int4range(opens_min, closes_min))` forbids overlaps (needs `btree_gist`). **No rows at all means "not enforced / always open"** so existing tenants are not locked out (**Proposed**, Still open 4). Writes `locations.manage`; reads members. **Staff POS ignores hours** (orders.md); only guest channels enforce them.
+`id`, `organization_id`, `location_id`, `day_of_week` (0 = Sunday .. 6), `opens_min` (0..1439), `closes_min` (1..1440), `opens_min < closes_min`. Several rows per day are allowed (lunch and dinner); a late night past midnight is two rows (Friday 18:00 to 24:00, Saturday 00:00 to 02:00). An exclusion constraint on `(location_id, day_of_week, int4range(opens_min, closes_min))` forbids overlaps (needs `btree_gist`). **With no rows, QR ordering is not limited by hours** (it is always open while staff accept); **online pickup needs hours**: it cannot be enabled without at least one row, and the slot list is empty without them (Decisions log 18). Writes `locations.manage`; reads members. **Staff POS ignores hours** (orders.md); only guest channels enforce them.
 
 ### `guest_submissions` (the staging area: a guest's order waiting for staff)
 
@@ -77,7 +80,7 @@ A guest order is **not** an `orders` row until staff accept it. **Proposed, and 
 | `display` | jsonb: the priced snapshot shown to the guest (names, variant, modifiers text, quantity, unit and line totals) and the totals (`subtotal`, `serviceCharge`, `tax`, `total`) computed at submission |
 | `currency` | char(3) |
 | `contact_name` | text null ≤ 60 (**required for `online`**) |
-| `contact_phone` | text null, digits with optional `+`, 6..20 (optional; online only asks if the location wants it, Still open 7) |
+| `contact_phone` | text null, digits with optional `+`, 6..20 (optional; never verified, no OTP in M4; Decisions log 21) |
 | `pickup_at` | timestamptz null: the chosen slot (`online`); null means ASAP |
 | `client_ref` | uuid, **unique `(organization_id, client_ref)`** |
 | `request_hash` | text: sha-256 of the canonical request, to detect a reused `client_ref` with a different body |
@@ -86,6 +89,7 @@ A guest order is **not** an `orders` row until staff accept it. **Proposed, and 
 | `order_id`, `round_id` | uuid null: set at acceptance (the order and round it became) |
 | `decided_by`, `decided_at` | the staff member who accepted or rejected; **never shown to the guest** |
 | `expires_at` | `created_at + pending_ttl_minutes` |
+| `closed_at` | timestamptz null: set when the status becomes terminal (`accepted`, `rejected`, `cancelled`, `expired`); the retention clock (below) |
 | `created_at`, `updated_at` | |
 
 Constraints: `channel`/`status` checks; `qr` ⇒ `table_id` not null, `online` ⇒ `table_id` null and `contact_name` not null; `accepted` ⇒ `order_id` and `round_id` not null; `rejected` ⇒ `reason_code` not null. Indexes: `(location_id, status, created_at)`, `(table_id) where status = 'pending'`, `(access_token_hash)`.
@@ -99,7 +103,7 @@ RLS: `SELECT` on non-PII columns for `orders.view` + location access; `contact_n
 ### Existing tables that change
 
 - `orders.pickup_at` `timestamptz null` (set for accepted online orders; shown on the order board and the print route).
-- `orders.customer_name` already exists (takeaway label ≤ 60): the online contact name is copied to it at acceptance; the phone is **not** copied (it stays in `guest_submissions` until purged, Still open 8).
+- `orders.customer_name` already exists (takeaway label ≤ 60): the online contact name is copied to it at acceptance; the phone is **not** copied (it stays in `guest_submissions` until the retention job clears it, *Retention*).
 - `order_events.event_type` gains `guest_order_accepted`, `guest_order_rejected`; `order_rounds` gains a nullable `guest_submission_id` (unique) so a round can be traced to the submission it came from.
 - `orders.opened_by` and `orders.waiter_id` stay null for guest-created orders until a waiter takes the table (orders.md, *Table operations*).
 
@@ -115,7 +119,7 @@ A guest proves "this is my order" with a random **256-bit token** carried in the
 
 | Transition | Trigger | Who |
 |---|---|---|
-| `pending → accepted` | `accept_guest_submission`, or inside `submit_guest_order` when the location's auto-accept for that channel is on | `orders.create`, or system |
+| `pending → accepted` | `accept_guest_submission`, or inside `submit_guest_order` under the auto-accept rules (online with `auto_accept_online`; QR add-ons only with `auto_accept_qr`) | `orders.create`, or system |
 | `pending → rejected` | `reject_guest_submission` with a reason code | `orders.create` |
 | `pending → cancelled` | `cancel_guest_submission` with the access token | the guest |
 | `pending → expired` | `now() > expires_at` (evaluated lazily at read/write time and persisted; no scheduler needed) | system |
@@ -124,7 +128,7 @@ A guest proves "this is my order" with a random **256-bit token** carried in the
 
 Acceptance calls the **same intake core as `submit_order_round`** (extracted into a private function by the implementation, *Changes*), with the guest's lines, inside one transaction:
 
-1. **Re-validate** every line from the database as `submit_order_round` step 5 does (item active/published/available, not sold out, variant required, modifier group min/max). A line that is no longer valid fails the accept with `ITEM_UNAVAILABLE` (`details.itemIds`) and the submission stays `pending`; staff then reject it with reason `out_of_stock`. Prices are **recomputed at acceptance**, so a price changed since submission is charged at the current price; the guest status page then shows the new total. Partial acceptance is not offered in M4 (Still open 6).
+1. **Re-validate** every line from the database as `submit_order_round` step 5 does (item active/published/available, not sold out, variant required, modifier group min/max). A line that is no longer valid fails the accept with `ITEM_UNAVAILABLE` (`details.itemIds`) and the submission stays `pending`; staff then reject it with reason `out_of_stock`. Prices are **recomputed at acceptance**, so a price changed since submission is charged at the current price; the guest status page then shows the new total. Partial acceptance is not offered in M4 (Decisions log 20).
 2. **Find or create the order.** `qr`: the table's open dine-in order (the primary table, or the group's order when the scanned table is a secondary table) if it is `accepted`, `preparing` or `ready`: the lines become a new **round** on it (a guest add-on). If that order is `served` the accept fails with `ORDER_CLOSED` (staff reject or take the order over at the POS). If there is no open order, a new `dine_in`-style order is created with `channel = 'qr'`, the table is seated (`available → occupied`; a `reserved` or `needs_cleaning` table refuses with `TABLE_NOT_READY`). `online`: a new order with `channel = 'online'`, no table, `customer_name` and `pickup_at` from the submission.
 3. **Status:** the order is created directly in `accepted` (it never sits in `placed`; the `draft`/`placed` states remain in the machine for POS carts and are unused by the guest flow), the derived path to `preparing`/`ready` applies exactly as for staff orders, tickets are created per station for the new round, and `order_events` records `guest_order_accepted` and `round_sent`. **The KDS receives tickets only after acceptance** (nothing exists for a pending submission). The plan limit `max_orders_per_month` is checked here, at acceptance, not at submission, so pending junk cannot consume a restaurant's quota.
 4. The submission becomes `accepted` with `order_id`/`round_id` set; `decided_by` is the approver (null for auto-accept).
@@ -165,12 +169,12 @@ Returns `{ submissionId, status, replayed, totals: { subtotal, serviceCharge, ta
 
 All in **one transaction**:
 1. **Resolve the scope from the server, never the client.** `qr`: the table from `qr_token` (unknown, rotated, inactive, or an organization slug that differs from `org_slug` → `QR_INVALID`). `online`: the active location of the active organization `org_slug` (else `ORDERING_UNAVAILABLE`).
-2. **Gate:** package has `qr_ordering` and the organization is active (`ORDERING_UNAVAILABLE`); `location_ordering_settings`: the channel is enabled and `accepting_orders` (`ORDERING_UNAVAILABLE`); **opening hours** in the location timezone (`LOCATION_CLOSED`; skipped when the location has no hours rows).
+2. **Gate:** package has `qr_ordering` and the organization is active (`ORDERING_UNAVAILABLE`); `location_ordering_settings`: the channel is enabled and `accepting_orders` (`ORDERING_UNAVAILABLE`); **opening hours** in the location timezone (`LOCATION_CLOSED`): for `qr` checked only when the location has hours rows; for `online` hours rows are required (none means the channel is off, `ORDERING_UNAVAILABLE`).
 3. **Idempotency.** Serialise on `(org, client_ref)`. Found with the same `request_hash` → return the stored result with `replayed = true`, changing nothing; a different hash → `CLIENT_REF_CONFLICT`. A guest retrying on flaky mobile data is therefore safe.
 4. **Shape:** the `submit_order_round` rules (1..60 lines, quantity 1..99, note ≤ 200 stripped of control characters, no duplicate modifier ids, **unknown keys rejected**, no price/name/total key accepted). `online`: `contact_name` 1..60 required, `contact_phone` optional per the format above, `pickup_at` null (ASAP) or a slot that `get_pickup_slots` would return now (`PICKUP_TIME_INVALID`), and if `pickup_max_orders_per_slot` is set, the slot must still have room (`PICKUP_TIME_INVALID`). `qr`: no `pickup_at`.
-5. **Table state (`qr`):** `available` or `occupied` with an open order that is `accepted`/`preparing`/`ready` is fine; `reserved`, `needs_cleaning` or an inactive table → `TABLE_NOT_READY`; an open order that is `served` → `ORDER_CLOSED` ("ask your waiter"). Pending caps: at most **3 pending submissions per table** and **50 per location** (`TOO_MANY_PENDING`), and a **20 second cooldown between submissions**, keyed by what the server actually knows at that point: **per table for `qr`** and **per client IP and location for `online`** (a new submission has no access token yet, so the cooldown cannot be per token). The cooldown is a database check against the most recent submission for that key, so it holds even if Arcjet is down.
+5. **Table state (`qr`):** an **empty `available` table is allowed** (staff acceptance seats it, Decisions log 16); `occupied` with an open order that is `accepted`/`preparing`/`ready` is fine; `reserved`, `needs_cleaning` or an inactive table → `TABLE_NOT_READY`; an open order that is `served` → `ORDER_CLOSED` ("please call your waiter"; no add-ons after `served` in M4, Decisions log 17). Pending caps: at most **3 pending submissions per table** and **50 per location** (`TOO_MANY_PENDING`), and a **20 second cooldown between submissions**, keyed by what the server actually knows at that point: **per table for `qr`** and **per client IP and location for `online`** (a new submission has no access token yet, so the cooldown cannot be per token). The cooldown is a database check against the most recent submission for that key, so it holds even if Arcjet is down.
 6. **Recompute every line from the database** exactly as `submit_order_round` step 5 (item must belong to the resolved organization: another tenant's item id fails like an unavailable item, `ITEM_UNAVAILABLE`, with no hint that it exists elsewhere), compute the totals with the SQL mirror of `calculateBill`, enforce `min_order_amount` on the subtotal (`MIN_ORDER_NOT_MET`).
-7. **Insert** the submission (`pending`, `expires_at`), the display snapshot, the hashes. If the location's auto-accept for the channel is on, run the acceptance (above) in the same transaction and return `status: 'accepted'`; an acceptance failure leaves the submission `pending` (not an error to the guest).
+7. **Insert** the submission (`pending`, `expires_at`), the display snapshot, the hashes. **Auto-accept (Decisions log 15):** `online` is accepted inside this transaction when `auto_accept_online` is on. `qr` is accepted inside this transaction **only** when `auto_accept_qr` is on **and** the scanned table (or the group it belongs to) already has an open order in `accepted`/`preparing`/`ready`, i.e. the submission is an add-on round; the **first order at an empty table always waits for staff**, whatever the setting. An accepted submission returns `status: 'accepted'`; an acceptance failure leaves it `pending` (not an error to the guest).
 8. Emit `guest_submission.changed` on the staff channel (below). Nothing is written to `orders` unless auto-accepted.
 
 ### Staff paths (`authenticated`)
@@ -244,10 +248,29 @@ PostHog (anonymous funnel, group = organization, **no PII, no contact data, no t
 | Flooding | Arcjet per IP (above) + 3 pending per table + 50 pending per location + 20 s cooldown (per table for QR, per IP and location for online) + 15 min expiry; junk never reaches `orders`, the KDS or order numbers |
 | Another tenant's item or modifier ids | items must belong to the resolved organization; fails as `ITEM_UNAVAILABLE`, indistinguishable from an unavailable item |
 | Token guessing / scraping the status page | 256-bit random-looking HMAC token, hash-only storage, uniform not-found, rate limit, `noindex`, `no-store`, `no-referrer` |
-| Remote prank orders to someone else's seated table | staff acceptance by default (auto-accept off); the table label is on the approval card; an add-on to an occupied table is visible to the approver (Still open 1) |
+| Remote prank orders to someone else's seated table | the first order at an empty table always needs staff, even with auto-accept on; auto-accept never applies to a table without an open order; the table label is on the approval card (Decisions log 15) |
 | Spamming call-waiter | one open request per `(table, kind)`, rate limit, no free text |
 | Injection / XSS in notes and names | length caps, control characters stripped, rendered as text everywhere (never as HTML), never used in SQL outside parameters |
 | PII leakage | contact fields excluded from client grants, from Realtime, from PostHog, from the print route's public data and from cache keys/tags |
+
+## Retention (Decisions log 22)
+
+| Data | Rule |
+|---|---|
+| `contact_name`, `contact_phone` | set to null **30 days after `closed_at`** for every terminal submission (accepted, rejected, cancelled, expired) |
+| Non-accepted submissions (`rejected`, `cancelled`, `expired`) | row **deleted 90 days after `closed_at`** (with their `display`/`lines`) |
+| Accepted submissions | kept (they are linked to an order and, once the contact is cleared, hold no personal data); the order's own `customer_name` is the restaurant's takeaway label and follows orders.md |
+| `guest_requests` | resolved requests deleted after 90 days |
+
+**The job.** One function, `private.purge_guest_data(p_now timestamptz default now(), p_limit integer default 5000)`, security definer, execute `service_role` only, does both steps in batches of at most `p_limit` rows (so a run is short and can be repeated), is idempotent, and writes **one `audit_logs` row per run with counts only** (`action = 'retention.guest_data'`, `contacts_cleared`, `submissions_deleted`, `requests_deleted`; never any contact value). It never touches `orders`.
+
+**Scheduler: a Vercel Cron Route Handler (Proposed), not `pg_cron`.** A daily `GET /api/cron/guest-retention` (declared in `vercel.json`, e.g. `0 20 * * *` UTC, which is 03:00 in Jakarta) that: checks the `Authorization: Bearer ${CRON_SECRET}` header with a constant-time comparison (401 otherwise; Vercel Cron sends this header when `CRON_SECRET` is set), runs `import 'server-only'` with the service-role client, calls the function, logs the counts as a structured line (no PII) and returns them as JSON. Why not `pg_cron`: enabling the extension on the hosted project is a dashboard/production change, the local Supabase stack does not run it reliably, and the app route is easier to log, alert on and test. The decision logic lives in SQL, so it is pgTAP-testable with an explicit `p_now`; the route only authenticates and calls. `CRON_SECRET` is a **new server-only secret**: the user adds it to Vercel (staging and production, different values); locally the function is exercised by pgTAP and can be called by hand. If ALAN prefers `pg_cron`, only the scheduler changes: the same function is scheduled with `cron.schedule` and the route is dropped.
+
+Lazy expiry of `pending` rows (above) is separate and needs no scheduler.
+
+## Language (Decisions log 25)
+
+Same pattern as the rest of the app (#113): **Bahasa Indonesia is the default**, English lives under an `/en` prefix of the same routes (`/en`, `/en/t/{qrToken}`, `/en/o/{accessToken}` on the tenant host). The proxy keeps the prefix when it rewrites the host to `/s/{slug}/…`. Forms posted from an `/en` page carry a hidden `locale` field (`id` | `en`, anything else falls back to `id`) so Server Actions and Route Handlers return a localized `formError` and the guest status labels in the right language; guest-facing error codes map to fixed message pairs (no raw SQL or ids). The printed QR code points to the default-language URL; every page has a language switch. The status page and the staff-set rejection note are shown as written (the note is the restaurant's own words). Menu item names and descriptions are shown as the restaurant authored them (multi-language menu content is out of scope).
 
 ## Changes to existing contracts and RPCs (applied by the implementation task)
 
@@ -256,7 +279,9 @@ PostHog (anonymous funnel, group = organization, **no PII, no contact data, no t
 3. **Secondary-table QR** (orders.md *Table operations* change 5): `get_qr_context` and the acceptance resolve a scanned table to the open order of its group when it is an active secondary table.
 4. `lib/env.ts`: `GUEST_TOKEN_KEY` (server-only, 32 random bytes) added and documented in `.env.example`. **It is a new secret that must exist before the implementation runs:** the user adds it to **Vercel (staging)** and to the agents' **HQ app variables** (local development), each with a **different value** (a token minted locally must not verify on staging, and vice versa). It is never committed, never `NEXT_PUBLIC_`, never logged, and never reused across environments. Rotating it invalidates every outstanding guest status link (a guest then sees the neutral "not found" page and orders again), so rotate only deliberately.
 5. `get_storefront(slug)` returns each active location's `id` as well (today it returns names only, but the menu and ordering calls need the id; ids are already public through `get_public_menu`).
-6. Staff settings screens (ADIT): ordering switches, hours and pickup settings write the two new settings tables under `locations.manage`.
+6. Retention (above): `private.purge_guest_data`, the cron Route Handler, the `vercel.json` entry and the new secret `CRON_SECRET` (user adds it to Vercel; never committed, never `NEXT_PUBLIC_`).
+7. Hours guard: the `HOURS_REQUIRED` trigger on `location_ordering_settings` / `location_hours`.
+8. Staff settings screens (ADIT): ordering switches, hours and pickup settings write the two new settings tables under `locations.manage`.
 
 ## What ADIT consumes (`apps/web/lib/storefront/` and the staff inbox)
 
@@ -285,7 +310,7 @@ Staff (inside the dashboard, `lib/storefront/staff.ts`): `getGuestSubmissions(or
 
 ## Errors
 
-New members of `ActionErrorCode`: **`ORDERING_UNAVAILABLE`**, **`LOCATION_CLOSED`**, **`QR_INVALID`**, **`TABLE_NOT_READY`**, **`MIN_ORDER_NOT_MET`**, **`PICKUP_TIME_INVALID`**, **`TOO_MANY_PENDING`**, **`SUBMISSION_NOT_PENDING`**. Reused: `ITEM_UNAVAILABLE` (`details.itemIds`), `MODIFIER_INVALID`, `VARIANT_REQUIRED`, `CLIENT_REF_CONFLICT`, `ORDER_CLOSED`, `INVALID_INPUT`, `RATE_LIMITED` (Arcjet), `FORBIDDEN`, `PLAN_LIMIT`, `NOT_FOUND`. SQL errors are P0001 with the code as the message (`FORBIDDEN` is `42501`, shape errors `22023`). Guest-facing messages are friendly and generic ("This QR code isn't valid", "We're closed right now", "Ordering isn't available here"); they never reveal which tenant, why a token failed, or any id. Every failing result is `{ ok: false, code, formError }`; everything is all-or-nothing.
+New members of `ActionErrorCode`: **`ORDERING_UNAVAILABLE`**, **`LOCATION_CLOSED`**, **`QR_INVALID`**, **`TABLE_NOT_READY`**, **`MIN_ORDER_NOT_MET`**, **`PICKUP_TIME_INVALID`**, **`TOO_MANY_PENDING`**, **`SUBMISSION_NOT_PENDING`**, **`HOURS_REQUIRED`** (settings only; field error on `onlineEnabled`). Reused: `ITEM_UNAVAILABLE` (`details.itemIds`), `MODIFIER_INVALID`, `VARIANT_REQUIRED`, `CLIENT_REF_CONFLICT`, `ORDER_CLOSED`, `INVALID_INPUT`, `RATE_LIMITED` (Arcjet), `FORBIDDEN`, `PLAN_LIMIT`, `NOT_FOUND`. SQL errors are P0001 with the code as the message (`FORBIDDEN` is `42501`, shape errors `22023`). Guest-facing messages are friendly and generic ("This QR code isn't valid", "We're closed right now", "Ordering isn't available here"); they never reveal which tenant, why a token failed, or any id. Every failing result is `{ ok: false, code, formError }`; everything is all-or-nothing.
 
 ## Permission matrix (staff side)
 
@@ -305,20 +330,22 @@ New members of `ActionErrorCode`: **`ORDERING_UNAVAILABLE`**, **`LOCATION_CLOSED
 - **Public reads:** the public functions return only whitelisted fields (no cost, station, stock, staff, token, internal-only column); `null` for an unknown/suspended/inactive tenant or a location of another org; `openNow` and the pickup slots follow the location timezone, multiple intervals per day, a span past midnight and a location with no hours rows (open).
 - **submit_guest_order:** server-computed totals equal the TS `calculateBill` golden vectors; unknown keys, client prices and bad shapes are rejected; `client_ref` replay returns the same submission and the same token, a different body is `CLIENT_REF_CONFLICT`, and a failed call leaves nothing; hours, `accepting_orders`, channel switches and the package gate each return their code (and leak nothing else); `QR_INVALID` for an unknown, a rotated and an inactive-table token alike; `TABLE_NOT_READY` for `reserved`/`needs_cleaning`; `ORDER_CLOSED` for a served order; caps (3 per table, 50 per location) and the 20 s cooldown (per table for QR, per IP and location for online) return `TOO_MANY_PENDING`; `MIN_ORDER_NOT_MET`; pickup validation (slot not offered, slot full, ASAP); contact required for online, optional phone format.
 - **Acceptance:** accept creates the order directly `accepted` (never `placed`), seats the table, creates tickets per station only now (a pending submission has no ticket, no order row, no order number); an add-on to an open order creates a round, not a new order; a secondary table's submission attaches to the group's order; re-validation at accept fails with `ITEM_UNAVAILABLE` and leaves the submission `pending`; price changes between submit and accept charge the new price and show the new total; `max_orders_per_month` is enforced at accept, not at submit; accepting twice is idempotent; rejecting records the reason and creates nothing in `orders`; reject/accept after `expired`/`cancelled` is `SUBMISSION_NOT_PENDING`; auto-accept on accepts inside the submit transaction and a failing accept leaves it pending; online orders copy the name to `customer_name` and set `pickup_at`, and the phone is not copied.
+- **User decisions (one case each):** QR with `auto_accept_qr` on and an **open order** at the table is accepted inside the submit transaction as an add-on round; QR with `auto_accept_qr` on at an **empty table** stays `pending`; QR with auto-accept off stays `pending`; online auto-accept on/off; an `available` table can receive a submission and acceptance seats it (`available → occupied`); an order that is `served` refuses (`ORDER_CLOSED`); QR works at a location with **no hours rows** while online ordering reports off and `get_pickup_slots` is `[]`; enabling `online_enabled` with no hours rows is refused by the action (field error) **and** by the trigger (`HOURS_REQUIRED`), and deleting the last hours row of an online-enabled location is refused; the defaults are min 0, lead 20, slot 15, no capacity; an unavailable line makes accept fail with `ITEM_UNAVAILABLE`, the submission stays `pending`, and there is no way to accept part of it; online with no phone is accepted, with no name is `INVALID_INPUT`, and there is no OTP step; `qr_ordering` off blocks both channels, on enables both (one flag); cancel on an accepted submission is a no-op returning the current state; `/en` routes render English strings, an unknown `locale` falls back to Bahasa, and guest-facing errors never carry raw SQL or ids.
+- **Retention (`private.purge_guest_data`, with an explicit `p_now`):** contact fields are nulled at exactly 30 days after `closed_at` and not a second before; rejected/cancelled/expired rows are deleted at 90 days and accepted rows are kept; resolved guest requests older than 90 days are deleted; a `p_limit` smaller than the backlog processes only that many and a second run finishes the rest; running twice is idempotent; it writes one `audit_logs` row of counts with no contact value; it never changes `orders`; only `service_role` can execute it; the cron route returns 401 for a missing, wrong or empty `CRON_SECRET` (constant-time compare) and never runs the function in that case.
 - **Expiry and cancel:** a pending row past `expires_at` reads as and is persisted `expired`; the guest cancels only while pending, an accepted one is unchanged and idempotent.
 - **Guest view:** `get_guest_order` returns the status mapping (including per-round ticket derivation) and never contains a staff name or id, `decided_by`, the order uuid, another guest's lines or the phone; an unknown, wrong-tenant and expired token are indistinguishable; the poll's `ETag` changes only when `updatedAt` does.
 - **Requests:** one non-resolved request per `(table, kind)`; a second press returns the existing one; resolved frees it; only `orders.create` acknowledges/resolves; rotated QR and wrong tenant fail closed.
 - **Realtime:** the two staff events carry only ids/status, arrive on `location:{A}` and not on another org's channel or on `location:{A}:payments`, contain no contact, item or money field; a guest cannot subscribe to anything.
 - **Abuse (unit, Vitest at the lib layer):** Arcjet denials map to `RATE_LIMITED` (or a generic message for a bot) and never reach the RPC; the service-role client is only imported in `server-only` files; contact data never reaches `captureServer`.
 
-## Decisions log (all Proposed by DAVIN)
+## Decisions log (1 to 11 proposed by DAVIN and accepted in review; 12 to 14 ALAN; 15 to 25 the user)
 
 1. Guest orders are **staged** in `guest_submissions` and become orders only on acceptance (not `orders.status = 'placed'` with pending items): keeps unaccepted items out of totals, bills, the KDS, order numbers and the one-open-order-per-table index, and makes rejection free.
 2. Writes and secret-dependent reads are **service-role only**, called after Arcjet; only the public catalog reads are `anon`: closes the PostgREST bypass of the rate limits.
 3. The guest token is **derived on the app server** (HMAC of the submission id) and only its hash is stored: retries are safe and the database holds no usable token.
-4. QR ordering is **table-level**: any guest at the table may add a round to its open order; each guest only ever sees their own submissions. Staff acceptance (auto-accept off by default) is the guard against a remote stranger ordering.
+4. QR ordering is **table-level**: any guest at the table may add a round to its open order; each guest only ever sees their own submissions. Staff acceptance is the guard against a remote stranger ordering: auto-accept is off by default and, when on, only ever covers add-ons to an already-open order (Decisions log 15).
 5. Prices are recomputed at submission **and** at acceptance; the plan limit is checked at acceptance.
-6. Opening hours are guest-only, stored as weekday minute intervals in the location timezone; no rows means always open.
+6. Opening hours are guest-only, stored as weekday minute intervals in the location timezone; QR works without rows, online pickup requires them (Decisions log 18).
 7. Online pickup is `channel = 'online'`, no table, ASAP or a slot, pay at the counter (M5 adds DOKU); the contact name is required, the phone optional.
 8. Guest status uses **polling** (adaptive, ETag) in M4, not Realtime.
 9. Call waiter / request bill is a `guest_requests` row with one open request per `(table, kind)` and no free text; staff see it through the existing private channel.
@@ -330,22 +357,24 @@ Technical calls by ALAN (review of #140):
 13. **Start with the proposed rate limits** (6 submissions per 10 min per IP, `probe` 20/min, `guestStatus` 60/min, request 4 per 5 min, the 20 s cooldown) and **tune them from the staging Arcjet logs**; the database caps are the backstop either way.
 14. **Custom domains are out of M4.** DNS and TLS for a tenant's own domain is a production change that needs the user's approval; until a verified `custom_domains` table exists the proxy keeps returning 404 for an unknown host.
 
-## Still open (ALAN / the user)
+Product decisions by the user (2026-11-12, all recommended defaults accepted; ALAN's comment on #140):
+15. **QR auto-accept** can be turned on per location but applies **only to add-on rounds on a table whose open order already exists** (seated by staff or previously accepted). The **first order at an empty table always waits for staff acceptance**. Online pickup auto-accept is allowed when the location turns it on (default off).
+16. **Ordering from an empty (`available`) table** is allowed with staff acceptance (see 15); acceptance seats the table.
+17. **No add-ons after `served`** in M4: `ORDER_CLOSED`, "please call your waiter".
+18. **Hours:** QR ordering works with no hours rows. **Online pickup can only be enabled once hours exist**: `updateOrderingSettings` refuses `online_enabled = true` without `location_hours` rows (field error), with a database trigger as the backstop.
+19. **Defaults:** minimum order Rp 0, pickup lead 20 min, slot 15 min, no slot capacity limit.
+20. **No partial acceptance:** staff reject the whole submission with `out_of_stock`.
+21. **Phone** for online pickup is optional; no OTP/WhatsApp verification in M4. The name is required.
+22. **Retention:** clear `contact_name`/`contact_phone` 30 days after the decision; delete non-accepted submissions after 90 days, by a scheduled, logged, service-role job (specified in *Retention*; the choice of Vercel cron over `pg_cron` is DAVIN's proposal).
+23. **One package flag**, `qr_ordering`, covers QR and online pickup in M4.
+24. **Guests cannot cancel after acceptance** (they call the waiter); they can cancel while `pending`.
+25. **Language:** the storefront and the guest status page are Bahasa Indonesia by default with English under `/en` (see *Language*).
 
-1. **Auto-accept defaults and risk.** Off by default for both channels. If a restaurant turns it on for QR, anyone with a photo of a table's QR can send a kitchen order to an empty or occupied table. Should auto-accept apply only when the table has no open order, never to add-ons, or only with a staff-confirmed "table is seated" step?
-2. **Ordering when the table is empty.** Today a guest can order from an `available` table (acceptance seats it). Should QR ordering be limited to tables staff have already seated?
-3. **Add-ons after `served`.** Refused (`ORDER_CLOSED`, "ask your waiter"). Should a guest be able to reopen ordering for dessert?
-4. **No hours configured = always open.** Confirm, or require hours before guest ordering can be switched on.
-5. **Minimum order and pickup defaults** (min 0, lead 20 min, slot 15 min, capacity unlimited): confirm or set per package.
-6. **Partial acceptance.** When one line is out of stock, staff can only reject the whole submission. Allow "accept without the unavailable items" (the guest sees the change)?
-7. **Phone number for online pickup:** optional today. Required? Verified by OTP/WhatsApp? Any consent text?
-8. **Retention** of contact data and submissions (proposal: clear name/phone 30 days after the decision, delete rows after 90 days) and linking to a `customers` record when a guest identifies themselves (loyalty, M7).
-9. *(decided: polling is fine for M4; Decisions log 12)*
-10. *(decided: start with the proposed rate limits and tune from staging logs; Decisions log 13)*
-11. *(decided: custom domains are out of M4; Decisions log 14)*
-12. **Separate package flags** for QR ordering and online pickup (today one flag, `qr_ordering`).
-13. **Guest cancellation after acceptance** (today: call the waiter) and a visible estimated preparation time.
-14. **Language** of the storefront and the guest status page (Bahasa Indonesia default with English under `/en`, as the rest of the app).
+## Still open
+
+None. Every product question was answered by the user on 2026-11-12 (Decisions log 15 to 25) and ALAN's technical calls are in 12 to 14.
+
+**Backlog (known limits, not blockers):** a public broadcast channel for guest status instead of polling; custom domains; partial acceptance of a submission; OTP/WhatsApp verification of the phone; separate package flags for QR and online; guest cancellation after acceptance and an estimated preparation time; linking a guest to a `customers` record and loyalty (M7); slot capacity limits; tuning the rate limits from staging Arcjet logs.
 
 ## Out of scope here
 
