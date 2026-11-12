@@ -5,7 +5,7 @@
 > - **How** we build it (stack, rules, conventions) → `CLAUDE.md`
 > - **In what order, and what's done** → this file
 
-Last updated: 2026-11-11
+Last updated: 2026-11-12
 
 ---
 
@@ -162,15 +162,15 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [x] `audit_logs`: org (nullable for platform actions), actor, action, entity, metadata
 - [x] `platform_settings`: key/value jsonb
 
-**Permission catalog (v1)**
-`menu.manage · orders.view · orders.create · orders.void · pos.use · pos.discount · kitchen.view · kitchen.update · tables.view · tables.manage · reservations.view · reservations.manage · payments.view · payments.take · payments.refund · customers.view · customers.manage · reports.view · staff.manage · locations.manage · settings.manage · settings.branding · billing.manage`
+**Permission catalog (v1, + `bills.print` in M3 per docs/contracts/bills.md)**
+`menu.manage · orders.view · orders.create · orders.void · pos.use · pos.discount · kitchen.view · kitchen.update · tables.view · tables.manage · reservations.view · reservations.manage · bills.print · payments.view · payments.take · payments.refund · customers.view · customers.manage · reports.view · staff.manage · locations.manage · settings.manage · settings.branding · billing.manage`
 
 | Role | Permissions |
 |---|---|
 | Owner | Everything (implicit, so new permissions never need backfilling) |
 | Manager | Everything except `billing.manage`, `settings.manage`, `locations.manage` |
-| Cashier | `pos.use, orders.view, orders.create, payments.view, payments.take, customers.view, kitchen.view, tables.view` |
-| Waiter | `pos.use, orders.view, orders.create, kitchen.view, tables.view, reservations.view` |
+| Cashier | `pos.use, orders.view, orders.create, bills.print, payments.view, payments.take, customers.view, kitchen.view, tables.view` |
+| Waiter | `pos.use, orders.view, orders.create, bills.print, kitchen.view, tables.view, reservations.view` |
 | Kitchen | `kitchen.view, kitchen.update, orders.view` |
 
 **Helper functions** (security definer, `search_path = ''`, stable)
@@ -259,10 +259,10 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 
 ## 5. M1 — Signup & super admin
 
-- [ ] Marketing pages: Home, Features, Pricing (from `packages`), Demo, Terms, Privacy. English + Bahasa Indonesia
-- [ ] Onboarding polish: sample menu/tables option, setup checklist that tracks real progress
-- [ ] Super admin **Tenants**: detail page with usage vs. limits, subscription history, owner contact, password-reset trigger, audit trail
-- [ ] Super admin **Packages**: create/edit/archive plans, limits, feature flags; pricing page updates immediately (`updateTag`)
+- [ ] Marketing pages: Home, Features, Pricing (from `packages`), Demo, Terms, Privacy. English + Bahasa Indonesia — Home/Features/Pricing id+en ✅ #90/#130 (B1-T30 hreflang fix open); Terms, Privacy still open
+- [ ] Onboarding polish: sample menu/tables option, setup checklist that tracks real progress — checklist ✅ #105/#106/#128; sample data option still open
+- [x] Super admin **Tenants**: detail page with usage vs. limits, subscription history, owner contact, password-reset trigger, audit trail
+- [x] Super admin **Packages**: create/edit/archive plans, limits, feature flags; pricing page updates immediately (`updateTag`)
 - [ ] Super admin **Platform settings**: signup on/off, maintenance banner, tax presets — lib + RPCs + server-side enforcement ✅ #102 (MSS-T08); settings page + public banner: #100 (MSS-T09); Auth-hook signup refusal: B1-T18
 - [ ] Feature gating: `hasFeature(org, key)` on the server + locked UI with upgrade prompt
 - [ ] PostHog signup funnel dashboard
@@ -278,9 +278,9 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [ ] Floor plan editor (drag-and-drop table placement per area)
 - [ ] QR codes: generate per table, rotate token, printable sheet (A4 + table tents)
 - [ ] Menu schema: `menu_categories`, `menu_items`, `item_variants`, `modifier_groups`, `modifiers`, `location_menu_overrides`, `kitchen_stations`
-- [ ] Menu editor: categories, items, variants, modifiers (min/max), dietary tags, images (Supabase Storage), drag-and-drop ordering
+- [x] Menu editor: categories, items, variants, modifiers (min/max), dietary tags, images (Supabase Storage), drag-and-drop ordering
 - [ ] Per-location price/availability overrides; "sold out today" toggle
-- [ ] Realtime menu changes broadcast per location
+- [x] Realtime menu changes broadcast per location
 - [ ] Package limits: `max_tables`
 
 **Exit:** Demo Restaurant has a full menu and floor plan with printable QR codes.
@@ -449,6 +449,12 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-10 | MSC-T02's implementation no longer waits for #106 (that wait only throttled the QA queue); the draft opens early so REYKI's MSC-T03 suite can run against it, and it merges after #106 |
 | 2026-11-10 | The local repo for ALAN's session is on a Windows mount: a host-side `git status` holds `index.lock` often and fetches are slow. ALAN works in a scratchpad `git worktree` for Markdown PRs |
 | 2026-11-11 | Resumed after a usage-limit stop. QA throughput is the bottleneck (14 approved PRs waiting only on QA), so REYKI's PR QA batch 2 (MVM-T16) goes **before** the orders pgTAP suite (MSC-T03, put back to todo). #123 (MSC-T04) therefore merges after MVM-T16 + MSC-T03 |
+| 2026-11-12 | #79: the per-location menu page is **manager-only** (`menu.manage`); cashiers/waiters mark items sold out from the **POS** (MSC-T06). `toggleSoldOut` keeps accepting `orders.create` |
+| 2026-11-12 | Invitees may create an account while platform signup is off, but only through a pending invite **token** (`can_signup_with_invitation`), never by email alone (#131). The `before_user_created` hook is enabled on Supabase staging (user, 2026-11-12). S4 accepted: a direct Auth `/signup` call can tell an invited email from a stranger while signup is off |
+| 2026-11-12 | **Bills contract merged (#132). User decisions:** no cash rounding in M3; order discount applies before service charge and PB1/PBJT; no tips in M3; a bill with payments can't be voided (refund first); waiters view/print the pre-bill through a new narrow `bills.print` permission; optional per-location NPWP (`locations.tax_id`) printed on receipts (B1-T31). ALAN: equal splits allocate every component (the first draft's derived tax could go negative; verified over 192,720 cases, spread ≤ Rp 3); order-lock hooks ship in the bills implementation (MSC-T07), not #123 |
+| 2026-11-12 | BUG-130-2: plan descriptions are DB content written by super admins in Bahasa (default language); per-language descriptions → M7 backlog. BUG-130-1/3 → B1-T30 |
+| 2026-11-12 | Security: a hosted Supabase service-role key (project `qsmfzgnrjxqmfqxrzuwv`, not restomate-staging) was pasted into an HQ note; the user rotated it. Agent sandboxes must use the local Supabase stack, never hosted keys |
+| 2026-11-12 | Merge hygiene: run the stacked-PR check as its own step and retarget before `--delete-branch` (#79 was closed by #77's merge and restored) |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -457,11 +463,10 @@ _None yet._
 
 ## 15. Next up
 
-_Resumed 2026-11-11 after a usage-limit stop. #102 (MSS-T08) merged; all three agents re-assigned._
+_Updated 2026-11-12. Merged since the resume: #102, #127, #128, #126, #130, #77, #131, #80, #92, #95, #105, #82, #84, #132._
 
-1. **REYKI, MVM-T16 (PR QA batch 2):** #127 → #128 → #126 → menu stack #77 → #79 → #80 → #82 → #84 → #86 → M1 #92 → #95 → #105 → #100 → #109 POS shell. Then MSC-T03 (orders pgTAP, gate for #123), then MSS-T03 / MSS-T07.
-2. **DAVIN:** B1-T18 (before_user_created hook: refuse sign-ups when signup is off; the staging hook wiring is a dashboard step for the user). Then confirm migration timestamps on #123/#82/#84/#86 are after `20261110260000_platform_settings`. B1-T27 waits for #123.
-3. **ADIT:** MSS-T13 (marketing site in Bahasa + `/en`) → #100 seam removal on the merged #102 + the (frontend) banner → #79 fix for the real e2e failure (`staff.spec.ts:191`, Cashier refusal on the per-location menu route).
-4. **Merge order once QA passes:** #127, #128, #126 (any order) → #77 → #79 → #80 → #82 → #84 → #86 → #92 → #95 → #105 → #100 → #109 → #123. Rename-check migrations before each DB PR (staging `db push` refuses out-of-order timestamps).
-5. **CI flake:** `supabase start` sometimes fails with a Storage transport error (`GET /storage/v1/bucket`); rerun the job. If it keeps recurring, open a B1 task to wait for Storage health before `db reset`.
-6. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.
+1. **REYKI, MVM-T16:** #100 (settings page) → #86 re-check (rebuilt on main) → #109 POS shell → #79 re-check after ADIT's rebase → MSC-T03 (orders pgTAP, gate for #123) → MSC-T08 (bills suite). MSS-T03 / MSS-T07 after.
+2. **DAVIN, MSC-T07:** bills implementation, stacked on #123's branch (retarget to main when #123 merges). Then B1-T31 (NPWP column).
+3. **ADIT:** MVM-T10 (#79 rebase + BUG-77-1) → B1-T30 (hreflang, after #100) → MSC-T06 (POS sold-out toggle, after #109 + #84) → MSC-T09 (bill & payment screens + print).
+4. **Merge order when QA passes:** #100 → #86 → #109 → #79 → #123 → MSC-T07.
+5. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.
