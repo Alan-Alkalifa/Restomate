@@ -1,14 +1,6 @@
-import { MarketingFooter } from "@/components/marketing/MarketingFooter";
-import { MarketingHeader } from "@/components/marketing/MarketingHeader";
-import { content } from "../_content/en";
+import { MarketingShell } from "@/components/marketing/pages";
 
 // Static shell: no session, cookies or headers are read here.
-export default function FrontendLayout({ children }: LayoutProps<"/">) {
-  return (
-    <>
-      <MarketingHeader content={content} />
-      <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">{children}</div>
-      <MarketingFooter content={content} />
-    </>
-  );
+export default function MarketingLayout({ children }: { children: React.ReactNode }) {
+  return <MarketingShell locale="id">{children}</MarketingShell>;
 }

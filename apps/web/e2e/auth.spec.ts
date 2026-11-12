@@ -63,7 +63,7 @@ test.describe("signup and email confirmation", () => {
     const { link } = await confirmedUser(page);
     const fresh = await browser.newContext();
     const other = await fresh.newPage();
-    // `lang=en` asks for the English page (the mail link itself carries no hint, see BUG-113-1).
+    // The mail link of an English signup already carries lang=en; repeating it keeps this test independent of the form used.
     await other.goto(`${link}&lang=en`);
     await expect(other).toHaveURL(/\/en\/login\?error=link_expired/);
     await expect(other.getByText(/expired or was already used/i)).toBeVisible();
@@ -184,11 +184,9 @@ test.describe("password reset", () => {
     await expect(page.getByText(/if an account exists/i)).toBeVisible();
 
     const link = extractLink(await waitForEmail(email, { since, subject: /reset|password/i }));
-    // BUG-113-1: the mail link has no language hint and /auth/confirm ignores `lang` for the reset landing, so it lands
-    // on the Bahasa page. The flow is then continued on the English page (the session cookie is already set).
+    // The /en form posts locale=en, so the mail link carries lang=en and /auth/confirm lands on the English page.
     await page.goto(link);
-    await expect(page).toHaveURL(/\/reset-password/);
-    await page.goto("/en/reset-password");
+    await expect(page).toHaveURL(/\/en\/reset-password/);
     await page.waitForLoadState("networkidle");
 
     await page.getByLabel("New password", { exact: true }).fill(NEW_PASSWORD);
@@ -213,9 +211,7 @@ test.describe("password reset", () => {
     await loginOk(page, email, NEW_PASSWORD);
   });
 
-  // Expected to FAIL until BUG-113-1 is fixed (test.fail turns red when it starts passing: then delete the annotation).
   test("an English user's reset link lands on /en/reset-password", async ({ page }) => {
-    test.fail(true, "BUG-113-1: /auth/confirm uses next=/reset-password from the mail and ignores lang=en; the /en forms post no locale");
     const { email } = await confirmedUser(page, "resetlang");
     await page.context().clearCookies();
     const since = new Date(Date.now() - 1000);
