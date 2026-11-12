@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { z } from "zod";
 import { requireOrgContext, requirePermission } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
-import type { KotStatus, OrderStatus } from "./transitions";
+import type { KotStatus, OrderStatus, TableStatus } from "./transitions";
 import { assertLocation } from "./shared";
 
 export type Channel = "dine_in" | "takeaway" | "qr" | "online";
@@ -219,4 +219,98 @@ export async function getKdsTickets(
       };
     }),
   };
+}
+
+
+/* ---- table board (docs/contracts/orders.md "Table operations") -------------------------------------------------------- */
+export type TableBoardOrder = {
+  orderId: string; orderNumber: number; status: OrderStatus; seatedAt: string; guestCount: number | null;
+  primaryTableId: string; groupTableIds: string[]; waiterId: string | null; waiterName: string | null;
+};
+export type TableBoardEntry = {
+  tableId: string; label: string; areaId: string; capacity: number; status: TableStatus;
+  posX: number | null; posY: number | null; shape: string; order: TableBoardOrder | null;
+};
+
+type BoardTableRow = { id: string; label: string; area_id: string; capacity: number; status: string; pos_x: number | null; pos_y: number | null; shape: string };
+type BoardOrderRow = { id: string; order_number: number; status: string; table_id: string | null; guest_count: number | null; created_at: string; waiter_id: string | null };
+
+/**
+ * Pure assembly of the board. A secondary table shows the SAME order as its primary (so the map can draw the group);
+ * `seatedAt` is the order's created_at (it follows the party through moves and merges). No money anywhere.
+ */
+export function buildTableBoard(input: {
+  tables: BoardTableRow[]; orders: BoardOrderRow[]; group: { order_id: string; table_id: string }[]; waiterNames: Map<string, string>;
+}): TableBoardEntry[] {
+  const groupByOrder = new Map<string, string[]>();
+  for (const g of input.group) groupByOrder.set(g.order_id, [...(groupByOrder.get(g.order_id) ?? []), g.table_id]);
+  const orderByTable = new Map<string, BoardOrderRow>();
+  for (const o of input.orders) {
+    if (o.table_id) orderByTable.set(o.table_id, o);
+    for (const t of groupByOrder.get(o.id) ?? []) orderByTable.set(t, o);
+  }
+  return [...input.tables]
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+    .map((t) => {
+      const o = orderByTable.get(t.id);
+      return {
+        tableId: t.id, label: t.label, areaId: t.area_id, capacity: t.capacity, status: t.status as TableStatus,
+        posX: t.pos_x, posY: t.pos_y, shape: t.shape,
+        order: o && o.table_id ? {
+          orderId: o.id, orderNumber: o.order_number, status: o.status as OrderStatus, seatedAt: o.created_at, guestCount: o.guest_count,
+          primaryTableId: o.table_id, groupTableIds: [...(groupByOrder.get(o.id) ?? [])].sort(),
+          waiterId: o.waiter_id, waiterName: o.waiter_id ? input.waiterNames.get(o.waiter_id) ?? null : null,
+        } : null,
+      };
+    });
+}
+
+/**
+ * The live table map: status colours for everyone with tables.view; the open order, group, waiter and seat time only
+ * for callers who also hold orders.view. `now` and `timezone` let the UI show the seat time in the location's zone and
+ * the elapsed time from the SERVER clock. Call inside <Suspense>.
+ */
+export async function getTableBoard(orgSlug: string, locationId: string): Promise<{ now: string; timezone: string; tables: TableBoardEntry[] }> {
+  const ctx = await requireOrgContext(orgSlug);
+  await requirePermission(ctx.org.id, "tables.view");
+  assertLocation(ctx, locationId);
+  const canSeeOrders = ctx.permissions.includes("orders.view");
+  await connection(); // the server clock is read below: request time only
+  const supabase = await createClient();
+  const [tables, loc] = await Promise.all([
+    supabase.from("tables").select("id, label, area_id, capacity, status, pos_x, pos_y, shape")
+      .eq("organization_id", ctx.org.id).eq("location_id", locationId).eq("is_active", true),
+    supabase.from("locations").select("timezone").eq("organization_id", ctx.org.id).eq("id", locationId).maybeSingle(),
+  ]);
+  let orders: BoardOrderRow[] = [];
+  let group: { order_id: string; table_id: string }[] = [];
+  const waiterNames = new Map<string, string>();
+  if (canSeeOrders) {
+    const [o, g, w] = await Promise.all([
+      supabase.from("orders").select("id, order_number, status, table_id, guest_count, created_at, waiter_id")
+        .eq("organization_id", ctx.org.id).eq("location_id", locationId).eq("channel", "dine_in").not("status", "in", "(completed,cancelled)"),
+      supabase.from("order_tables").select("order_id, table_id").eq("organization_id", ctx.org.id).eq("location_id", locationId).is("released_at", null),
+      supabase.rpc("list_assignable_waiters", { location_id: locationId }),
+    ]);
+    orders = (o.data ?? []) as BoardOrderRow[];
+    group = g.data ?? [];
+    for (const x of waiterList.safeParse(w.data).data ?? []) waiterNames.set(x.userId, x.displayName);
+  }
+  return {
+    now: new Date().toISOString(),
+    timezone: loc.data?.timezone ?? "Asia/Jakarta",
+    tables: buildTableBoard({ tables: (tables.data ?? []) as BoardTableRow[], orders, group, waiterNames }),
+  };
+}
+
+const waiterList = z.array(z.object({ userId: z.string(), displayName: z.string() }));
+
+/** Members who can be assigned to this location's tables (orders.create + location access). Needs orders.view. */
+export async function listAssignableWaiters(orgSlug: string, locationId: string): Promise<{ userId: string; displayName: string }[]> {
+  const ctx = await requireOrgContext(orgSlug);
+  await requirePermission(ctx.org.id, "orders.view");
+  assertLocation(ctx, locationId);
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("list_assignable_waiters", { location_id: locationId });
+  return waiterList.safeParse(data).data ?? [];
 }

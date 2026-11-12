@@ -12,6 +12,9 @@ export function mapVenueError(error: { message?: string; code?: string } | null 
   if (m.includes("AREA_NOT_EMPTY")) {
     return { ok: false, code: "AREA_NOT_EMPTY", formError: "Move or deactivate this area's tables first." };
   }
+  if (m.includes("TABLE_NOT_AVAILABLE")) {
+    return { ok: false, code: "TABLE_NOT_AVAILABLE", formError: "This table is in use. Finish or move its order first." };
+  }
   if (m.includes("AREA_INACTIVE")) return { ok: false, formError: "That area is inactive. Reactivate it first." };
   if (m.includes("TABLE_INACTIVE")) return { ok: false, formError: "Reactivate the table before replacing its QR code." };
   if (error?.code === "23505") {

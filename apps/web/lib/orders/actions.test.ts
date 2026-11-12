@@ -40,7 +40,8 @@ const rpc = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from: () => chain(), rpc }) }));
 
 import {
-  applyDiscount, bumpKot, cancelOrder, markOrderServed, markTableClean, removeDiscount, sendRound, setKotItemStatus, updateKotStatus, voidItem,
+  applyDiscount, assignWaiter, bumpKot, cancelOrder, markOrderServed, markTableClean, mergeTables, moveOrder, removeDiscount, sendRound,
+  setKotItemStatus, unmergeTable, updateKotStatus, voidItem,
 } from "./actions";
 
 const form = (pairs: [string, string][]) => { const fd = new FormData(); for (const [k, v] of pairs) fd.append(k, v); return fd; };
@@ -177,6 +178,79 @@ describe("mutations scoped to the bound location", () => {
     requirePermission.mockImplementation(() => { throw new Forbidden("403"); });
     await expect(cancelOrder("demo", LOC, null, form([["orderId", ORDER], ["reason", "guest left"]]))).rejects.toBeInstanceOf(Forbidden);
     await expect(applyDiscount("demo", LOC, null, form([["orderId", ORDER], ["amount", "1"], ["reason", "loyal guest"]]))).rejects.toBeInstanceOf(Forbidden);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("table operations", () => {
+  const TO = "77777777-7777-4777-8777-777777777777";
+  const T2 = "88888888-8888-4888-8888-888888888888";
+  const WAITER = "99999999-9999-4999-8999-999999999990";
+
+  it("moveOrder sends only the order and the target; the location is checked first", async () => {
+    rpc.mockResolvedValue({ data: { orderId: ORDER }, error: null });
+    expect(await moveOrder("demo", LOC, null, form([["orderId", ORDER], ["toTableId", TO]]))).toEqual({ ok: true });
+    expect(rpc).toHaveBeenCalledWith("move_order_to_table", { order_id: ORDER, to_table_id: TO });
+    expect(filters).toContain(`location_id=${LOC}`);
+    expect(updateTag).toHaveBeenCalledWith(`orders:${LOC}`);
+    expect(capture).toHaveBeenCalledWith("order_moved", { distinctId: "user-self", organizationId: ORG });
+    expect(JSON.stringify(rpc.mock.calls[0])).not.toContain(ORG);
+  });
+  it("an order of another location never reaches the RPC", async () => {
+    found = null;
+    for (const call of [
+      () => moveOrder("demo", LOC, null, form([["orderId", ORDER], ["toTableId", TO]])),
+      () => mergeTables("demo", LOC, null, form([["orderId", ORDER], ["tableIds", JSON.stringify([TO])]])),
+      () => unmergeTable("demo", LOC, null, form([["orderId", ORDER], ["tableId", TO]])),
+      () => assignWaiter("demo", LOC, null, form([["orderId", ORDER], ["waiterId", WAITER]])),
+    ]) expect(await call()).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("mergeTables validates the list: 1..9 distinct uuids", async () => {
+    rpc.mockResolvedValue({ data: { orderId: ORDER, tableIds: [TO] }, error: null });
+    expect(await mergeTables("demo", LOC, null, form([["orderId", ORDER], ["tableIds", JSON.stringify([TO, T2])]]))).toEqual({ ok: true });
+    expect(rpc).toHaveBeenLastCalledWith("merge_tables", { order_id: ORDER, table_ids: [TO, T2] });
+    expect(capture).toHaveBeenCalledWith("tables_merged", { distinctId: "user-self", organizationId: ORG });
+    rpc.mockClear();
+    for (const bad of ["[]", "not json", JSON.stringify([TO, TO]), JSON.stringify(Array.from({ length: 10 }, (_, i) => `00000000-0000-4000-8000-00000000000${i}`)), JSON.stringify(["x"])]) {
+      expect(await mergeTables("demo", LOC, null, form([["orderId", ORDER], ["tableIds", bad]])), bad).toMatchObject({ ok: false, fieldErrors: { tableIds: [expect.any(String)] } });
+    }
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("unmergeTable sends the order and the table", async () => {
+    rpc.mockResolvedValue({ data: {}, error: null });
+    expect(await unmergeTable("demo", LOC, null, form([["orderId", ORDER], ["tableId", TO]]))).toEqual({ ok: true });
+    expect(rpc).toHaveBeenCalledWith("unmerge_table", { order_id: ORDER, table_id: TO });
+    expect(capture).toHaveBeenCalledWith("table_unmerged", { distinctId: "user-self", organizationId: ORG });
+  });
+  it("assignWaiter: an empty waiter clears; the permission is orders.create OR tables.manage", async () => {
+    rpc.mockResolvedValue({ data: {}, error: null });
+    expect(await assignWaiter("demo", LOC, null, form([["orderId", ORDER], ["waiterId", ""]]))).toEqual({ ok: true });
+    expect(rpc).toHaveBeenLastCalledWith("assign_order_waiter", { order_id: ORDER, waiter_id: null });
+    await assignWaiter("demo", LOC, null, form([["orderId", ORDER], ["waiterId", WAITER]]));
+    expect(rpc).toHaveBeenLastCalledWith("assign_order_waiter", { order_id: ORDER, waiter_id: WAITER });
+    expect(capture).toHaveBeenCalledWith("waiter_assigned", { distinctId: "user-self", organizationId: ORG });
+    permissions = ["tables.manage"];
+    expect(await assignWaiter("demo", LOC, null, form([["orderId", ORDER], ["waiterId", WAITER]]))).toEqual({ ok: true });
+    expect(requirePermission).not.toHaveBeenCalled();
+    permissions = ["kitchen.update"];
+    requirePermission.mockRejectedValue(new Forbidden("403"));
+    await expect(assignWaiter("demo", LOC, null, form([["orderId", ORDER], ["waiterId", WAITER]]))).rejects.toBeInstanceOf(Forbidden);
+  });
+  it("maps the new error codes to friendly messages without ids", async () => {
+    for (const code of ["ORDER_NOT_MOVABLE", "ORDER_HAS_GROUP", "TABLE_NOT_AVAILABLE", "TABLE_IN_GROUP", "TABLE_NOT_IN_GROUP", "INVALID_ASSIGNEE", "ORDER_CHANGED"]) {
+      rpc.mockResolvedValue({ data: null, error: { code: "P0001", message: code, details: TO } });
+      const r = await moveOrder("demo", LOC, null, form([["orderId", ORDER], ["toTableId", TO]]));
+      expect(r, code).toMatchObject({ ok: false, code });
+      expect(JSON.stringify(r)).not.toContain(TO);
+    }
+    expect(updateTag).not.toHaveBeenCalled();
+  });
+  it("a kitchen user (no orders.create) cannot move", async () => {
+    permissions = ["kitchen.update"];
+    requirePermission.mockRejectedValue(new Forbidden("403"));
+    await expect(moveOrder("demo", LOC, null, form([["orderId", ORDER], ["toTableId", TO]]))).rejects.toBeInstanceOf(Forbidden);
     expect(rpc).not.toHaveBeenCalled();
   });
 });

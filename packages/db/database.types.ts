@@ -669,16 +669,48 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
-                },"orders": {
+                },"order_tables": {
                   Row: {
-                    "business_date": string,"cancel_reason": string | null,"cancelled_at": string | null,"channel": string,"completed_at": string | null,"created_at": string,"currency": string,"customer_name": string | null,"discount_total": number,"guest_count": number | null,"id": string,"location_id": string,"opened_by": string | null,"order_number": number,"organization_id": string,"placed_at": string,"round_count": number,"served_at": string | null,"status": string,"subtotal": number,"table_id": string | null,"updated_at": string
+                    "added_at": string,"added_by": string | null,"id": string,"location_id": string,"order_id": string,"organization_id": string,"released_at": string | null,"released_by": string | null,"table_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "business_date": string,"cancel_reason"?: string | null,"cancelled_at"?: string | null,"channel": string,"completed_at"?: string | null,"created_at"?: string,"currency": string,"customer_name"?: string | null,"discount_total"?: number,"guest_count"?: number | null,"id"?: string,"location_id": string,"opened_by"?: string | null,"order_number": number,"organization_id": string,"placed_at"?: string,"round_count"?: number,"served_at"?: string | null,"status"?: string,"subtotal"?: number,"table_id"?: string | null,"updated_at"?: string
+                    "added_at"?: string,"added_by"?: string | null,"id"?: string,"location_id": string,"order_id": string,"organization_id": string,"released_at"?: string | null,"released_by"?: string | null,"table_id": string
                   }
                   Update: {
-                    "business_date"?: string,"cancel_reason"?: string | null,"cancelled_at"?: string | null,"channel"?: string,"completed_at"?: string | null,"created_at"?: string,"currency"?: string,"customer_name"?: string | null,"discount_total"?: number,"guest_count"?: number | null,"id"?: string,"location_id"?: string,"opened_by"?: string | null,"order_number"?: number,"organization_id"?: string,"placed_at"?: string,"round_count"?: number,"served_at"?: string | null,"status"?: string,"subtotal"?: number,"table_id"?: string | null,"updated_at"?: string
+                    "added_at"?: string,"added_by"?: string | null,"id"?: string,"location_id"?: string,"order_id"?: string,"organization_id"?: string,"released_at"?: string | null,"released_by"?: string | null,"table_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "order_tables_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "order_tables_order_fk"
+      columns: ["order_id","location_id"]
+isOneToOne: false
+      referencedRelation: "orders"
+      referencedColumns: ["id","location_id"]
+    },{
+      foreignKeyName: "order_tables_table_fk"
+      columns: ["table_id","location_id"]
+isOneToOne: false
+      referencedRelation: "tables"
+      referencedColumns: ["id","location_id"]
+    }
+                  ]
+                },"orders": {
+                  Row: {
+                    "business_date": string,"cancel_reason": string | null,"cancelled_at": string | null,"channel": string,"completed_at": string | null,"created_at": string,"currency": string,"customer_name": string | null,"discount_total": number,"guest_count": number | null,"id": string,"location_id": string,"opened_by": string | null,"order_number": number,"organization_id": string,"placed_at": string,"round_count": number,"served_at": string | null,"status": string,"subtotal": number,"table_id": string | null,"updated_at": string,"waiter_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "business_date": string,"cancel_reason"?: string | null,"cancelled_at"?: string | null,"channel": string,"completed_at"?: string | null,"created_at"?: string,"currency": string,"customer_name"?: string | null,"discount_total"?: number,"guest_count"?: number | null,"id"?: string,"location_id": string,"opened_by"?: string | null,"order_number": number,"organization_id": string,"placed_at"?: string,"round_count"?: number,"served_at"?: string | null,"status"?: string,"subtotal"?: number,"table_id"?: string | null,"updated_at"?: string,"waiter_id"?: string | null
+                  }
+                  Update: {
+                    "business_date"?: string,"cancel_reason"?: string | null,"cancelled_at"?: string | null,"channel"?: string,"completed_at"?: string | null,"created_at"?: string,"currency"?: string,"customer_name"?: string | null,"discount_total"?: number,"guest_count"?: number | null,"id"?: string,"location_id"?: string,"opened_by"?: string | null,"order_number"?: number,"organization_id"?: string,"placed_at"?: string,"round_count"?: number,"served_at"?: string | null,"status"?: string,"subtotal"?: number,"table_id"?: string | null,"updated_at"?: string,"waiter_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -1107,6 +1139,9 @@ isOneToOne: false
 "apply_order_discount":
 { Args: { "amount": number,"order_id": string,"reason": string }; Returns: Json
                            },
+"assign_order_waiter":
+{ Args: { "order_id": string,"waiter_id": string }; Returns: Json
+                           },
 "can_receive_location_topic":
 { Args: { "topic": string }; Returns: boolean
                            },
@@ -1169,8 +1204,17 @@ isOneToOne: false
 "is_slug_available":
 { Args: { "slug": string }; Returns: boolean
                            },
+"list_assignable_waiters":
+{ Args: { "location_id": string }; Returns: Json
+                           },
 "mark_table_clean":
 { Args: { "table_id": string }; Returns: Json
+                           },
+"merge_tables":
+{ Args: { "order_id": string,"table_ids": (string)[] }; Returns: Json
+                           },
+"move_order_to_table":
+{ Args: { "order_id": string,"to_table_id": string }; Returns: Json
                            },
 "my_org_membership":
 { Args: { "org_slug": string }; Returns: Json
@@ -1218,6 +1262,9 @@ isOneToOne: false
                            },
 "submit_order_round":
 { Args: { "channel": string,"client_ref": string,"customer_name"?: string,"guest_count"?: number,"lines": Json,"location_id": string,"table_id": string }; Returns: Json
+                           },
+"unmerge_table":
+{ Args: { "order_id": string,"table_id": string }; Returns: Json
                            },
 "update_kot_status":
 { Args: { "ticket_id": string,"to_status": string }; Returns: Json

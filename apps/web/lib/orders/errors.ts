@@ -13,6 +13,13 @@ const MESSAGES: Record<string, { code: NonNullable<Failure["code"]>; text: strin
   ALREADY_REMOVED: { code: "ALREADY_REMOVED", text: "That discount was already removed." },
   INVALID_TRANSITION: { code: "INVALID_TRANSITION", text: "That change isn't allowed right now. Refresh and try again." },
   DISCOUNT_EXCEEDS_SUBTOTAL: { code: "DISCOUNT_EXCEEDS_SUBTOTAL", text: "The discount can't be more than the order total. Adjust or remove a discount first." },
+  ORDER_NOT_MOVABLE: { code: "ORDER_NOT_MOVABLE", text: "This order can't be moved or merged right now." },
+  ORDER_HAS_GROUP: { code: "ORDER_HAS_GROUP", text: "This party uses several tables. Release the extra tables first." },
+  TABLE_NOT_AVAILABLE: { code: "TABLE_NOT_AVAILABLE", text: "That table isn't free. Choose an available table." },
+  TABLE_IN_GROUP: { code: "TABLE_IN_GROUP", text: "That table is part of another party's tables." },
+  TABLE_NOT_IN_GROUP: { code: "TABLE_NOT_IN_GROUP", text: "That table isn't one of this party's extra tables." },
+  ORDER_CHANGED: { code: "ORDER_CHANGED", text: "This order just changed. Refresh and try again." },
+  INVALID_ASSIGNEE: { code: "INVALID_ASSIGNEE", text: "That person can't be assigned to this location's tables." },
   CLIENT_REF_CONFLICT: { code: "CLIENT_REF_CONFLICT", text: "This order changed since it was first sent. Review the cart and send again." },
 };
 
