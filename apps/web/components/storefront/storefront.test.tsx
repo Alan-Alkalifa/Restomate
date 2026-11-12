@@ -6,7 +6,7 @@ import { PricingGrid } from "../frontend/PricingGrid";
 import { StorefrontHome, StorefrontUnavailable } from "./StorefrontHome";
 
 const fmt = (n: number, c: string) => `${c}:${n}`;
-const i18n = { t: en.marketing.pricing, locale: "en" as const };
+const i18n = { t: en.marketing.pricing, locale: "en" as const, signupEnabled: true };
 
 describe("frontend/storefront views", () => {
   it("renders packages from props with no hard-coded prices", () => {
