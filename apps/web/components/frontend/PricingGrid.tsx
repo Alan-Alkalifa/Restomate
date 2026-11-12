@@ -9,13 +9,15 @@ type Props = {
   formatMoney: (amount: number, currency: string, locale?: string) => string;
   t: MarketingDictionary["pricing"];
   locale: Locale;
+  /** Read on the server (never a client flag). When false no signup link is rendered at all. */
+  signupEnabled: boolean;
 };
 
 const humanize = (key: string) =>
   key.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 // Plan names, descriptions, limit and feature keys come from the database (packages) and are not translated here.
-export function PricingGrid({ packages, formatMoney, t, locale }: Props) {
+export function PricingGrid({ packages, formatMoney, t, locale, signupEnabled }: Props) {
   // Known keys (packages contract LIMIT_KEYS / FEATURE_KEYS) are translated; an unknown key falls back to humanize().
   const limitLabel = (k: string) => (t.limits as Record<string, string>)[k] ?? humanize(k).toLowerCase();
   const featureLabel = (f: string) => (t.features as Record<string, string>)[f] ?? humanize(f);
@@ -53,12 +55,18 @@ export function PricingGrid({ packages, formatMoney, t, locale }: Props) {
               <li key={f}>✓ {featureLabel(f)}</li>
             ))}
           </ul>
-          <Link
-            href={localePath(locale, "/signup")}
-            className="mt-auto flex min-h-12 items-center justify-center rounded-lg bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
-          >
-            {t.cta}
-          </Link>
+          {signupEnabled ? (
+            <Link
+              href={localePath(locale, "/signup")}
+              className="mt-auto flex min-h-12 items-center justify-center rounded-lg bg-teal-700 px-4 font-semibold text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+            >
+              {t.cta}
+            </Link>
+          ) : (
+            <p className="mt-auto flex min-h-12 items-center justify-center rounded-lg border border-neutral-300 px-4 text-sm font-medium text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+              {t.signupClosed}
+            </p>
+          )}
         </li>
       ))}
     </ul>

@@ -35,6 +35,7 @@ export const id: Dictionary = {
       retryIn: "Anda dapat mencoba lagi dalam {seconds} detik.",
       retry: "Gunakan email lain atau coba lagi",
     },
+    signupClosed: { message: "Pendaftaran sedang ditutup.", haveAccount: "Sudah punya akun?", signIn: "Masuk" },
     forgot: {
       title: "Lupa kata sandi · Restomate",
       heading: "Lupa kata sandi Anda?",
@@ -98,6 +99,7 @@ export const id: Dictionary = {
       trial: "Uji coba gratis {days} hari",
       unlimited: "Tanpa batas",
       cta: "Coba gratis",
+      signupClosed: "Pendaftaran ditutup",
       limits: { max_locations: "lokasi", max_staff: "staf", max_tables: "meja", max_orders_per_month: "pesanan per bulan" },
       features: { qr_ordering: "Pemesanan QR", reservations: "Reservasi", custom_domain: "Domain kustom", advanced_reports: "Laporan lanjutan" },
     },

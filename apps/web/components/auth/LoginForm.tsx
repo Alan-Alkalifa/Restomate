@@ -16,12 +16,15 @@ export function LoginForm({
   initialError,
   t,
   locale,
+  signupOpen = true,
 }: {
   action: AuthAction;
   next?: string;
   initialError?: string;
   t: AuthDictionary["login"];
   locale: Locale;
+  /** Cosmetic only: the signUp action refuses when sign-ups are closed. */
+  signupOpen?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const formRef = useFocusOnError(state);
@@ -36,9 +39,11 @@ export function LoginForm({
       </Button>
       <p className="flex flex-wrap justify-between gap-2 text-sm">
         <Link href={localePath(locale, "/forgot-password")} className="underline">{t.forgot}</Link>
-        <span>
-          {t.noAccount} <Link href={localePath(locale, "/signup")} className="underline">{t.createOne}</Link>
-        </span>
+        {signupOpen ? (
+          <span>
+            {t.noAccount} <Link href={localePath(locale, "/signup")} className="underline">{t.createOne}</Link>
+          </span>
+        ) : null}
       </p>
     </form>
   );
