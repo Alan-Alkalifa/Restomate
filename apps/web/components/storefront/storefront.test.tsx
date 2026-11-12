@@ -24,7 +24,7 @@ describe("frontend/storefront views", () => {
   });
   it("translates known limit/feature keys and falls back to humanize for unknown ones", () => {
     const pkg = { code: "p", name: "P", description: null, currency: "IDR", priceMonthly: 1, priceYearly: 0, trialDays: 0, limits: { max_staff: null, max_locations: 3, brand_new_limit: 2 }, features: ["qr_ordering", "some_new_feature"], isDefault: false };
-    const id = renderToStaticMarkup(<PricingGrid formatMoney={fmt} packages={[pkg]} t={id_.marketing.pricing} locale="id" />);
+    const id = renderToStaticMarkup(<PricingGrid formatMoney={fmt} packages={[pkg]} t={id_.marketing.pricing} locale="id" signupEnabled />);
     expect(id).toContain("Tanpa batas staf");
     expect(id).toContain("3 lokasi");
     expect(id).toContain("Pemesanan QR");

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { en } from "@/i18n/en";
@@ -42,13 +43,13 @@ describe("SignupGate (BUG-100-2): the server decides, the initial HTML never has
   beforeEach(() => { flags.signupEnabled = true; });
 
   it("the Suspense fallback is empty, so the first HTML cannot contain the link", () => {
-    const el = SignupGate({ children: <a href="/signup">Sign up</a> });
+    const el = SignupGate({ children: <Link href="/signup">Sign up</Link> });
     expect(el.props.fallback).toBeNull();
-    const html = renderToStaticMarkup(<SignupGate><a href="/signup">Sign up</a></SignupGate>);
+    const html = renderToStaticMarkup(<SignupGate><Link href="/signup">Sign up</Link></SignupGate>);
     expect(html).not.toContain("/signup");
   });
   it("renders the children only when the server-read flag says open", async () => {
-    const child = <a href="/signup">Sign up</a>;
+    const child = <Link href="/signup">Sign up</Link>;
     flags.signupEnabled = true;
     expect(await SignupGateContent({ children: child })).toBe(child);
     flags.signupEnabled = false;
