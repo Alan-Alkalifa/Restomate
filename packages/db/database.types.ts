@@ -684,6 +684,12 @@ isOneToOne: false
 "rotate_table_qr_token":
 { Args: { "table_id": string }; Returns: string
                            },
+"save_group_modifiers":
+{ Args: { "group_id": string,"modifiers": Json }; Returns: undefined
+                           },
+"save_item_variants":
+{ Args: { "item_id": string,"variants": Json }; Returns: undefined
+                           },
 "set_item_sold_out":
 { Args: { "item_id": string,"location_id": string,"sold_out": boolean }; Returns: string
                            },
