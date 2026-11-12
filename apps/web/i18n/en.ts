@@ -33,6 +33,7 @@ export const en = {
       retryIn: "You can try again in {seconds}s.",
       retry: "Use a different email or try again",
     },
+    signupClosed: { message: "Sign-ups are closed right now.", haveAccount: "Already have an account?", signIn: "Sign in" },
     forgot: {
       title: "Forgot password · Restomate",
       heading: "Forgot your password?",
@@ -96,6 +97,7 @@ export const en = {
       trial: "{days}-day free trial",
       unlimited: "Unlimited",
       cta: "Start free trial",
+      signupClosed: "Sign-ups closed",
       limits: { max_locations: "locations", max_staff: "staff members", max_tables: "tables", max_orders_per_month: "orders per month" },
       features: { qr_ordering: "QR ordering", reservations: "Reservations", custom_domain: "Custom domain", advanced_reports: "Advanced reports" },
     },
