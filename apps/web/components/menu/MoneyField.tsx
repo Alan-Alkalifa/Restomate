@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Field } from "@/components/ui/field";
-import { currencyExponent } from "@/lib/money";
-import { formatMoneyInput, parseMoneyInput } from "./money-input";
+import { currencyExponent, parseMoneyInput } from "@/lib/money";
+import { formatMoneyInput } from "./money-input";
 
 /**
  * Price input. The visible text is parsed to integer minor units (no floats); the hidden field `name` carries that

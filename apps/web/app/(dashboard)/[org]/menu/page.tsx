@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { requireOrgContext } from "@/app/(dashboard)/_data";
+import { requireOrgContext, requirePermission } from "@/app/(dashboard)/_data";
+import { ForbiddenNotice } from "@/components/dashboard/notices";
 import { MenuManager } from "@/components/menu/MenuManager";
 import { MenuTabs } from "@/components/menu/MenuTabs";
 import * as menu from "@/lib/menu/actions";
@@ -12,6 +13,8 @@ export const metadata: Metadata = { title: "Menu · Restomate" };
 async function Menu({ params }: { params: PageProps<"/[org]/menu">["params"] }) {
   const { org } = await params;
   const ctx = await requireOrgContext(org);
+  if (!ctx.permissions.includes("menu.manage")) return <ForbiddenNotice />;
+  await requirePermission(ctx.org.id, "menu.manage");
   const data = await getMenu(ctx.org.slug);
   const slug = ctx.org.slug;
   // The org slug is bound here, on the server. The client never sends an organization id.
