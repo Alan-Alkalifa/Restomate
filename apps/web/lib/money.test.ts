@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allocate, applyBps, calculateBill, currencyExponent, formatMoney, parseMoneyInput } from "./money";
+import { allocate, allocateByWeights, applyBps, calculateBill, currencyExponent, formatMoney, parseMoneyInput, splitBillEqual } from "./money";
 
 describe("currencyExponent", () => {
   it.each([["IDR", 0], ["USD", 2], ["JPY", 0]])("%s -> %i", (c, e) => expect(currencyExponent(c)).toBe(e));
@@ -206,5 +206,97 @@ describe("parseMoneyInput", () => {
   });
   it("unsupported currency returns a message instead of throwing", () => {
     expect(parseMoneyInput("5", "XXX")).toMatchObject({ ok: false });
+  });
+});
+
+describe("allocateByWeights", () => {
+  it("contract golden vector: 10.500 by 70.000 / 86.000 = 4.712 / 5.788 (largest remainder)", () => {
+    expect(allocateByWeights(10500, [70000, 86000])).toEqual([4712, 5788]);
+  });
+  it("ties go to the lower index", () => expect(allocateByWeights(10, [1, 1, 1])).toEqual([4, 3, 3]));
+  it("all-zero weights fall back to equal shares; zero amount gives zeros", () => {
+    expect(allocateByWeights(7, [0, 0])).toEqual([4, 3]);
+    expect(allocateByWeights(0, [0, 0])).toEqual([0, 0]);
+    expect(allocateByWeights(0, [5, 9])).toEqual([0, 0]);
+  });
+  it("a zero weight gets nothing when others carry weight", () => expect(allocateByWeights(9, [0, 3, 6])).toEqual([0, 3, 6]));
+  it("rejects empty weights, negatives and floats", () => {
+    expect(() => allocateByWeights(5, [])).toThrow(RangeError);
+    expect(() => allocateByWeights(-1, [1])).toThrow(RangeError);
+    expect(() => allocateByWeights(5, [1, -1])).toThrow(RangeError);
+    expect(() => allocateByWeights(5, [1.5, 1])).toThrow(RangeError);
+  });
+  it("property: always sums to the amount, never negative, each share within 1 of its exact value", () => {
+    for (const amount of [0, 1, 2, 7, 99, 1000, 10500, 123457]) {
+      for (const weights of [[1], [1, 1], [3, 5], [0, 1, 2], [70000, 86000], [1, 2, 3, 4, 5], [999999, 1], [5, 5, 5, 5, 5, 5, 5]]) {
+        const out = allocateByWeights(amount, weights);
+        expect(out.reduce((s, x) => s + x, 0)).toBe(amount);
+        const total = weights.reduce((s, x) => s + x, 0);
+        out.forEach((x, i) => {
+          expect(x).toBeGreaterThanOrEqual(0);
+          const exact = (amount * weights[i]!) / total;
+          expect(Math.abs(x - exact)).toBeLessThan(1);
+        });
+      }
+    }
+  });
+});
+
+describe("splitBillEqual (every component allocated, share total derived)", () => {
+  const whole = { subtotal: 156000, discount: 10500, serviceCharge: 7275, tax: 15278 };
+  it("contract golden vector: 168.053 / 3 = 56.018 / 56.018 / 56.017, taxes 5.093 / 5.093 / 5.092", () => {
+    const shares = splitBillEqual(whole, 3);
+    expect(shares.map((s) => s.total)).toEqual([56018, 56018, 56017]);
+    expect(shares.map((s) => s.tax)).toEqual([5093, 5093, 5092]);
+    expect(shares.reduce((s, x) => s + x.total, 0)).toBe(168053);
+  });
+  it("service-only case that broke the first draft: subtotal 5, service 1, tax 0, n=2 -> 4 / 2", () => {
+    const shares = splitBillEqual({ subtotal: 5, discount: 0, serviceCharge: 1, tax: 0 }, 2);
+    expect(shares.map((s) => s.total)).toEqual([4, 2]);
+    expect(shares.every((s) => s.tax === 0)).toBe(true);
+  });
+  it("property: components >= 0, exact sums, discount <= subtotal, spread <= 3 (tax 0 / service 0 / service-only included)", () => {
+    for (let sub = 1; sub <= 260; sub += 7) {
+      for (const disc of new Set([0, Math.floor(sub / 3), sub])) {
+        for (const svcBps of [0, 500, 1000]) {
+          for (const taxBps of [0, 1000]) {
+            for (const onSvc of [true, false]) {
+              const b = calculateBill({ subtotal: sub - disc, serviceChargeBps: svcBps, taxRateBps: taxBps, taxOnServiceCharge: onSvc });
+              const whole2 = { subtotal: sub, discount: disc, serviceCharge: b.serviceCharge, tax: b.tax };
+              for (const n of [2, 3, 4, 7, 20]) {
+                const shares = splitBillEqual(whole2, n);
+                for (const s of shares) {
+                  expect(Math.min(s.subtotal, s.discount, s.serviceCharge, s.tax, s.total)).toBeGreaterThanOrEqual(0);
+                  expect(s.discount).toBeLessThanOrEqual(s.subtotal);
+                  expect(s.total).toBe(s.subtotal - s.discount + s.serviceCharge + s.tax);
+                }
+                expect(shares.reduce((x, s) => x + s.subtotal, 0)).toBe(sub);
+                expect(shares.reduce((x, s) => x + s.discount, 0)).toBe(disc);
+                expect(shares.reduce((x, s) => x + s.serviceCharge, 0)).toBe(b.serviceCharge);
+                expect(shares.reduce((x, s) => x + s.tax, 0)).toBe(b.tax);
+                expect(shares.reduce((x, s) => x + s.total, 0)).toBe(b.total);
+                const totals = shares.map((s) => s.total);
+                expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(3);
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+  it("by-item golden vectors: 65.288 -> 75.407 and 80.212 -> 92.645 (set 168.052)", () => {
+    const [d1, d2] = allocateByWeights(10500, [70000, 86000]) as [number, number];
+    const a = calculateBill({ subtotal: 70000 - d1, serviceChargeBps: 500, taxRateBps: 1000 });
+    const b = calculateBill({ subtotal: 86000 - d2, serviceChargeBps: 500, taxRateBps: 1000 });
+    expect([a.total, b.total]).toEqual([75407, 92645]);
+    expect(a.total + b.total).toBe(168052);
+  });
+  it("unsplit golden vector: net 145.500, service 5%, PB1 10% = 168.053", () => {
+    expect(calculateBill({ subtotal: 145500, serviceChargeBps: 500, taxRateBps: 1000 })).toEqual({ subtotal: 145500, serviceCharge: 7275, tax: 15278, total: 168053 });
+  });
+  it("rejects bad part counts and a discount above the subtotal", () => {
+    expect(() => splitBillEqual(whole, 1)).toThrow(RangeError);
+    expect(() => splitBillEqual(whole, 21)).toThrow(RangeError);
+    expect(() => splitBillEqual({ ...whole, discount: whole.subtotal + 1 }, 3)).toThrow(RangeError);
   });
 });

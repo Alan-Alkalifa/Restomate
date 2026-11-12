@@ -189,3 +189,54 @@ export function allocate(amount: number, parts: number): number[] {
   const remainder = amount - base * parts;
   return Array.from({ length: parts }, (_, i) => (i < remainder ? base + 1 : base));
 }
+
+/**
+ * Split `amount` in proportion to `weights` by the largest-remainder method: floor each exact share, then give the
+ * leftover units one each to the largest fractional parts (ties to the lower index). Always sums to `amount`.
+ * All-zero weights fall back to `allocate` (equal shares). Mirrors `private.allocate_by_weights` in SQL.
+ */
+export function allocateByWeights(amount: number, weights: number[]): number[] {
+  assertMinorUnits(amount);
+  if (weights.length === 0) throw new RangeError("weights must not be empty");
+  weights.forEach((w, i) => assertMinorUnits(w, `weights[${i}]`));
+  const total = weights.reduce((s, w) => s + BigInt(w), ZERO);
+  if (total === ZERO) return amount === 0 ? weights.map(() => 0) : allocate(amount, weights.length);
+  const amt = BigInt(amount);
+  const shares = weights.map((w) => (amt * BigInt(w)) / total);
+  const left = Number(amt - shares.reduce((s, x) => s + x, ZERO));
+  const order = weights
+    .map((w, i) => ({ i, rem: (amt * BigInt(w)) % total }))
+    .sort((a, b) => (a.rem === b.rem ? a.i - b.i : a.rem > b.rem ? -1 : 1));
+  const out = shares.map(Number);
+  for (let k = 0; k < left; k++) out[order[k]!.i]! += 1;
+  return out;
+}
+
+export interface BillShare {
+  subtotal: number;
+  discount: number;
+  serviceCharge: number;
+  tax: number;
+  total: number;
+}
+
+/**
+ * Equal split of an already-computed bill into `parts` shares. EVERY component (subtotal, discount, service charge,
+ * tax) is allocated with `allocate`, and each share's total is the sum of its own components, so no component can go
+ * negative, each component sums exactly to the whole, and `discount_i <= subtotal_i`. Shares can differ by a few
+ * rupiah (at most 3: one unit each from subtotal, service charge and tax). Mirrors `create_bills` (`equal`) in SQL.
+ */
+export function splitBillEqual(
+  whole: { subtotal: number; discount: number; serviceCharge: number; tax: number },
+  parts: number,
+): BillShare[] {
+  if (!Number.isSafeInteger(parts) || parts < 2 || parts > 20) throw new RangeError("parts must be between 2 and 20");
+  if (whole.discount > whole.subtotal) throw new RangeError("discount must not exceed subtotal");
+  const sub = allocate(whole.subtotal, parts);
+  const disc = allocate(whole.discount, parts);
+  const svc = allocate(whole.serviceCharge, parts);
+  const tax = allocate(whole.tax, parts);
+  return sub.map((s, i) => ({
+    subtotal: s, discount: disc[i]!, serviceCharge: svc[i]!, tax: tax[i]!, total: s - disc[i]! + svc[i]! + tax[i]!,
+  }));
+}
