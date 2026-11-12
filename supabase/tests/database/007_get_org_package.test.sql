@@ -65,7 +65,7 @@ select throws_ok($$select public.my_org_membership('pkg-a')$$, '42501', null, 'a
 reset role;
 select is(
   (select array_agg(key order by key) from public.permissions),
-  array['billing.manage','customers.manage','customers.view','kitchen.update','kitchen.view','locations.manage','menu.manage','orders.create','orders.view','orders.void','payments.refund','payments.take','payments.view','pos.discount','pos.use','reports.view','reservations.manage','reservations.view','settings.branding','settings.manage','staff.manage','tables.manage','tables.view'],
+  array['billing.manage','bills.print','customers.manage','customers.view','kitchen.update','kitchen.view','locations.manage','menu.manage','orders.create','orders.view','orders.void','payments.refund','payments.take','payments.view','pos.discount','pos.use','reports.view','reservations.manage','reservations.view','settings.branding','settings.manage','staff.manage','tables.manage','tables.view'],
   'permission catalog matches PERMISSION_KEYS in apps/web/lib/auth/permissions.ts');
 
 select * from finish();

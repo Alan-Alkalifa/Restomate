@@ -51,10 +51,10 @@ update auth.users set email='owner2@a.test' where id='00000000-0000-0000-0000-00
 select is((select email from public.profiles where id='00000000-0000-0000-0000-0000000000a1'), 'owner2@a.test', 'profile email synced');
 
 -- structural -----------------------------------------------------------------
-select is((select count(*)::int from public.permissions), 23, '23 permission keys');
-select is((select count(*)::int from public.default_role_permissions where role_key='manager'), 20, 'manager template has 20 keys');
-select is((select count(*)::int from public.default_role_permissions where role_key='cashier'), 8, 'cashier template has 8 keys');
-select is((select count(*)::int from public.default_role_permissions where role_key='waiter'), 6, 'waiter template has 6 keys');
+select is((select count(*)::int from public.permissions), 24, '24 permission keys');
+select is((select count(*)::int from public.default_role_permissions where role_key='manager'), 21, 'manager template has 21 keys');
+select is((select count(*)::int from public.default_role_permissions where role_key='cashier'), 9, 'cashier template has 9 keys');
+select is((select count(*)::int from public.default_role_permissions where role_key='waiter'), 7, 'waiter template has 7 keys');
 select is((select count(*)::int from public.default_role_permissions where role_key='kitchen'), 3, 'kitchen template has 3 keys');
 
 select is(
@@ -99,13 +99,13 @@ select ok(public.has_permission('10000000-0000-0000-0000-00000000000a','billing.
 select ok(not public.has_permission('10000000-0000-0000-0000-00000000000a','anything.at_all'), 'unknown permission key is false even for the owner');
 select ok(not public.has_permission('10000000-0000-0000-0000-00000000000b','menu.manage'), 'owner has nothing in org B');
 select ok(public.has_location_access('30000000-0000-0000-0000-0000000000a2'), 'owner has access to all locations');
-select is(cardinality(public.my_permissions('10000000-0000-0000-0000-00000000000a')), 23, 'owner my_permissions = all 23');
+select is(cardinality(public.my_permissions('10000000-0000-0000-0000-00000000000a')), 24, 'owner my_permissions = all 24');
 
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a2');
 select ok(public.has_permission('10000000-0000-0000-0000-00000000000a','staff.manage') and not public.has_permission('10000000-0000-0000-0000-00000000000a','billing.manage'), 'manager: staff yes, billing no');
 
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a3');
-select is(cardinality(public.my_permissions('10000000-0000-0000-0000-00000000000a')), 8, 'cashier my_permissions = 8');
+select is(cardinality(public.my_permissions('10000000-0000-0000-0000-00000000000a')), 9, 'cashier my_permissions = 9');
 select ok(public.has_location_access('30000000-0000-0000-0000-0000000000a1') and not public.has_location_access('30000000-0000-0000-0000-0000000000a2'), 'cashier limited to assigned location');
 
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000a4');

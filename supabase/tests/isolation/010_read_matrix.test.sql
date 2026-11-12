@@ -16,8 +16,8 @@ insert into tests.read_specs (label, q, exp) values
  ('locations B',      'select 1 from public.locations where organization_id = {B}',    '{0,0,0,0,0,0,1,0,1,0}'),
  ('roles A',          'select 1 from public.roles where organization_id = {A}',        '{6,6,6,6,6,0,0,0,6,0}'),
  ('roles B',          'select 1 from public.roles where organization_id = {B}',        '{0,0,0,0,0,0,6,0,6,0}'),
- ('role_permissions A','select 1 from public.role_permissions where organization_id = {A}', '{37,37,37,37,37,0,0,0,37,0}'),
- ('role_permissions B','select 1 from public.role_permissions where organization_id = {B}', '{0,0,0,0,0,0,37,0,37,0}'),
+ ('role_permissions A','select 1 from public.role_permissions where organization_id = {A}', '{40,40,40,40,40,0,0,0,40,0}'),
+ ('role_permissions B','select 1 from public.role_permissions where organization_id = {B}', '{0,0,0,0,0,0,40,0,40,0}'),
  -- deactivated member sees only their own membership row
  ('organization_members A','select 1 from public.organization_members where organization_id = {A}', '{6,6,6,6,6,1,0,0,6,0}'),
  ('organization_members B','select 1 from public.organization_members where organization_id = {B}', '{0,0,0,0,0,0,1,0,1,0}'),
@@ -36,7 +36,7 @@ insert into tests.read_specs (label, q, exp) values
  ('packages',         'select 1 from public.packages where code like ''iso-%''', '{2,1,1,1,1,1,1,1,3,1}'),
  ('reserved_slugs',   'select 1 from public.reserved_slugs where slug = ''www''', '{1,1,1,1,1,1,1,1,1,0}'),
  ('permissions',      'select 1 from public.permissions where key = ''menu.manage''', '{1,1,1,1,1,1,1,1,1,0}'),
- ('default_role_permissions','select 1 from public.default_role_permissions where role_key = ''cashier''', '{8,8,8,8,8,8,8,8,8,0}'),
+ ('default_role_permissions','select 1 from public.default_role_permissions where role_key = ''cashier''', '{9,9,9,9,9,9,9,9,9,0}'),
  ('platform_settings','select 1 from public.platform_settings', '{0,0,0,0,0,0,0,0,0,0}');
 
 create function tests.run_reads() returns setof text language plpgsql as $$

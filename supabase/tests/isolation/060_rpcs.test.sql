@@ -69,7 +69,7 @@ select is((select count(*)::int from public.organizations where slug = 'iso-new-
 select is((select status from public.organizations where slug = 'iso-new-1'), 'active', 'created: active');
 select is((select created_by from public.organizations where slug = 'iso-new-1'), (select uid from tests.actors where name = 'y1'), 'created: created_by is the caller');
 select is((select count(*)::int from public.roles r join public.organizations o on o.id = r.organization_id where o.slug = 'iso-new-1' and r.is_system), 5, 'created: five system roles');
-select is((select count(*)::int from public.role_permissions rp join public.organizations o on o.id = rp.organization_id where o.slug = 'iso-new-1'), 37, 'created: role permissions copied from templates');
+select is((select count(*)::int from public.role_permissions rp join public.organizations o on o.id = rp.organization_id where o.slug = 'iso-new-1'), 40, 'created: role permissions copied from templates');
 select is((select array_agg(m.user_id::text || ':' || r.key) from public.organization_members m join public.roles r on r.id = m.role_id join public.organizations o on o.id = m.organization_id where o.slug = 'iso-new-1'),
           array[(select uid::text from tests.actors where name = 'y1') || ':owner'], 'created: exactly one member: the caller as owner');
 select is((select count(*)::int from public.locations l join public.organizations o on o.id = l.organization_id where o.slug = 'iso-new-1'), 1, 'created: exactly one location');
