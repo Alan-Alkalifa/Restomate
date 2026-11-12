@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { en } from "@/i18n/en";
 import { id as id_ } from "@/i18n/id";
 import { PricingGrid } from "../frontend/PricingGrid";
-import { StorefrontHome, StorefrontUnavailable } from "./StorefrontHome";
+import { StorefrontUnavailable } from "./StorefrontUnavailable";
 
 const fmt = (n: number, c: string) => `${c}:${n}`;
 const i18n = { t: en.marketing.pricing, locale: "en" as const, signupEnabled: true };
@@ -35,16 +35,8 @@ describe("frontend/storefront views", () => {
   it("shows an empty state for no packages", () => {
     expect(renderToStaticMarkup(<PricingGrid packages={[]} formatMoney={fmt} {...i18n} />)).toContain("not available");
   });
-  it("storefront shows locations and applies css vars", () => {
-    const html = renderToStaticMarkup(
-      <StorefrontHome cssVars={{ "--brand-primary": "#112233" }} data={{ status: "active", name: "Demo", slug: "demo", branding: { logoUrl: "https://cdn.example.com/l.png", primaryColor: null, secondaryColor: null, font: null, theme: {} }, locations: [{ name: "Kemang", address: "Jl. A", city: "Jakarta", phone: "021", timezone: "Asia/Jakarta" }] }} />,
-    );
-    expect(html).toContain("Kemang");
-    expect(html).toContain("https://cdn.example.com/l.png");
-    expect(html).toContain("--brand-primary");
-    expect(html).toContain("Menu coming soon");
-  });
   it("unavailable page is noindex", () => {
-    expect(renderToStaticMarkup(<StorefrontUnavailable />)).toContain('content="noindex"');
+    expect(renderToStaticMarkup(<StorefrontUnavailable t={en.storefront} />)).toContain('content="noindex"');
+    expect(renderToStaticMarkup(<StorefrontUnavailable t={id_.storefront} />)).toContain("Restoran ini sedang tidak tersedia");
   });
 });
