@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { MenuDialog } from "./MenuDialog";
-import { formatMoneyInput, parseMoneyInput } from "./money-input";
+import { parseMoneyInput } from "@/lib/money";
+import { formatMoneyInput } from "./money-input";
 import type { BoundMenuAction, MenuItem } from "./types";
 
 export type Row = { key: string; id?: string; name: string; delta: string };
