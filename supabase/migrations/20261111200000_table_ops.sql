@@ -1,7 +1,7 @@
 -- MSC-T12 (M3 §7): table operations. Contract: docs/contracts/orders.md "Table operations" (MSC-T11, #136).
 -- move_order_to_table, merge_tables / unmerge_table (a table group inside one order), assign_order_waiter,
 -- list_assignable_waiters. Error contract (P0001 unless noted; the message is the code): FORBIDDEN (42501),
--- INVALID_INPUT (22023), ORDER_NOT_MOVABLE, ORDER_HAS_GROUP, TABLE_NOT_AVAILABLE, TABLE_IN_GROUP, TABLE_NOT_IN_GROUP,
+-- INVALID_INPUT (22023), ORDER_CHANGED (retryable: the order's tables changed while waiting for the lock), ORDER_NOT_MOVABLE, ORDER_HAS_GROUP, TABLE_NOT_AVAILABLE, TABLE_IN_GROUP, TABLE_NOT_IN_GROUP,
 -- TABLE_NOT_FOUND, INVALID_ASSIGNEE, ORDER_CLOSED.
 -- Lock order: tables (every table involved, sorted by id) -> orders -> order_tables -> bill_sets/bills -> cash_sessions.
 
@@ -165,6 +165,25 @@ begin
 end;
 $$;
 
+-- The sorted, distinct set of tables a table operation must hold: the order's primary table, its active secondary
+-- tables and any extra tables the call touches. Read once BEFORE locking and again AFTER the order row is locked; if the
+-- two differ (a concurrent move/merge/unmerge changed the order's tables in between) the call raises ORDER_CHANGED, so
+-- an operation never updates a table it did not lock in id order.
+create or replace function private.order_table_set(p_order uuid, p_extra uuid[])
+returns uuid[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(array_agg(x.t order by x.t), '{}')
+  from (select o.table_id as t from public.orders o where o.id = p_order and o.table_id is not null
+        union
+        select ot.table_id from public.order_tables ot where ot.order_id = p_order and ot.released_at is null
+        union
+        select e from unnest(coalesce(p_extra, '{}')) e where e is not null) x;
+$$;
+
 -- Frees the primary table AND every active secondary table (occupied -> needs_cleaning) and releases the group rows.
 -- Called by cancel_order_internal and complete_order_if_paid.
 create or replace function private.free_table_if_idle(p_org uuid, p_loc uuid, p_order uuid, p_table uuid)
@@ -236,6 +255,7 @@ declare
   v_uid    uuid := (select auth.uid());
   o        public.orders%rowtype;
   v_from   uuid;
+  v_set    uuid[];
   t        public.tables%rowtype;
 begin
   select * into o from public.orders x where x.id = v_order;
@@ -254,10 +274,14 @@ begin
     return jsonb_build_object('orderId', v_order, 'fromTableId', o.table_id, 'toTableId', v_to);
   end if;
 
-  -- lock both tables sorted by id (plus the group, which also blocks a racing merge), then the order
-  perform private.lock_tables(array(select x from unnest(array[o.table_id, v_to]
-    || array(select ot.table_id from public.order_tables ot where ot.order_id = v_order and ot.released_at is null)) x));
+  -- lock both tables sorted by id (plus the group, which also blocks a racing merge), then the order; if the order's
+  -- tables changed while we waited for the order lock, refuse (retryable) instead of touching an unlocked table
+  v_set := private.order_table_set(v_order, array[v_to]);
+  perform private.lock_tables(v_set);
   select * into o from public.orders x where x.id = v_order for update;
+  if private.order_table_set(v_order, array[v_to]) is distinct from v_set then
+    raise exception 'ORDER_CHANGED' using errcode = 'P0001';
+  end if;
   v_from := o.table_id;
   if o.status not in ('accepted', 'preparing', 'ready', 'served') then
     raise exception 'ORDER_NOT_MOVABLE' using errcode = 'P0001';
@@ -311,6 +335,7 @@ declare
   v_uid    uuid := (select auth.uid());
   o        public.orders%rowtype;
   v_have   uuid[];
+  v_set    uuid[];
   v_new    uuid[];
   x        uuid;
   t        public.tables%rowtype;
@@ -330,10 +355,12 @@ begin
     raise exception 'ORDER_NOT_MOVABLE' using errcode = 'P0001';
   end if;
 
-  perform private.lock_tables(array(select u from unnest(
-    array[o.table_id] || v_ids || array(select ot.table_id from public.order_tables ot
-                                         where ot.order_id = v_order and ot.released_at is null)) u));
+  v_set := private.order_table_set(v_order, v_ids);
+  perform private.lock_tables(v_set);
   select * into o from public.orders y where y.id = v_order for update;
+  if private.order_table_set(v_order, v_ids) is distinct from v_set then
+    raise exception 'ORDER_CHANGED' using errcode = 'P0001';
+  end if;
   if o.status not in ('accepted', 'preparing', 'ready', 'served') then
     raise exception 'ORDER_NOT_MOVABLE' using errcode = 'P0001';
   end if;
@@ -389,6 +416,7 @@ declare
   v_table  uuid := unmerge_table.table_id;
   v_uid    uuid := (select auth.uid());
   o        public.orders%rowtype;
+  v_set    uuid[];
   v_row    uuid;
 begin
   select * into o from public.orders y where y.id = v_order;
@@ -400,9 +428,12 @@ begin
   if v_table is null then
     raise exception 'INVALID_INPUT' using errcode = '22023';
   end if;
-  perform private.lock_tables(array(select u from unnest(
-    array[o.table_id, v_table]) u where u is not null));
+  v_set := private.order_table_set(v_order, array[v_table]);
+  perform private.lock_tables(v_set);
   select * into o from public.orders y where y.id = v_order for update;
+  if private.order_table_set(v_order, array[v_table]) is distinct from v_set then
+    raise exception 'ORDER_CHANGED' using errcode = 'P0001';
+  end if;
   if o.status not in ('accepted', 'preparing', 'ready', 'served') then
     raise exception 'ORDER_NOT_MOVABLE' using errcode = 'P0001';
   end if;
@@ -443,15 +474,19 @@ declare
   v_self   boolean;
 begin
   select * into o from public.orders y where y.id = v_order;
-  if not found or not public.has_location_access(o.location_id) then
+  -- early, cheap refusal (an unknown order and a missing permission look the same); the exact permission is decided
+  -- below, AFTER the order row is locked, because who the current waiter is can change while we wait for the lock
+  if not found or not public.has_location_access(o.location_id)
+     or not (public.has_permission(o.organization_id, 'orders.create') or public.has_permission(o.organization_id, 'tables.manage')) then
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
-  -- taking a table or clearing your OWN assignment: orders.create. Anyone else's: tables.manage.
+  select * into o from public.orders y where y.id = v_order for update;
+  -- taking a table or clearing your OWN assignment: orders.create. Anyone else's: tables.manage. Evaluated on the
+  -- locked row, so a waiter cannot clear an assignment a manager has just changed.
   v_self := (v_to is not null and v_to = v_uid) or (v_to is null and o.waiter_id is not distinct from v_uid);
   if not public.has_permission(o.organization_id, case when v_self then 'orders.create' else 'tables.manage' end) then
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
-  select * into o from public.orders y where y.id = v_order for update;
   if o.status not in ('accepted', 'preparing', 'ready', 'served') then
     raise exception 'ORDER_CLOSED' using errcode = 'P0001';
   end if;

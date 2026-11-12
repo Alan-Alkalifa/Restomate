@@ -41,6 +41,7 @@ export type ActionErrorCode =
   | "TABLE_IN_GROUP"
   | "TABLE_NOT_IN_GROUP"
   | "INVALID_ASSIGNEE"
+  | "ORDER_CHANGED"
   | "SIGNUP_DISABLED"
   | "DUPLICATE_CODE"
   | "NOT_FOUND"

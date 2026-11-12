@@ -2,7 +2,7 @@
 -- list_assignable_waiters, cross-exclusion triggers, in-use guard, closing frees the whole group, lock order.
 -- Contract: docs/contracts/orders.md "Table operations".
 begin;
-select plan(105);
+select plan(113);
 
 insert into public.packages (code, name, limits) values ('t-tops', 'TableOps', '{}');
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, created_at, updated_at)
@@ -242,12 +242,17 @@ select throws_ok(format($$select public.assign_order_waiter(%L, %L)$$, pg_temp.o
 select throws_ok(format($$select public.assign_order_waiter(%L, %L)$$, pg_temp.ord('D'), gen_random_uuid()), 'P0001', 'INVALID_ASSIGNEE', 'an unknown user is not assignable (same error)');
 select throws_ok(format($$select public.assign_order_waiter(%L, %L)$$, pg_temp.ord('A'), pg_temp.uid(4)), 'P0001', 'ORDER_CLOSED', 'a closed order cannot be assigned');
 select is(public.assign_order_waiter(pg_temp.ord('D'), null) ->> 'waiterId', null, 'a manager clears the assignment');
+select public.assign_order_waiter(pg_temp.ord('D'), pg_temp.uid(3));
+reset role;
+select pg_temp.act_as(pg_temp.uid(4));
+select throws_ok(format($$select public.assign_order_waiter(%L, null)$$, pg_temp.ord('D')), '42501', 'FORBIDDEN',
+  'a waiter cannot clear an assignment a manager just moved to someone else (self is judged on the locked row)');
 reset role;
 select pg_temp.act_as(pg_temp.uid(7));
 select throws_ok(format($$select public.assign_order_waiter(%L, %L)$$, pg_temp.ord('D'), pg_temp.uid(7)), '42501', 'FORBIDDEN', 'org B cannot assign on org A''s order');
 reset role;
 select ok(pg_temp.events('D', 'waiter_assigned') >= 3, 'assignments are recorded as events');
-select is((select count(*) from public.audit_logs where action = 'order.waiter_assigned'), 2::bigint, 'assigning or clearing someone else is audited (self-service is not)');
+select is((select count(*) from public.audit_logs where action = 'order.waiter_assigned'), 3::bigint, 'assigning or clearing someone else is audited (self-service is not)');
 
 -- ---- list_assignable_waiters --------------------------------------------------------------------------------------------------------
 select pg_temp.act_as(pg_temp.uid(4));
@@ -296,6 +301,23 @@ select ok(strpos(pg_get_functiondef('public.merge_tables(uuid,uuid[])'::regproce
           between 1 and strpos(pg_get_functiondef('public.merge_tables(uuid,uuid[])'::regprocedure), 'for update') - 1, 'merge_tables locks the tables before the order');
 select ok(strpos(pg_get_functiondef('public.unmerge_table(uuid,uuid)'::regprocedure), 'private.lock_tables(')
           between 1 and strpos(pg_get_functiondef('public.unmerge_table(uuid,uuid)'::regprocedure), 'for update') - 1, 'unmerge_table locks the tables before the order');
+-- the lock set is re-read after the order lock; a concurrent change raises ORDER_CHANGED instead of touching an unlocked table
+select ok(pg_get_functiondef('public.move_order_to_table(uuid,uuid)'::regprocedure) ~ 'for update;\s+if private\.order_table_set\(v_order, array\[v_to\]\) is distinct from v_set then\s+raise exception ''ORDER_CHANGED''',
+  'move_order_to_table re-checks its lock set right after locking the order');
+select ok(pg_get_functiondef('public.merge_tables(uuid,uuid[])'::regprocedure) ~ 'for update;\s+if private\.order_table_set\(v_order, v_ids\) is distinct from v_set then\s+raise exception ''ORDER_CHANGED''',
+  'merge_tables re-checks its lock set right after locking the order');
+select ok(pg_get_functiondef('public.unmerge_table(uuid,uuid)'::regprocedure) ~ 'for update;\s+if private\.order_table_set\(v_order, array\[v_table\]\) is distinct from v_set then\s+raise exception ''ORDER_CHANGED''',
+  'unmerge_table re-checks its lock set right after locking the order');
+select is(private.order_table_set(pg_temp.ord('D'), array[pg_temp.tbl('T12'), pg_temp.tbl('T12')]), (select array_agg(id order by id) from public.tables where id in (select table_id from public.orders where id = pg_temp.ord('D')) or label = 'T12'),
+  'order_table_set is the sorted, distinct primary + extras');
+insert into public.order_tables (organization_id, location_id, order_id, table_id)
+values (pg_temp.org('tops-a'), pg_temp.loc('L1'), pg_temp.ord('D'), pg_temp.tbl('T9'));
+select ok(pg_temp.tbl('T9') = any (private.order_table_set(pg_temp.ord('D'), '{}')), 'a group row added concurrently changes the set (that is what ORDER_CHANGED detects)');
+select is(private.order_table_set(gen_random_uuid(), null), '{}'::uuid[], 'an unknown order has an empty set');
+-- assign_order_waiter decides self vs other on the LOCKED row, after the order lock
+select ok(strpos(pg_get_functiondef('public.assign_order_waiter(uuid,uuid)'::regprocedure), 'for update') between 1
+          and strpos(pg_get_functiondef('public.assign_order_waiter(uuid,uuid)'::regprocedure), 'v_self :=') - 1,
+  'assign_order_waiter evaluates v_self and the permission after locking the order');
 select ok(pg_get_functiondef('private.lock_tables(uuid[])'::regprocedure) ~* 'order by t\.id for update', 'lock_tables takes the row locks in id order');
 select ok(pg_get_functiondef('private.lock_order_table(uuid)'::regprocedure) ~* 'order by x\.t', 'lock_order_table collects every table of the order sorted by id');
 select ok(pg_get_functiondef('private.lock_order_table(uuid)'::regprocedure) ilike '%order_tables%', 'and includes the active secondary tables');

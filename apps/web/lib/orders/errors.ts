@@ -18,6 +18,7 @@ const MESSAGES: Record<string, { code: NonNullable<Failure["code"]>; text: strin
   TABLE_NOT_AVAILABLE: { code: "TABLE_NOT_AVAILABLE", text: "That table isn't free. Choose an available table." },
   TABLE_IN_GROUP: { code: "TABLE_IN_GROUP", text: "That table is part of another party's tables." },
   TABLE_NOT_IN_GROUP: { code: "TABLE_NOT_IN_GROUP", text: "That table isn't one of this party's extra tables." },
+  ORDER_CHANGED: { code: "ORDER_CHANGED", text: "This order just changed. Refresh and try again." },
   INVALID_ASSIGNEE: { code: "INVALID_ASSIGNEE", text: "That person can't be assigned to this location's tables." },
   CLIENT_REF_CONFLICT: { code: "CLIENT_REF_CONFLICT", text: "This order changed since it was first sent. Review the cart and send again." },
 };

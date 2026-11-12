@@ -239,7 +239,7 @@ describe("table operations", () => {
     await expect(assignWaiter("demo", LOC, null, form([["orderId", ORDER], ["waiterId", WAITER]]))).rejects.toBeInstanceOf(Forbidden);
   });
   it("maps the new error codes to friendly messages without ids", async () => {
-    for (const code of ["ORDER_NOT_MOVABLE", "ORDER_HAS_GROUP", "TABLE_NOT_AVAILABLE", "TABLE_IN_GROUP", "TABLE_NOT_IN_GROUP", "INVALID_ASSIGNEE"]) {
+    for (const code of ["ORDER_NOT_MOVABLE", "ORDER_HAS_GROUP", "TABLE_NOT_AVAILABLE", "TABLE_IN_GROUP", "TABLE_NOT_IN_GROUP", "INVALID_ASSIGNEE", "ORDER_CHANGED"]) {
       rpc.mockResolvedValue({ data: null, error: { code: "P0001", message: code, details: TO } });
       const r = await moveOrder("demo", LOC, null, form([["orderId", ORDER], ["toTableId", TO]]));
       expect(r, code).toMatchObject({ ok: false, code });
