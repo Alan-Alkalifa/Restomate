@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { hostSeparation, isMarketingPath, isStorefrontPath, parseLocalePath, type HostSeparation } from "@/i18n/config";
 import { isShieldedPath, shieldRequest } from "@/lib/arcjet";
 import { publicEnv } from "@/lib/env";
-import { parseTenantOverride, resolveHost, tenantPath, vercelPreviewHosts } from "@/lib/routing/host";
+import { parseTenantOverride, resolveHost, tenantPath, vercelPreviewHosts, type Surface } from "@/lib/routing/host";
 import { updateSession } from "@/lib/supabase/proxy";
 
 /**
@@ -9,6 +10,34 @@ import { updateSession } from "@/lib/supabase/proxy";
  * Authorization lives in the DAL (lib/auth) and RLS, never here. Arcjet shield (lib/arcjet) covers public + auth routes only.
  */
 const STATIC_ASSET = /\.(?:svg|png|jpe?g|gif|webp|avif|ico|css|js|map|txt|xml|woff2?)$/i;
+
+/** Same host, new path. Cross-host targets are built from configuration (HostSeparation), never from the request. */
+function redirectTo(origin: string, request: NextRequest, pathname = request.nextUrl.pathname): NextResponse {
+  const target = new URL(origin);
+  target.pathname = pathname;
+  target.search = request.nextUrl.search;
+  return NextResponse.redirect(target, 307);
+}
+
+/**
+ * Keeps each surface on its own host when the app and the marketing site are separated (see hostSeparation):
+ *   root domain: marketing pages only; anything else (login, onboarding, dashboard, POS, admin) goes to the app host.
+ *   app host:    everything except marketing; marketing pages go to the root domain, and its own "/" goes to the login.
+ *   both:        /s/* (the storefront) is reachable only through a tenant host, so it is a 404 here.
+ * Returns null to carry on with the normal flow. This is routing, not authorization: no decision here is about who may see what.
+ */
+function separateSurfaces(surface: Surface, request: NextRequest, separation: HostSeparation): NextResponse | null {
+  if (surface.kind !== "frontend" && surface.kind !== "app") return null;
+  const { pathname } = request.nextUrl;
+  if (isStorefrontPath(pathname)) return new NextResponse("Not found", { status: 404 });
+  const marketing = isMarketingPath(pathname);
+  if (surface.kind === "frontend") return marketing ? null : redirectTo(separation.appOrigin, request);
+  if (!marketing) return null;
+  // The app host has no home page of its own: "/" goes to the login, which sends a signed-in user to their dashboard.
+  const { locale, path } = parseLocalePath(pathname);
+  if (path === "/") return redirectTo(separation.appOrigin, request, locale === "en" ? "/en/login" : "/login");
+  return redirectTo(separation.rootOrigin, request);
+}
 
 export async function proxy(request: NextRequest) {
   if (STATIC_ASSET.test(request.nextUrl.pathname)) return NextResponse.next();
@@ -21,6 +50,14 @@ export async function proxy(request: NextRequest) {
     extraAppHosts: vercelPreviewHosts(process.env),
   });
   const { pathname } = request.nextUrl;
+
+  // Separate hosts (production): redirect a request that arrived on the wrong surface BEFORE spending Arcjet on it.
+  // Skipped on preview deployments and whenever hostSeparation() is null (staging on *.vercel.app, local dev).
+  const separation = hostSeparation(publicEnv);
+  if (separation && vercelPreviewHosts(process.env).length === 0) {
+    const redirected = separateSurfaces(surface, request, separation);
+    if (redirected) return redirected;
+  }
 
   // Arcjet shield on public and auth surfaces (tenant hosts, marketing, auth). Never on the DOKU webhook
   // (excluded by the matcher below) and never on the authenticated app/admin areas.
@@ -62,6 +99,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Skips the DOKU webhook (signature-verified, no session), Next internals and the favicon.
-  matcher: ["/((?!api/webhooks/doku|_next/static|_next/image|favicon\\.ico).*)"],
+  // Skips the DOKU webhook (signature-verified, no session), scheduled jobs (authenticated by their own secret),
+  // Next internals and the favicon.
+  matcher: ["/((?!api/webhooks/doku|api/cron|_next/static|_next/image|favicon\\.ico).*)"],
 };
