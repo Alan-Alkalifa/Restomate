@@ -72,7 +72,7 @@ jobs:
       # storage policy tests (e.g. migration 014_menu_images_storage) need (B1-T13).
       - name: Start local database
         run: |
-          supabase start -x gotrue,realtime,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+          supabase start -x gotrue,realtime,imgproxy,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
       - name: Reset (migrations + seed)
         run: supabase db reset
       - name: Storage schema is present
