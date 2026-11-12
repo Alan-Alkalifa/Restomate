@@ -141,12 +141,14 @@ describe("recordPayment", () => {
     expect(await run(recordPayment, [...base, ["method", "cash"], ["amount", "1000"], ["tendered", "999"]])).toMatchObject({ ok: false, fieldErrors: { tendered: [expect.any(String)] } });
     expect(await run(recordPayment, [...base, ["method", "edc_card"], ["amount", "1000"], ["tendered", "1000"]])).toMatchObject({ ok: false, fieldErrors: { tendered: [expect.any(String)] } });
     expect(await run(recordPayment, [...base, ["method", "cash"], ["amount", "1000"], ["tendered", "1000000000000"]])).toMatchObject({ ok: false, fieldErrors: { tendered: [expect.any(String)] } });
-    expect(await run(recordPayment, [...base, ["method", "other"], ["amount", "1000"], ["methodLabel", "  Voucher "]])).toMatchObject({ ok: true });
-    expect(rpc).toHaveBeenLastCalledWith("record_payment", expect.objectContaining({ method_label: "Voucher" }));
     expect(await run(recordPayment, [...base, ["method", "other"], ["amount", "1000"]])).toMatchObject({ ok: false, fieldErrors: { methodLabel: [expect.any(String)] } });
     expect(await run(recordPayment, [...base, ["method", "edc_card"], ["amount", "1000"], ["approvalCode", "4111111111111111"]])).toMatchObject({ ok: false, fieldErrors: { approvalCode: [expect.any(String)] } });
     expect(await run(recordPayment, [...base, ["method", "cash"], ["amount", "1000"], ["tendered", "1000"], ["approvalCode", "ABCD"]])).toMatchObject({ ok: false, fieldErrors: { approvalCode: [expect.any(String)] } });
     expect(rpc).not.toHaveBeenCalled();
+  });
+  it("the label is trimmed before it reaches the RPC (so \"Voucher\" and \"  Voucher \" are one request)", async () => {
+    expect(await run(recordPayment, [...base, ["method", "other"], ["amount", "1000"], ["methodLabel", "  Voucher "]])).toMatchObject({ ok: true });
+    expect(rpc).toHaveBeenLastCalledWith("record_payment", expect.objectContaining({ method_label: "Voucher" }));
   });
   it("a waiter cannot take a payment; a missing permission goes to requirePermission", async () => {
     permissions = ["bills.print"];
