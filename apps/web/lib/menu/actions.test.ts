@@ -178,10 +178,11 @@ describe("IDOR: ids must belong to this org (and location)", () => {
     expect(sent("kitchen_stations.select")[0]!.filters).toContainEqual(["eq:location_id", LOC]);
     expect(writes()).toHaveLength(0);
   });
-  it("a variant id that belongs to another item is rejected", async () => {
-    results["item_variants.select"] = { data: [{ id: V1, is_active: true }] };
+  it("a variant id that belongs to another item / org is rejected by the RPC (FORBIDDEN) and nothing is tagged", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "FORBIDDEN" } });
     const r = await A.saveItemVariants("demo", null, form([["itemId", ITEM], ["variants", JSON.stringify([{ id: FOREIGN, name: "X", priceDelta: 0 }])]]));
     expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(updateTag).not.toHaveBeenCalled();
     expect(writes()).toHaveLength(0);
   });
   it("reorderItems with ids outside the category is rejected", async () => {
@@ -261,40 +262,38 @@ describe("writes", () => {
   });
 });
 
-describe("full-list saves", () => {
-  it("saveItemVariants deactivates missing rows first, updates listed rows, inserts new ones", async () => {
-    results["item_variants.select"] = { data: [{ id: V1, is_active: true }, { id: V2, is_active: true }, { id: V3, is_active: false }] };
-    const list = [{ id: V3, name: "Jumbo", priceDelta: 10000 }, { name: "Regular", priceDelta: 0 }, { id: V1, name: "Large", priceDelta: 5000 }];
+describe("full-list saves (one RPC each, atomic in the database)", () => {
+  it("saveItemVariants sends the whole ordered list to save_item_variants in a single call, with no table writes", async () => {
+    const list = [{ id: V3, name: "Jumbo", priceDelta: 10000 }, { name: "Regular", priceDelta: 0 }, { id: V1, name: "Large", priceDelta: -5000 }];
     expect(await A.saveItemVariants("demo", null, form([["itemId", ITEM], ["variants", JSON.stringify(list)]]))).toEqual({ ok: true });
-    const w = writes().map((c) => c.key);
-    expect(w[0]).toBe("item_variants.update"); // the deactivation comes first
-    expect(writes()[0]!.payload).toEqual({ is_active: false });
-    expect(writes()[0]!.filters).toContainEqual(["in:id", [V2]]);
-    const updates = sent("item_variants.update").slice(1).map((c) => c.payload);
-    expect(updates).toEqual([
-      { name: "Jumbo", price_delta: 10000, sort_order: 0, is_active: true },
-      { name: "Large", price_delta: 5000, sort_order: 2, is_active: true },
-    ]);
-    expect(sent("item_variants.insert")[0]!.payload).toEqual([{ organization_id: ORG, item_id: ITEM, name: "Regular", price_delta: 0, sort_order: 1 }]);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("save_item_variants", { item_id: ITEM, variants: list });
+    expect(writes()).toHaveLength(0);
     expect(updateTag).toHaveBeenCalledWith(`menu:${ORG}`);
   });
-  it("an empty list deactivates every active variant", async () => {
-    results["item_variants.select"] = { data: [{ id: V1, is_active: true }, { id: V2, is_active: true }] };
+  it("an empty list is sent as an empty array (the RPC deactivates every variant)", async () => {
     await A.saveItemVariants("demo", null, form([["itemId", ITEM], ["variants", "[]"]]));
-    expect(writes()).toHaveLength(1);
-    expect(writes()[0]!.filters).toContainEqual(["in:id", [V1, V2]]);
+    expect(rpc).toHaveBeenCalledWith("save_item_variants", { item_id: ITEM, variants: [] });
   });
-  it("saveGroupModifiers has the same semantics", async () => {
-    results["modifiers.select"] = { data: [{ id: V1, is_active: true }, { id: V2, is_active: true }] };
-    expect(await A.saveGroupModifiers("demo", null, form([["groupId", GROUP], ["modifiers", JSON.stringify([{ id: V1, name: "Keju", priceDelta: 6000 }, { name: "Telur", priceDelta: 5000 }])]]))).toEqual({ ok: true });
-    expect(writes()[0]!.filters).toContainEqual(["in:id", [V2]]);
-    expect(sent("modifiers.insert")[0]!.payload).toEqual([{ organization_id: ORG, group_id: GROUP, name: "Telur", price_delta: 5000, sort_order: 1 }]);
+  it("saveGroupModifiers calls save_group_modifiers the same way", async () => {
+    const list = [{ id: V1, name: "Keju", priceDelta: 6000 }, { name: "Telur", priceDelta: 5000 }];
+    expect(await A.saveGroupModifiers("demo", null, form([["groupId", GROUP], ["modifiers", JSON.stringify(list)]]))).toEqual({ ok: true });
+    expect(rpc).toHaveBeenCalledWith("save_group_modifiers", { group_id: GROUP, modifiers: list });
+    expect(writes()).toHaveLength(0);
   });
-  it("a unique violation inside the list is reported on the list field", async () => {
-    results["item_variants.select"] = { data: [] };
-    results["item_variants.insert"] = { error: { code: "23505", message: "dup" } };
+  it("a unique violation from the RPC is reported on the list field, and a failed save does not tag", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "23505", message: "dup" } });
     expect(await A.saveItemVariants("demo", null, form([["itemId", ITEM], ["variants", JSON.stringify([{ name: "A", priceDelta: 0 }])]])))
       .toMatchObject({ ok: false, code: "DUPLICATE_NAME", fieldErrors: { variants: [expect.any(String)] } });
+    expect(await A.saveGroupModifiers("demo", null, form([["groupId", GROUP], ["modifiers", JSON.stringify([{ name: "A", priceDelta: 0 }])]])))
+      .toMatchObject({ ok: false, code: "DUPLICATE_NAME", fieldErrors: { modifiers: [expect.any(String)] } });
+    expect(updateTag).not.toHaveBeenCalled();
+  });
+  it("INVALID_LIST from the RPC is a field error on the list; FORBIDDEN maps to FORBIDDEN", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "22023", message: "INVALID_LIST" } });
+    expect(await A.saveGroupModifiers("demo", null, form([["groupId", GROUP], ["modifiers", "[]"]]))).toMatchObject({ ok: false, fieldErrors: { modifiers: [expect.any(String)] } });
+    rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "FORBIDDEN" } });
+    expect(await A.saveGroupModifiers("demo", null, form([["groupId", GROUP], ["modifiers", "[]"]]))).toMatchObject({ ok: false, code: "FORBIDDEN" });
   });
   it("oversized or malformed JSON is rejected before any query", async () => {
     const big = " ".repeat(40_000) + "[]";

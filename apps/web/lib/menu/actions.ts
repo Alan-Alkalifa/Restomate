@@ -14,7 +14,7 @@ import {
   renameStationSchema, reorderCategoriesSchema, reorderItemsSchema, saveGroupModifiersSchema, saveItemVariantsSchema,
   setCategoryActiveSchema, setItemActiveSchema, setItemModifierGroupsSchema, setItemPublishedSchema, setLocationOverrideSchema,
   setModifierGroupActiveSchema, setStationActiveSchema, toggleSoldOutSchema, updateCategorySchema, updateItemSchema,
-  updateModifierGroupSchema, type ListRow,
+  updateModifierGroupSchema,
 } from "./schemas";
 import { assertLocation, canToggleSoldOut, menuLocationTag, menuTag } from "./shared";
 
@@ -25,9 +25,9 @@ import { assertLocation, canToggleSoldOut, menuLocationTag, menuTag } from "./sh
  *   -> updateTag -> PostHog (no PII).
  * The org id is NEVER read from FormData. Uniqueness, price bounds and cross-org integrity are also enforced in SQL.
  *
- * Full-list saves (saveItemVariants / saveGroupModifiers) run as separate statements (deactivate missing, update
- * listed, insert new) and are NOT one transaction. If a later statement fails, earlier ones stay applied; because the
- * list is the full desired state, simply saving again converges. Deactivation goes first so renames can reuse names.
+ * Full-list saves (saveItemVariants / saveGroupModifiers) call the save_item_variants / save_group_modifiers RPCs, which
+ * apply the whole list in ONE transaction (deactivate missing, update listed, insert new): a failure changes nothing.
+ * The RPCs re-check menu.manage and that every id belongs to the parent, and validate the list again.
  */
 type MenuAction = (orgSlug: string, prev: ActionResult | null, formData: FormData) => Promise<ActionResult>;
 type LocationMenuAction = (orgSlug: string, locationId: string, prev: ActionResult | null, formData: FormData) => Promise<ActionResult>;
@@ -203,33 +203,15 @@ export const saveItemVariants: MenuAction = async (orgSlug, _prev, formData) => 
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error) };
   const { itemId, variants } = parsed.data;
   if (!(await allOwned(supabase, "menu_items", orgId, [itemId]))) return NOT_FOUND;
-  const { data: existing } = await supabase.from("item_variants").select("id, is_active").eq("organization_id", orgId).eq("item_id", itemId);
-  const known = new Set((existing ?? []).map((v) => v.id));
-  if (variants.some((v) => v.id && !known.has(v.id))) return NOT_FOUND; // a variant id from another item / org
-  const keep = new Set(variants.flatMap((v) => (v.id ? [v.id] : [])));
-  const missing = (existing ?? []).filter((v) => v.is_active && !keep.has(v.id)).map((v) => v.id);
-
-  if (missing.length) {
-    const { error } = await supabase.from("item_variants").update({ is_active: false }).eq("organization_id", orgId).eq("item_id", itemId).in("id", missing);
-    if (error) return mapMenuError(error);
-  }
-  const rows = variants.map((v, i) => ({ ...v, i }));
-  const upErr = await runChunks(rows.filter((r) => r.id), (r) =>
-    supabase.from("item_variants").update({ name: r.name, price_delta: r.priceDelta, sort_order: r.i, is_active: true })
-      .eq("organization_id", orgId).eq("item_id", itemId).eq("id", r.id!));
-  if (upErr) return listError(upErr, "variants");
-  const fresh = rows.filter((r) => !r.id);
-  if (fresh.length) {
-    const { error } = await supabase.from("item_variants").insert(
-      fresh.map((r) => ({ organization_id: orgId, item_id: itemId, name: r.name, price_delta: r.priceDelta, sort_order: r.i })));
-    if (error) return listError(error, "variants");
-  }
+  const { error } = await supabase.rpc("save_item_variants", { item_id: itemId, variants });
+  if (error) return listError(error, "variants");
   bump(orgId);
   return OK;
 };
 
 /** A unique violation inside a JSON list is reported against the list field, not `name`. */
 function listError(error: { message?: string; code?: string }, field: "variants" | "modifiers"): ActionResult {
+  if ((error.message ?? "").includes("INVALID_LIST")) return { ok: false, fieldErrors: { [field]: ["Check the rows and try again."] } };
   const r = mapMenuError(error);
   if (r.ok === false && r.code === "DUPLICATE_NAME") return { ...r, fieldErrors: { [field]: ["Two rows have the same name."] } };
   return r;
@@ -304,27 +286,8 @@ export const saveGroupModifiers: MenuAction = async (orgSlug, _prev, formData) =
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error) };
   const { groupId, modifiers } = parsed.data;
   if (!(await allOwned(supabase, "modifier_groups", orgId, [groupId]))) return NOT_FOUND;
-  const { data: existing } = await supabase.from("modifiers").select("id, is_active").eq("organization_id", orgId).eq("group_id", groupId);
-  const known = new Set((existing ?? []).map((m) => m.id));
-  if (modifiers.some((m) => m.id && !known.has(m.id))) return NOT_FOUND;
-  const keep = new Set(modifiers.flatMap((m) => (m.id ? [m.id] : [])));
-  const missing = (existing ?? []).filter((m) => m.is_active && !keep.has(m.id)).map((m) => m.id);
-
-  if (missing.length) {
-    const { error } = await supabase.from("modifiers").update({ is_active: false }).eq("organization_id", orgId).eq("group_id", groupId).in("id", missing);
-    if (error) return mapMenuError(error);
-  }
-  const rows: (ListRow & { i: number })[] = modifiers.map((m, i) => ({ ...m, i }));
-  const upErr = await runChunks(rows.filter((r) => r.id), (r) =>
-    supabase.from("modifiers").update({ name: r.name, price_delta: r.priceDelta, sort_order: r.i, is_active: true })
-      .eq("organization_id", orgId).eq("group_id", groupId).eq("id", r.id!));
-  if (upErr) return listError(upErr, "modifiers");
-  const fresh = rows.filter((r) => !r.id);
-  if (fresh.length) {
-    const { error } = await supabase.from("modifiers").insert(
-      fresh.map((r) => ({ organization_id: orgId, group_id: groupId, name: r.name, price_delta: r.priceDelta, sort_order: r.i })));
-    if (error) return listError(error, "modifiers");
-  }
+  const { error } = await supabase.rpc("save_group_modifiers", { group_id: groupId, modifiers });
+  if (error) return listError(error, "modifiers");
   bump(orgId);
   return OK;
 };
