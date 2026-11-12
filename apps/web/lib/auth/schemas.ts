@@ -16,7 +16,8 @@ export type ActionErrorCode =
   | "NOT_FOUND"
   | "PACKAGE_IN_USE"
   | "DEFAULT_PACKAGE"
-  | "PACKAGE_INACTIVE";
+  | "PACKAGE_INACTIVE"
+  | "HOURS_REQUIRED";
 
 /** Result shape of every form action (the `useActionState` state). */
 export type ActionResult =

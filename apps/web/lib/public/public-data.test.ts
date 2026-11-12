@@ -63,13 +63,13 @@ describe("storefront", () => {
   const active = {
     status: "active", name: "Demo", slug: "demo",
     branding: { logo_url: "https://cdn.example.com/l.png", primary_color: "#112233", secondary_color: null, font: "Inter", theme: { a: 1 } },
-    locations: [{ name: "Kemang", address: "Jl", city: "Jakarta", phone: null, timezone: "Asia/Jakarta" }, { name: "B", timezone: "Asia/Jakarta" }],
+    locations: [{ id: "11111111-1111-4111-8111-111111111111", name: "Kemang", address: "Jl", city: "Jakarta", phone: null, timezone: "Asia/Jakarta" }, { id: "22222222-2222-4222-8222-222222222222", name: "B", timezone: "Asia/Jakarta" }],
   };
   it("maps an active storefront", () => {
     const s = parseStorefront(active);
     expect(s).toMatchObject({ status: "active", name: "Demo", slug: "demo" });
     expect(s && s.status === "active" && s.branding).toEqual({ logoUrl: "https://cdn.example.com/l.png", primaryColor: "#112233", secondaryColor: null, font: "Inter", theme: { a: 1 } });
-    expect(s && s.status === "active" && s.locations[1]).toEqual({ name: "B", address: null, city: null, phone: null, timezone: "Asia/Jakarta" });
+    expect(s && s.status === "active" && s.locations[1]).toEqual({ id: "22222222-2222-4222-8222-222222222222", name: "B", address: null, city: null, phone: null, timezone: "Asia/Jakarta" });
   });
   it("handles empty branding, null and unavailable", () => {
     const s = parseStorefront({ ...active, branding: {} });

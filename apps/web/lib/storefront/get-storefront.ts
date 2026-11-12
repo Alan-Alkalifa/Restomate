@@ -13,6 +13,8 @@ export type StorefrontBranding = {
 };
 
 export type StorefrontLocation = {
+  /** Public identifier (the menu and ordering calls take it); not a secret. */
+  id: string;
   name: string;
   address: string | null;
   city: string | null;
@@ -44,6 +46,7 @@ const rpcSchema = z.union([
       .default({}),
     locations: z.array(
       z.object({
+        id: z.string().uuid(),
         name: z.string(),
         address: z.string().nullish(),
         city: z.string().nullish(),
@@ -72,6 +75,7 @@ export function parseStorefront(raw: unknown): Storefront | null {
       theme: r.branding.theme ?? {},
     },
     locations: r.locations.map((l) => ({
+      id: l.id,
       name: l.name,
       address: l.address ?? null,
       city: l.city ?? null,
