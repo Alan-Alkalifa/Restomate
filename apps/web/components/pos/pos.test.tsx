@@ -4,9 +4,11 @@ import { cartReducer, emptyCart, estimatedTotal, loadCart, sanitizeCart, saveCar
 import { CartPanel } from "./CartPanel";
 import { ItemSheet } from "./ItemSheet";
 import { OfflineBanner } from "./OfflineBanner";
+import { en } from "@/i18n/en";
 import { PosScreen } from "./PosScreen";
 import { buildCatalog, needsSheet, unitPrice, validateSelection, type PosCatalog, type PosItem } from "./pos-model";
 
+vi.mock("./use-pos-feed", () => ({ usePosFeed: () => ({ online: true, connection: "connected", refreshing: false, refresh: () => {} }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...r }: { href: string; children: React.ReactNode }) => <a href={href} {...r}>{children}</a> }));
 
 const mk = (o: Partial<PosItem> = {}): PosItem => ({ id: "i1", categoryId: "c1", name: "Nasi", description: null, price: 35000, soldOut: false, variants: [], groups: [], ...o });
@@ -139,7 +141,7 @@ describe("persistence", () => {
 });
 
 describe("render", () => {
-  const screen = renderToStaticMarkup(<PosScreen catalog={catalog} orgSlug="demo" locationId="loc-1" locationName="Main" />);
+  const screen = renderToStaticMarkup(<PosScreen catalog={catalog} orgSlug="demo" locationId="loc-1" locationName="Main" t={en.pos} locale="en" toggleSoldOut={async () => ({ ok: true })} />);
   it("shows the catalog, sold-out items disabled, no sidebar", () => {
     expect(screen).toContain("Mains");
     expect(screen).toContain("Rp 35.000");
@@ -176,7 +178,7 @@ describe("render", () => {
   });
   it("names and notes render as text", () => {
     const evil = { ...catalog, items: [mk({ name: "<img src=x onerror=alert(1)>" })] };
-    const html = renderToStaticMarkup(<PosScreen catalog={evil} orgSlug="d" locationId="l" locationName="<b>x</b>" />);
+    const html = renderToStaticMarkup(<PosScreen catalog={evil} orgSlug="d" locationId="l" locationName="<b>x</b>" t={en.pos} locale="en" toggleSoldOut={async () => ({ ok: true })} />);
     expect(html).not.toContain("<img");
     expect(html).not.toContain("<b>x");
   });
