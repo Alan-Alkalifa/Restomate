@@ -2,7 +2,7 @@
 
 Draft 2026-11-12 by **DAVIN** for ALAN's review. **DAVIN** implements the schema, the RPCs and `lib/bills`. **ADIT** builds the bill, payment and print screens against it. **REYKI** writes the isolation tests against it. Changes need agreement from all three, plus ALAN, and are made in this file first. This is the "M3 Bills" contract that `docs/contracts/orders.md` defers to; it assumes orders.md and changes it only where listed in *Changes required to orders.md*.
 
-Everything marked **Proposed** is a decision DAVIN made so the contract is complete; ALAN can overturn it. Real product questions are *not* decided here: they are in **Still open** at the end.
+Everything marked **Proposed** is a decision DAVIN made so the contract is complete; ALAN can overturn it. The product questions raised in review were answered by the user on 2026-11-12 and are folded in (Decisions log 10–15). Nothing is open; deferred items are listed at the end.
 
 ## Scope and rules that apply everywhere
 
@@ -161,7 +161,7 @@ All computed **only** by `calculateBill` in `lib/money.ts` (mirrored in SQL), on
 1. `subtotal` = sum of `bill_items.line_total` (the order's non-void items).
 2. **Order discounts apply before service charge and tax** (**Proposed**): `net = subtotal - discount_total`, where `discount_total` is `orders.discount_total` (active `order_discounts` only).
 3. `calculateBill({ subtotal: net, serviceChargeBps, taxRateBps, taxOnServiceCharge })`: service charge = `net × serviceChargeBps / 10000`, then tax on `net + service charge` when `taxOnServiceCharge` (the default), or on `net` only when the location setting says so.
-4. **Rounding (IDR): half-up, once per percentage step, to a whole rupiah** (the `calculateBill` default, exact integer ratio via BigInt). `half-even` is not used. Cash rounding to Rp 100/500 is **not** done in M3 (Still open).
+4. **Rounding (IDR): half-up, once per percentage step, to a whole rupiah** (the `calculateBill` default, exact integer ratio via BigInt). `half-even` is not used. Cash rounding to Rp 100/500 is **not** done in M3 (**Decided**, log 10): the exact rupiah is charged.
 5. Stored: `subtotal`, `discount_total`, `service_charge`, `tax`, `total = net + service_charge + tax` on the set; the bills carry their shares.
 
 A bill's `service_charge_bps`, `tax_on_service_charge` and `tax_rate_bps` are the values **snapshotted at creation**; editing the location settings later never changes an existing bill.
@@ -170,7 +170,7 @@ A bill's `service_charge_bps`, `tax_on_service_charge` and `tax_rate_bps` are th
 
 ## Splits
 
-A set is created with exactly one split choice, in one transaction. Re-splitting later means voiding the unpaid set and creating a new one (a set that already has a payment cannot be voided or re-split, see Decisions log 9; voiding a paid set is Still open #4).
+A set is created with exactly one split choice, in one transaction. Re-splitting later means voiding the unpaid set and creating a new one (a set that holds money cannot be voided or re-split: refund first, see `void_bill_set` and Decisions log 9, 13).
 
 ### `none`
 
@@ -219,13 +219,13 @@ All are security definer, `search_path = ''`, authorize first (`has_location_acc
 
 | RPC | Permission | Behaviour |
 |---|---|---|
-| `create_bills(order_id uuid, split_kind text default 'none', split_count int default null, assignments jsonb default null, client_ref uuid)` | `payments.take` | See below |
-| `void_bill_set(bill_set_id uuid, reason text)` | `payments.take` | Set must be `active` (`BILL_VOID`). Only if the set has **no payments at all** (`BILL_HAS_PAYMENTS`). Sets `status = 'void'` and the void fields, writes `bill_voided` + `audit_logs`. The order is unlocked. Reason 3–200 |
+| `create_bills(order_id uuid, split_kind text default 'none', split_count int default null, assignments jsonb default null, client_ref uuid)` | `payments.take` **or** `bills.print` (a waiter can raise the pre-bill; only `payments.take` holders can void it) | See below |
+| `void_bill_set(bill_set_id uuid, reason text)` | `payments.take` if the set never had a payment; `payments.refund` if it has any payment history | Set must be `active` (`BILL_VOID`) and its order not `completed`/`cancelled` (`ORDER_CLOSED`). **A set that holds money cannot be voided** (**Decided**, log 13): the net paid over the whole set, `sum(payments.amount) - sum(refunds.amount)`, must be 0, else `BILL_HAS_PAYMENTS`. So a manager first refunds every payment (`record_refund`, reason + audit), then voids. Sets `status = 'void'` and the void fields, writes `bill_voided` + `audit_logs`. The order is unlocked. Reason 3–200 |
 | `record_payment(bill_id uuid, method text, amount bigint, tendered bigint default null, method_label text default null, approval_code text default null, client_ref uuid)` | `payments.take` | See below |
 | `record_refund(payment_id uuid, amount bigint, reason text, client_ref uuid)` | `payments.refund` | See below |
 | `open_cash_session(location_id uuid, opening_float bigint)` | `payments.take` | No open session at the location (`SESSION_ALREADY_OPEN`); `opening_float` 0..1e12. Inserts the row, `cash_session_opened` |
 | `close_cash_session(session_id uuid, counted_cash bigint, note text default null)` | `payments.take` | Session `open` (`SESSION_CLOSED`). Computes `expected_cash`, `variance`; `variance <> 0` requires `note` ≥ 3 chars (`INVALID_INPUT`, field `note`). Sets the closed fields, `cash_session_closed`; `audit_logs` row when `variance <> 0`. Idempotent for an already closed session with the same figures |
-| `record_bill_print(bill_id uuid)` | `payments.view` | Locks the bill, increments `print_count`, sets `last_printed_at/by`, writes `bill_printed`; returns `{ printCount, duplicate }` where `duplicate = (print_count before this call) >= 1` |
+| `record_bill_print(bill_id uuid)` | `bills.print` | Locks the bill, increments `print_count`, sets `last_printed_at/by`, writes `bill_printed`; returns `{ printCount, duplicate }` where `duplicate = (print_count before this call) >= 1` |
 
 ### `create_bills`
 
@@ -277,16 +277,16 @@ type RecordPaymentResult = {
 
 | Capability | owner | manager | cashier | waiter | kitchen |
 |---|---|---|---|---|---|
-| Read bills, payments, refunds, sessions, balances (`payments.view`) | ✓ | ✓ | ✓ | – | – |
-| Create / void bill set, take payments, open / close cash session (`payments.take`) | ✓ | ✓ | ✓ | – | – |
-| Refund (`payments.refund`) | ✓ | ✓ | – | – | – |
-| Record a print (`payments.view`) | ✓ | ✓ | ✓ | – | – |
+| Read payments, refunds, cash sessions and `bill_balances` (`payments.view`) | ✓ | ✓ | ✓ | – | – |
+| **View and print bills / pre-bills**: read `bill_sets`, `bills`, `bill_items`; `create_bills`; `record_bill_print` (**`bills.print`**, new) | ✓ | ✓ | ✓ | ✓ | – |
+| Void an unpaid bill set, take payments, open / close cash session (`payments.take`) | ✓ | ✓ | ✓ | – | – |
+| Refund, and void a set that has payment history once refunded (`payments.refund`) | ✓ | ✓ | – | – | – |
 | Read `bill_events` | ✓ | ✓ | – | – | – (`payments.refund` or `reports.view` required) |
 | Aggregated bill/payment reports (`reports.view`, through `security invoker` views, never direct table access) | ✓ | ✓ | – | – | – |
 
-Discounts stay in the orders contract (`pos.discount`); creating a bill uses whatever discount the order already has. `has_location_access` applies to every row for staff limited to locations. Custom roles get exactly the permissions they were granted. Waiters cannot see or print bills in M3 (Still open).
+Discounts stay in the orders contract (`pos.discount`); creating a bill uses whatever discount the order already has. `has_location_access` applies to every row for staff limited to locations. Custom roles get exactly the permissions they were granted. **New permission `bills.print`** ("View and print bills", **Decided**, log 14): narrower than giving waiters `payments.view`, which would also expose payments, refunds and cash sessions. The implementation migration adds the `permissions` row (`bills.print` fits the key format), adds it to `default_role_permissions` for `manager`, `cashier` and `waiter` (owner has everything), and **backfills `role_permissions`** for the system roles of existing organizations; custom roles get nothing implied. A waiter can read bills and their lines (with totals), raise and print a pre-bill, but `record_payment`, `record_refund`, `open_cash_session`, `close_cash_session` and `void_bill_set` return `FORBIDDEN`, and the waiter sees no payment, refund or session rows and no payment status.
 
-**RLS.** Every table: `SELECT` where `is_org_member(organization_id) and has_permission(organization_id, 'payments.view') and has_location_access(location_id)`; `bill_events` additionally needs `payments.refund` or `reports.view`, so a cashier (who holds `payments.view` only) selects **0 rows** from `bill_events` (RLS filters; there is no error). No INSERT/UPDATE/DELETE policy and no write grant for anyone; the RPCs bypass RLS as owner and re-check authorization themselves. `bill_balances` is `security_invoker` so it inherits all of this.
+**RLS.** `bill_sets`, `bills` and `bill_items`: `SELECT` where `is_org_member(organization_id) and has_location_access(location_id) and (has_permission(organization_id, 'payments.view') or has_permission(organization_id, 'bills.print'))`. `payments`, `refunds` and `cash_sessions`: the same with `payments.view` only; `bill_events` additionally needs `payments.refund` or `reports.view`, so a cashier (who holds `payments.view` only) selects **0 rows** from `bill_events` (RLS filters; there is no error). No INSERT/UPDATE/DELETE policy and no write grant for anyone; the RPCs bypass RLS as owner and re-check authorization themselves. `bill_balances` is `security_invoker` **and** filters its rows with `has_permission(organization_id, 'payments.view')`, so a `bills.print`-only user gets no rows (and never a misleading `paid_total = 0`); it inherits the rest of the policies above.
 
 ## Printing hooks
 
@@ -295,22 +295,22 @@ Discounts stay in the orders contract (`pos.discount`); creating a bill uses wha
 ```ts
 type BillPrintData = {
   bill: { id: string; billNumber: number; shareNo: number; shareCount: number; createdAt: string; businessDate: string };
-  location: { name: string; address: string | null; city: string | null; phone: string | null; timezone: string; currency: string };
+  location: { name: string; address: string | null; city: string | null; phone: string | null; taxId: string | null; timezone: string; currency: string };
   order: { orderNumber: number; channel: string; tableLabel: string | null; guestCount: number | null };
   lines: { name: string; variantName: string | null; modifiersText: string | null; quantity: number; unitPrice: number; lineTotal: number }[];
   totals: { subtotal: number; discount: number; serviceCharge: number; serviceChargeBps: number; tax: number; taxRateBps: number; total: number };
   payments: { method: string; methodLabel: string | null; amount: number; tendered: number | null; changeGiven: number | null; at: string }[];
-  paymentStatus: string;
+  paymentStatus: string | null;   // null unless the caller holds payments.view
   printCount: number;      // value BEFORE this print
   duplicate: boolean;      // printCount >= 1: the route prints a "DUPLICATE" mark
 };
 ```
 
-The print route calls `record_bill_print` and renders `duplicate` from its result. `lines` come from `bill_items` (for `equal`, all lines; for `by_item`, that bill's lines). The footer text and logo come from settings and branding. **No tax id** is printed in M3: `locations` has no such column (Still open). A receipt shows its payments only if any exist (an unpaid pre-bill prints without a payments block).
+The print route calls `record_bill_print` and renders `duplicate` from its result. `lines` come from `bill_items` (for `equal`, all lines; for `by_item`, that bill's lines). The footer text and logo come from settings and branding. **NPWP (Decided, log 15):** `locations` gains an optional `tax_id` column (text null, digits only, `^[0-9]{15,16}$`, editable with `locations.manage`), printed as `NPWP {formatted}` when set and omitted when null. The column, its grant and the settings field are a small follow-up task (DAVIN migration, ADIT settings field); this contract only defines the print field. The payments block is included **only for callers with `payments.view`**; for a `bills.print`-only caller (a waiter) `payments` is `[]` and `paymentStatus` is `null`, so a pre-bill never leaks payment data.
 
 ## Realtime
 
-Bill events go on a **separate private channel** so they stay behind `payments.view`: topic **`location:{locationId}:payments`**, `config: { private: true }`, with a `realtime.messages` policy requiring org membership + `has_location_access` + `payments.view`. (The orders channel `location:{id}` needs `orders.view`/`kitchen.view`, which the kitchen role holds and which must not see bill signals.) Database triggers emit in the same transaction as the row change, so a rolled-back payment emits nothing. **Ids and statuses only, no amounts, names or methods.**
+Bill events go on a **separate private channel** so they stay behind `payments.view`: topic **`location:{locationId}:payments`**, `config: { private: true }`, with a `realtime.messages` policy requiring org membership + `has_location_access` + `payments.view` (a `bills.print`-only waiter does not subscribe: the signals carry payment status, and the waiter refetches the pre-bill on demand). (The orders channel `location:{id}` needs `orders.view`/`kitchen.view`, which the kitchen role holds and which must not see bill signals.) Database triggers emit in the same transaction as the row change, so a rolled-back payment emits nothing. **Ids and statuses only, no amounts, names or methods.**
 
 | Event | Payload (all columns) |
 |---|---|
@@ -328,8 +328,9 @@ Data (each authorizes itself with `requireOrgContext` plus a permission, explici
 
 ```ts
 export function getBillsForOrder(orgSlug: string, locationId: string, orderId: string): Promise<BillSetDetail | null>; // payments.view; active set, bills with balances
+export function getPrebill(orgSlug: string, locationId: string, orderId: string): Promise<PrebillDetail | null>;       // bills.print or payments.view; active set, bills, lines, totals, NO payment fields
 export function getBill(orgSlug: string, locationId: string, billId: string): Promise<BillDetail>;                    // payments.view; lines, payments, refunds, balance
-export function getBillPrintData(orgSlug: string, locationId: string, billId: string): Promise<BillPrintData>;        // payments.view
+export function getBillPrintData(orgSlug: string, locationId: string, billId: string): Promise<BillPrintData>;        // bills.print (payments block only with payments.view)
 export function getOpenCashSession(orgSlug: string, locationId: string): Promise<CashSession | null>;                // payments.view
 export function getCashSessionSummary(orgSlug: string, locationId: string, sessionId: string): Promise<CashSessionSummary>; // payments.view; expected so far, counts by method
 ```
@@ -363,7 +364,7 @@ Each failing result is `{ ok: false, code, formError }` with a friendly `formErr
 ## Changes required to orders.md (applied in the orders implementation PR)
 
 1. `submit_order_round`, `void_order_item`, `apply_order_discount`, `remove_order_discount`: reject with `BILL_EXISTS` while an `active` `bill_sets` row exists for the order.
-2. `cancel_order`: if the order has an `active` set with **no payments**, it voids the set (same transaction); if it has any payment, fail with `BILL_HAS_PAYMENTS` (refund first, then cancellation is Still open). Cancel stays pre-`served` only.
+2. `cancel_order`: if the order has an `active` set with **no payments**, it voids the set (same transaction); if the set holds money (net paid > 0) it fails with `BILL_HAS_PAYMENTS`: a manager refunds first, then cancels (**Decided**, log 13). Cancel stays pre-`served` only.
 3. `set_order_status(..., 'served')`: after the change, run the completion check from this contract.
 4. orders.md says "Cash-first POS may call `completeOrder`". There is **no** `completeOrder` action: completion happens only through the check above, whichever of "served" and "fully paid" is last.
 5. `order_counters.kind` gains `'bill'`; the Realtime topic list gains `location:{id}:payments`.
@@ -399,7 +400,7 @@ Order #42: Nasi Goreng 35.000 × 2 = **70.000**; Es Teh 8.000 × 3 = **24.000**;
 
 ## Tests (REYKI, `supabase/tests/isolation/`)
 
-Isolation (every table and view): a member of org B cannot read or write org A's `bill_sets`, `bills`, `bill_items`, `payments`, `refunds`, `cash_sessions`, `bill_events` or `bill_balances`; a location-scoped member cannot read another location's rows; direct `INSERT/UPDATE/DELETE` by `authenticated` fails on every table; `anon` cannot execute any RPC; each RPC rejects a caller lacking its permission (`payments.take`, `payments.refund`, `payments.view`) with `FORBIDDEN`; a waiter and a kitchen user cannot read bills; `bill_events` is hidden without `payments.refund` or `reports.view`: a **cashier with `payments.view` selects 0 rows** (no error) while still reading bills, payments and `bill_balances`, and a manager reads them; org B cannot join `location:{A}:payments`, a location-scoped member cannot join another location's topic, and the orders channel does not carry any bill event. **Topic matching:** a kitchen user (holds `kitchen.view`, no `payments.view`) joins `location:{A}` but is refused `location:{A}:payments`; a custom role with only `payments.view` joins `location:{A}:payments` but is refused `location:{A}`; `location:{A}:payments:x`, `location:{A}x`, `location:{A}:`, `location:{A}:PAYMENTS`, an uppercase-uuid form and a trailing-newline form are refused by **both** policies; a payment recorded at A delivers `payment.changed` on `location:{A}:payments` and nothing on `location:{A}`.
+Isolation (every table and view): a member of org B cannot read or write org A's `bill_sets`, `bills`, `bill_items`, `payments`, `refunds`, `cash_sessions`, `bill_events` or `bill_balances`; a location-scoped member cannot read another location's rows; direct `INSERT/UPDATE/DELETE` by `authenticated` fails on every table; `anon` cannot execute any RPC; each RPC rejects a caller lacking its permission (`payments.take`, `payments.refund`, `payments.view`, `bills.print`) with `FORBIDDEN`; a kitchen user cannot read bills; `bill_events` is hidden without `payments.refund` or `reports.view`: a **cashier with `payments.view` selects 0 rows** (no error) while still reading bills, payments and `bill_balances`, and a manager reads them; org B cannot join `location:{A}:payments`, a location-scoped member cannot join another location's topic, and the orders channel does not carry any bill event. **Topic matching:** a kitchen user (holds `kitchen.view`, no `payments.view`) joins `location:{A}` but is refused `location:{A}:payments`; a custom role with only `payments.view` joins `location:{A}:payments` but is refused `location:{A}`; `location:{A}:payments:x`, `location:{A}x`, `location:{A}:`, `location:{A}:PAYMENTS`, an uppercase-uuid form and a trailing-newline form are refused by **both** policies; a payment recorded at A delivers `payment.changed` on `location:{A}:payments` and nothing on `location:{A}`.
 
 Behaviour:
 - **Creation:** allowed for `accepted`/`preparing`/`ready`/`served`, `ORDER_NOT_BILLABLE` for `draft`, `placed`, `completed`, `cancelled` and for an order with no active items; the bill snapshots survive a later menu price edit and a voided order item; one active set per order (`BILL_EXISTS`); same `client_ref` and request replays, a different request is `BILL_EXISTS`; mixed `tax_rate_bps` gives `TAX_RATE_MISMATCH`; `bill_number` resets per location-local day and stays unique under concurrent creation.
@@ -410,8 +411,10 @@ Behaviour:
 - **Completion:** served + all bills paid completes the order and moves the table to `needs_cleaning` in the same transaction, in both orders of events (pay first then serve; serve first then pay); a split set completes only when every bill is paid; a zero-total bill completes immediately; a refund after completion changes nothing on the order.
 - **Refunds:** `REFUND_EXCEEDS_PAID` across several partial refunds; cash refund needs an open session; reason required; `payments.refund` required; refund writes `audit_logs`.
 - **Cash sessions:** a second open session at a location fails (`SESSION_ALREADY_OPEN`); expected = float + cash payments − cash refunds computed server-side; variance sign; a note is required when variance is not 0; closing twice is idempotent with the same figures and `SESSION_CLOSED` otherwise.
-- **Print:** `record_bill_print` returns `duplicate = false` first and `true` afterwards; `print_count` never decreases.
-- **Cancel:** `cancel_order` voids an unpaid set and returns `BILL_HAS_PAYMENTS` when a payment exists.
+- **Print:** `record_bill_print` returns `duplicate = false` first and `true` afterwards; `print_count` never decreases; `taxId` is in the print data when the location has one and omitted otherwise; the payments block and `paymentStatus` are absent for a `bills.print`-only caller.
+- **Waiter (`bills.print` only):** can read `bill_sets`/`bills`/`bill_items` and their totals, `create_bills` and `record_bill_print`; **cannot** `record_payment`, `record_refund`, `open_cash_session`, `close_cash_session` or `void_bill_set` (all `FORBIDDEN`); selects 0 rows from `payments`, `refunds`, `cash_sessions`, `bill_events` and `bill_balances`; cannot join `location:{A}:payments`; a role with neither `payments.view` nor `bills.print` (kitchen) reads no bill rows; the backfill gave the system `waiter`, `cashier` and `manager` roles of existing orgs `bills.print`.
+- **Void after refund:** `void_bill_set` on a set with net paid > 0 is `BILL_HAS_PAYMENTS`; after the full refunds (net 0) a `payments.refund` holder can void it and a `payments.take`-only cashier cannot; a set on a `completed` order cannot be voided (`ORDER_CLOSED`).
+- **Cancel:** `cancel_order` voids a set whose net paid is 0 and returns `BILL_HAS_PAYMENTS` while money is held.
 
 ## Decisions log
 
@@ -428,16 +431,18 @@ Proposed by DAVIN 2026-11-12 (all open to ALAN's review):
 
 9. **Decided by ALAN 2026-11-12 (kept as M3 limits, moved to the M7 backlog):** re-splitting after a partial payment is not possible (an unpaid set can be voided and recreated); one line is never split across bills (whole lines only); mixed tax rates in one order are refused with `TAX_RATE_MISMATCH`; one cash drawer (open session) per location; any `payments.take` holder may close a session, with a variance audited in `audit_logs` and a note required; receipts by email/WhatsApp and e-faktur are out of scope for M3. Snapshots never change: bills keep the service/tax settings of their creation, and an unpaid set can be voided and recreated to pick up new location settings.
 
-## Still open (the user's decisions; asked by ALAN 2026-11-12)
+10. **No cash rounding in M3** (user, 2026-11-12): the exact rupiah is charged. A per-location rounding setting is on the backlog.
+11. **The order discount applies before service charge and PB1/PBJT**, so tax is on the discounted amount (user). This confirms decision 2.
+12. **No tips in M3** (user). Later, as a separate non-taxable line (backlog).
+13. **A bill that holds money cannot be voided** (user): a manager refunds first (reason + audit), then voids. Net paid over the set must be 0. The same rule applies to `cancel_order`.
+14. **Waiters can view and print the pre-bill** (user), through a new narrow permission `bills.print`; no payments, refunds or sessions (DAVIN's choice over `payments.view`, documented above).
+15. **Optional per-location NPWP** (`locations.tax_id`), printed when set (user). Follow-up task: DAVIN migration and ADIT settings field.
 
-Answers go into this file before it merges. Each has the contract's proposal as the recommended default.
+## Still open
 
-1. **Cash rounding.** Round cash totals to the nearest Rp 100 or Rp 500? If yes: per location setting, a visible `rounding_adjustment` line on the bill, and the effect on tax reports. Proposal: no rounding in M3.
-2. **Discount and tax treatment.** Confirm "discount before service charge and tax" with the user (or their accountant). It is the proposed default, but Indonesian practice varies by region and by whether the discount is a price reduction or a payment concession.
-3. **Tips / gratuity.** Not modelled. Needed? As a separate non-taxable line paid with the bill? Proposal: not in M3.
-4. **Voiding or cancelling a bill/order that already has payments.** M3 blocks it (`BILL_HAS_PAYMENTS`); the only way out is refunds. Should a manager be able to void a paid bill, with automatic refunds?
-5. **Waiters and bills** (was #10). Waiters cannot see or print a pre-bill in M3. Give them `payments.view` (or a narrower print-only permission)?
-6. **Tax id on the receipt** (was #11). `locations` has no tax identification column (NPWP). Add one under settings, owned by a settings task?
+None. The six product questions were answered on 2026-11-12 (log 10–15) and ALAN's M3 limits are in log 9.
+
+**M7 backlog** (known limits, not blockers): re-splitting after a partial payment; splitting one line across bills; per-rate tax groups for mixed rates; multiple cash drawers per location; a variance threshold that needs a manager to close a session; cash rounding setting; tips as a non-taxable line; receipts by email/WhatsApp and e-faktur.
 
 ## Out of scope here
 
