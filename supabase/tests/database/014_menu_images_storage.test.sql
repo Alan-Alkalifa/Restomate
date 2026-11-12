@@ -5,7 +5,11 @@ select to_regclass('storage.objects') is not null
    and (select count(*) from pg_policies where schemaname = 'storage' and policyname = 'menu_images_insert') > 0 as has_storage \gset
 \if :has_storage
 begin;
-select plan(26);
+select plan(27);
+
+-- db reset uploads supabase/seed/menu-images through Storage (via Kong), so the sample Demo images must exist.
+select ok((select count(*) from storage.objects where bucket_id = 'menu-images' and name like '%/items/%/sample.png') >= 1,
+  'seeded sample images exist in the menu-images bucket');
 
 insert into public.packages (code, name, limits) values ('t-img', 'Images', '{}');
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, created_at, updated_at)
