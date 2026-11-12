@@ -2,14 +2,19 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "@/app/globals.css";
 import { PostHogProvider } from "@/lib/posthog/client";
-import type { Locale } from "@/i18n/config";
+import { metadataBase, type Locale } from "@/i18n/config";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
+/**
+ * Shared by every root layout. `metadataBase` is set here, once, so Next turns every relative canonical / hreflang
+ * alternate (`alternatesFor`) into an absolute URL in all trees, not only under /en and the auth pages (BUG-130-1).
+ */
 export const defaultMetadata: Metadata = {
   title: "Restomate",
   description: "Restaurant management, POS and ordering in one dashboard.",
+  metadataBase: metadataBase(),
 };
 
 /**
