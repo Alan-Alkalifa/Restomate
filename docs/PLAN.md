@@ -5,7 +5,7 @@
 > - **How** we build it (stack, rules, conventions) → `CLAUDE.md`
 > - **In what order, and what's done** → this file
 
-Last updated: 2026-11-12
+Last updated: 2026-11-12 (pm)
 
 ---
 
@@ -263,7 +263,7 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [ ] Onboarding polish: sample menu/tables option, setup checklist that tracks real progress — checklist ✅ #105/#106/#128; sample data option still open
 - [x] Super admin **Tenants**: detail page with usage vs. limits, subscription history, owner contact, password-reset trigger, audit trail
 - [x] Super admin **Packages**: create/edit/archive plans, limits, feature flags; pricing page updates immediately (`updateTag`)
-- [ ] Super admin **Platform settings**: signup on/off, maintenance banner, tax presets — lib + RPCs + server-side enforcement ✅ #102 (MSS-T08); settings page + public banner: #100 (MSS-T09); Auth-hook signup refusal: B1-T18
+- [x] Super admin **Platform settings**: signup on/off, maintenance banner, tax presets — lib + RPCs + server-side enforcement ✅ #102 (MSS-T08); settings page + public banner: #100 (MSS-T09); Auth-hook signup refusal: B1-T18
 - [ ] Feature gating: `hasFeature(org, key)` on the server + locked UI with upgrade prompt
 - [ ] PostHog signup funnel dashboard
 
@@ -273,17 +273,17 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 
 ## 6. M2 — Venue & menu
 
-- [ ] Tables: `areas`, `tables` (capacity, status, position, `qr_token`)
-- [ ] Area management (create, rename, reorder, disable)
-- [ ] Floor plan editor (drag-and-drop table placement per area)
-- [ ] QR codes: generate per table, rotate token, printable sheet (A4 + table tents)
-- [ ] Menu schema: `menu_categories`, `menu_items`, `item_variants`, `modifier_groups`, `modifiers`, `location_menu_overrides`, `kitchen_stations`
+- [x] Tables: `areas`, `tables` (capacity, status, position, `qr_token`)
+- [x] Area management (create, rename, reorder, disable)
+- [x] Floor plan editor (drag-and-drop table placement per area)
+- [x] QR codes: generate per table, rotate token, printable sheet (A4 + table tents)
+- [x] Menu schema: `menu_categories`, `menu_items`, `item_variants`, `modifier_groups`, `modifiers`, `location_menu_overrides`, `kitchen_stations`
 - [x] Menu editor: categories, items, variants, modifiers (min/max), dietary tags, images (Supabase Storage), drag-and-drop ordering
-- [ ] Per-location price/availability overrides; "sold out today" toggle
+- [x] Per-location price/availability overrides; "sold out today" toggle
 - [x] Realtime menu changes broadcast per location
-- [ ] Package limits: `max_tables`
+- [x] Package limits: `max_tables`
 
-**Exit:** Demo Restaurant has a full menu and floor plan with printable QR codes.
+**Exit:** Demo Restaurant has a full menu and floor plan with printable QR codes. — all M2 PRs merged 2026-11-12; REYKI's sign-off is MVM-T17.
 
 ---
 
@@ -293,9 +293,9 @@ Conventions: text columns with `check` constraints instead of enums (easier to e
 - [ ] `lib/orders/transitions.ts` state machines + tests
 - [ ] **POS**: touch grid, cart, modifiers, notes, dine-in/takeaway, send to kitchen, add-on rounds, discounts (`pos.discount`), voids with reason (`orders.void`), keyboard shortcuts, offline/reconnecting banner, cart persisted locally
 - [ ] **Live order board**: filters by channel/status, realtime, reconnect + refetch
-- [ ] **KDS**: tickets by station, item/ticket status, amber/red timers, bump, realtime
-- [ ] **Table status**: live colors, move/merge tables, waiter assignment, time seated
-- [ ] **Bills**: PB1/PBJT + service charge via `money.ts`, split by item or equal shares, partial payments, derived payment status
+- [ ] **KDS**: tickets by station (#137, seam until #123), item/ticket status, amber/red timers, bump, realtime
+- [ ] **Table status** (contract #136; implementation #138): live colors, move/merge tables, waiter assignment, time seated
+- [ ] **Bills** (contract #132; implementation #134; screens #139): PB1/PBJT + service charge via `money.ts`, split by item or equal shares, partial payments, derived payment status
 - [ ] **Payments (non-gateway)**: cash with change, EDC card (recorded), other
 - [ ] **Printing**: 80 mm / 58 mm / A4 print routes for bills and KOTs; "Duplicate" on reprint
 - [ ] **Payment tracking**: live payments list, end-of-day cash-up with variance
@@ -455,6 +455,13 @@ Custom domains · loyalty points · WhatsApp notifications · full offline POS �
 | 2026-11-12 | BUG-130-2: plan descriptions are DB content written by super admins in Bahasa (default language); per-language descriptions → M7 backlog. BUG-130-1/3 → B1-T30 |
 | 2026-11-12 | Security: a hosted Supabase service-role key (project `qsmfzgnrjxqmfqxrzuwv`, not restomate-staging) was pasted into an HQ note; the user rotated it. Agent sandboxes must use the local Supabase stack, never hosted keys |
 | 2026-11-12 | Merge hygiene: run the stacked-PR check as its own step and retarget before `--delete-branch` (#79 was closed by #77's merge and restored) |
+| 2026-11-12 | #109 POS shell merged; every top-level route group needs its own root layout since #113/#130 (`(pos)` lacked one → 500, BUG-109-1, S2) |
+| 2026-11-12 | Table operations (#136): merge = **table group** under one order; unmerge → needs_cleaning; primary can't be released; waiter assignment gates nothing (default opener, "My tables" filter); over-capacity is a UI warning; reserved tables refused; group bill label "T4 + T5". Merging two open orders, a cleaning timer and waiter enforcement → M7 |
+| 2026-11-12 | **M4 storefront contract merged (#140). User decisions:** QR auto-accept only for add-on rounds on a table with an open order (first order at an empty table always needs staff); empty-table ordering allowed with staff acceptance; no add-ons after served; QR works without hours, online pickup needs hours; defaults min Rp 0 / lead 20 / slot 15 / no capacity; no partial accept; phone optional, no OTP; retention: clear name/phone after 30 days, delete non-accepted submissions after 90 (daily Vercel Cron route, `CRON_SECRET`); one `qr_ordering` flag; no guest cancel after acceptance; storefront Bahasa default + /en. ALAN: guest writes are service-role only after Arcjet; guests poll (no Realtime); custom domains out of M4 |
+| 2026-11-12 | Secrets added by the user: `GUEST_TOKEN_KEY` (Vercel staging + agents' HQ app variables, different values) and `CRON_SECRET` (Vercel) |
+| 2026-11-12 | Canonical host: `NEXT_PUBLIC_APP_URL` for every tree until hosts are separated (MCS-T04); then marketing → root domain, storefront → `{slug}.{root}` |
+| 2026-11-12 | Migration ordering rule while the M3 chain is open: independent PRs take timestamps between main's newest and #123's `…150000` (#135 → `…143000`, #144 → `…144000`) so the chain needs no renumbering |
+| 2026-11-12 | Strings signed off by the user as written: KDS (#137), bills/receipt (#139), POS sold-out (#141), storefront (#145) |
 
 ### `instant = false` opt-outs
 _None yet._
@@ -463,10 +470,11 @@ _None yet._
 
 ## 15. Next up
 
-_Updated 2026-11-12. Merged since the resume: #102, #127, #128, #126, #130, #77, #131, #80, #92, #95, #105, #82, #84, #132._
+_Updated 2026-11-12 (afternoon). Merged today: #102 #127 #128 #126 #130 #77 #131 #80 #92 #95 #105 #82 #84 #132 #133 #136 #109 #100 #79 #86 #140 #135 #142._
 
-1. **REYKI, MVM-T16:** #100 (settings page) → #86 re-check (rebuilt on main) → #109 POS shell → #79 re-check after ADIT's rebase → MSC-T03 (orders pgTAP, gate for #123) → MSC-T08 (bills suite). MSS-T03 / MSS-T07 after.
-2. **DAVIN, MSC-T07:** bills implementation, stacked on #123's branch (retarget to main when #123 merges). Then B1-T31 (NPWP column).
-3. **ADIT:** MVM-T10 (#79 rebase + BUG-77-1) → B1-T30 (hreflang, after #100) → MSC-T06 (POS sold-out toggle, after #109 + #84) → MSC-T09 (bill & payment screens + print).
-4. **Merge order when QA passes:** #100 → #86 → #109 → #79 → #123 → MSC-T07.
-5. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.
+1. **REYKI, MSC-T13 (QA batch 3):** #141 → **MSC-T03 orders suite → #123** (gates all of M3) → #143 → #144 → MSC-T08 bills suite → #134 → #138 → #137/#139/#145 after their seams are swapped. Then MVM-T17 (M2 exit sign-off).
+2. **DAVIN:** MCS-T04 (host separation + marketing/storefront canonicals). Then MCS-T03 (guest intake) once #123 merges; seam swaps support as the chain lands.
+3. **ADIT:** B1-T32 (NPWP settings field). Then seam swaps on #137 (after #123), #139 (after #134), #145 (after #144); then the guest checkout/QR/status pages after MCS-T03.
+4. **Merge chain (stacked; retarget each as the one below merges):** #123 → #134 → #138. Independent: #141, #143, #144, then #145.
+5. **M1 still open:** Terms/Privacy pages (legal text from the user), PostHog signup funnel dashboard, onboarding sample-data option; then REYKI's M1 exit sign-off.
+6. **Before any deployed environment:** set `EMAIL_DELIVERY=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and the Supabase publishable key; run Supabase advisors; the host must pass the client IP to Arcjet (it fails open without one). Production touches need the user's approval.
