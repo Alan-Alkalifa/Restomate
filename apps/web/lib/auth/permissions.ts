@@ -18,6 +18,7 @@ export const PERMISSION_KEYS = [
   "payments.view",
   "payments.take",
   "payments.refund",
+  "bills.print",
   "customers.view",
   "customers.manage",
   "reports.view",

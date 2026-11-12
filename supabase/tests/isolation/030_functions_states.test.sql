@@ -1,7 +1,7 @@
 -- MF-T25: helper functions, role permission sets, location scope, suspended org.
 begin;
 \ir _helpers.inc
-select plan(257);
+select plan(262);
 
 -- is_platform_admin / is_org_member / is_org_owner -------------------------------
 select is(tests.scalar(a, 'public.is_platform_admin()'), case a when 'padmin' then 'true' else 'false' end, 'is_platform_admin as ' || a)
@@ -29,18 +29,18 @@ create table tests.allperms (p text);
 insert into tests.allperms values ('menu.manage'),('orders.view'),('orders.create'),('orders.void'),('pos.use'),
  ('pos.discount'),('kitchen.view'),('kitchen.update'),('tables.view'),('tables.manage'),('reservations.view'),
  ('reservations.manage'),('payments.view'),('payments.take'),('payments.refund'),('customers.view'),
- ('customers.manage'),('reports.view'),('staff.manage'),('locations.manage'),('settings.manage'),
+ ('bills.print'),('customers.manage'),('reports.view'),('staff.manage'),('locations.manage'),('settings.manage'),
  ('settings.branding'),('billing.manage');
 grant select on tests.allperms to public;
-select is((select count(*)::int from tests.allperms), 23, 'permission catalog in test = 23 keys');
+select is((select count(*)::int from tests.allperms), 24, 'permission catalog in test = 24 keys');
 select set_eq('select key from public.permissions', 'select p from tests.allperms', 'permissions table = PLAN catalog');
 
 create table tests.expected_perms (actor text, p text);
 insert into tests.expected_perms
   select 'oa', p from tests.allperms
   union all select 'ma', p from tests.allperms where p not in ('billing.manage','settings.manage','locations.manage')
-  union all select 'ca', unnest(array['pos.use','orders.view','orders.create','payments.view','payments.take','customers.view','kitchen.view','tables.view'])
-  union all select 'wa', unnest(array['pos.use','orders.view','orders.create','kitchen.view','tables.view','reservations.view'])
+  union all select 'ca', unnest(array['pos.use','orders.view','orders.create','payments.view','payments.take','bills.print','customers.view','kitchen.view','tables.view'])
+  union all select 'wa', unnest(array['pos.use','orders.view','orders.create','bills.print','kitchen.view','tables.view','reservations.view'])
   union all select 'ka', unnest(array['kitchen.view','kitchen.update','orders.view']);
 grant select on tests.expected_perms to public;
 
@@ -58,7 +58,7 @@ select is(tests.scalar('ma', 'public.has_permission({A}, ''not.a.permission'')')
 
 -- my_permissions sizes ---------------------------------------------------------------
 select is(tests.scalar(v.a, 'cardinality(public.my_permissions({A}))'), v.n::text, 'my_permissions(A) size as ' || v.a)
-  from (values ('oa',23),('ma',20),('ca',8),('wa',6),('ka',3),('da',0),('ob',0),('out',0),('padmin',0)) v(a, n);
+  from (values ('oa',24),('ma',21),('ca',9),('wa',7),('ka',3),('da',0),('ob',0),('out',0),('padmin',0)) v(a, n);
 select is(tests.scalar('oa', 'cardinality(public.my_permissions({B}))'), '0', 'my_permissions(B) empty for owner of A');
 
 -- has_location_access ----------------------------------------------------------------
@@ -104,7 +104,7 @@ select is(tests.cnt('ca', 'select 1 from public.org_branding where organization_
 
 -- schema-level guards ------------------------------------------------------------------
 select is((select count(*)::int from pg_class c join pg_namespace n on n.oid = c.relnamespace
-            where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity), 36, 'M0 + M2 venue + M2 menu + M3 orders have 36 RLS tables in public (update when tables are added)');
+            where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity), 43, 'M0 + M2 venue + M2 menu + M3 orders + M3 bills have 43 RLS tables in public (update when tables are added)');
 select is(has_schema_privilege('authenticated', 'private', 'USAGE'), false, 'authenticated has no usage on private schema');
 select is(has_schema_privilege('anon', 'private', 'USAGE'), false, 'anon has no usage on private schema');
 

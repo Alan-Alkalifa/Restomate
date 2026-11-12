@@ -53,7 +53,7 @@ select throws_ok($$select public.create_organization('X','good-slug','{"name":"M
 select lives_ok($$select pg_temp.mkorg('first-resto')$$, 'create_organization happy path');
 reset role;
 select is((select count(*)::int from public.roles r join public.organizations o on o.id=r.organization_id where o.slug='first-resto' and r.is_system), 5, '5 system roles created');
-select is((select count(*)::int from public.role_permissions rp join public.organizations o on o.id=rp.organization_id where o.slug='first-resto'), 37, 'role permissions copied (20+8+6+3)');
+select is((select count(*)::int from public.role_permissions rp join public.organizations o on o.id=rp.organization_id where o.slug='first-resto'), 40, 'role permissions copied (21+9+7+3)');
 select is((select m.all_locations and r.key='owner' from public.organization_members m join public.roles r on r.id=m.role_id join public.organizations o on o.id=m.organization_id where o.slug='first-resto' and m.user_id='00000000-0000-0000-0000-0000000000c1'), true, 'owner membership with all_locations');
 select is((select count(*)::int from public.locations l join public.organizations o on o.id=l.organization_id where o.slug='first-resto' and l.tax_rate_bps=1000), 1, 'first location with default tax');
 select is((select count(*)::int from public.org_branding b join public.organizations o on o.id=b.organization_id where o.slug='first-resto'), 1, 'branding row created');
