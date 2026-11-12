@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/env", () => ({ publicEnv: { NEXT_PUBLIC_APP_URL: "https://app.restomate.app/" } }));
 
+const rpc = vi.fn();
 const auth = {
   signInWithPassword: vi.fn(),
   signUp: vi.fn(),
@@ -21,12 +22,15 @@ const auth = {
   signOut: vi.fn(),
   getClaims: vi.fn(),
 };
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth }) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth, rpc: (...a: unknown[]) => rpc(...a) }) }));
 const getCurrentUser = vi.fn();
 vi.mock("./dal", () => ({ getCurrentUser: () => getCurrentUser() }));
 const guard = vi.fn();
 const track = vi.fn();
 vi.mock("./seams", () => ({ guard: (...a: unknown[]) => guard(...a), track: (...a: unknown[]) => track(...a) }));
+
+const isSignupEnabled = vi.fn();
+vi.mock("@/lib/public/platform-flags", () => ({ isSignupEnabled: () => isSignupEnabled() }));
 
 import { requestPasswordReset, signIn, signOut, signUp, updatePassword } from "./actions";
 
@@ -39,6 +43,8 @@ const form = (o: Record<string, string>) => {
 beforeEach(() => {
   vi.clearAllMocks();
   guard.mockResolvedValue({ allowed: true });
+  isSignupEnabled.mockResolvedValue(true);
+  rpc.mockResolvedValue({ data: true, error: null });
   auth.signInWithPassword.mockResolvedValue({ error: null });
   auth.signUp.mockResolvedValue({ data: { user: { id: "u-1" } }, error: null });
   auth.resetPasswordForEmail.mockResolvedValue({ error: null });
@@ -113,6 +119,46 @@ describe("signUp", () => {
     });
     expect(guard).toHaveBeenCalledWith("signup", { email: "new@x.test" });
     expect(track).toHaveBeenCalledWith("signup_started", { distinctId: "u-1" });
+  });
+  it("refuses with SIGNUP_DISABLED, before touching Supabase Auth, while signup is off", async () => {
+    isSignupEnabled.mockResolvedValue(false);
+    expect(await signUp(null, form(input))).toMatchObject({ ok: false, code: "SIGNUP_DISABLED" });
+    expect(auth.signUp).not.toHaveBeenCalled();
+    expect(track).not.toHaveBeenCalled();
+  });
+  describe("signup off, invitees", () => {
+    const TOKEN = "abcdefghijklmnop1234";
+    beforeEach(() => isSignupEnabled.mockResolvedValue(false));
+    it("allows an invitee whose token is pending and matches the email", async () => {
+      expect(await signUp(null, form({ ...input, next: `/invite/${TOKEN}` }))).toEqual({ ok: true });
+      expect(rpc).toHaveBeenCalledWith("can_signup_with_invitation", { invite_token: TOKEN, invite_email: "new@x.test" });
+      expect(auth.signUp).toHaveBeenCalledTimes(1);
+      expect(await signUp(null, form({ ...input, next: `/en/invite/${TOKEN}` }))).toEqual({ ok: true });
+    });
+    it("refuses when the RPC says no, or errors (same generic result)", async () => {
+      rpc.mockResolvedValue({ data: false, error: null });
+      expect(await signUp(null, form({ ...input, next: `/invite/${TOKEN}` }))).toMatchObject({ ok: false, code: "SIGNUP_DISABLED" });
+      rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
+      expect(await signUp(null, form({ ...input, next: `/invite/${TOKEN}` }))).toMatchObject({ ok: false, code: "SIGNUP_DISABLED" });
+      expect(auth.signUp).not.toHaveBeenCalled();
+    });
+    it("never relies on the email alone: no invite token in next means no RPC and a refusal", async () => {
+      for (const next of [undefined, "/onboarding", "/invite/short", "/invite/", `/invite/${TOKEN}/extra`, `//evil.test/invite/${TOKEN}`, `/x/invite/${TOKEN}`]) {
+        expect(await signUp(null, form(next ? { ...input, next } : input)), String(next)).toMatchObject({ ok: false, code: "SIGNUP_DISABLED" });
+      }
+      expect(rpc).not.toHaveBeenCalled();
+      expect(auth.signUp).not.toHaveBeenCalled();
+    });
+    it("does not call the RPC when signup is on", async () => {
+      isSignupEnabled.mockResolvedValue(true);
+      expect(await signUp(null, form({ ...input, next: `/invite/${TOKEN}` }))).toEqual({ ok: true });
+      expect(rpc).not.toHaveBeenCalled();
+    });
+  });
+  it("does not block sign-in while signup is off", async () => {
+    isSignupEnabled.mockResolvedValue(false);
+    await expect(signIn(null, form({ email: "a@x.test", password: "pw" }))).rejects.toMatchObject({ url: "/" });
+    expect(isSignupEnabled).not.toHaveBeenCalled();
   });
   it("locale=en puts lang=en on the confirmation link, after the validated next; other values add nothing", async () => {
     expect(await signUp(null, form({ ...input, next: "/invite/tok", locale: "en" }))).toEqual({ ok: true });

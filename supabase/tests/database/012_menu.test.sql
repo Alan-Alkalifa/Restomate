@@ -144,7 +144,7 @@ reset role;
 -- manager success
 select pg_temp.act_as(pg_temp.uid(2));
 select lives_ok(format($$insert into public.menu_categories (organization_id, name, description) values (%L, 'ZCatNew', 'x')$$, pg_temp.org('men-a')), 'manager creates a category');
-select lives_ok(format($$insert into public.menu_items (organization_id, category_id, name, base_price, dietary_tags, image_path) values (%L, %L, 'ZItemNew', 15000, array['halal','spicy'], 'items/nasi-goreng.jpg')$$,
+select lives_ok(format($$insert into public.menu_items (organization_id, category_id, name, base_price, dietary_tags) values (%L, %L, 'ZItemNew', 15000, array['halal','spicy'])$$,
   pg_temp.org('men-a'), pg_temp.cat('ZCatNew')), 'manager creates an item');
 select lives_ok(format($$insert into public.item_variants (organization_id, item_id, name, price_delta) values (%L, %L, 'ZSmall', -2000)$$, pg_temp.org('men-a'), pg_temp.item('ZItemNew')), 'a variant may have a negative price_delta');
 select lives_ok(format($$insert into public.modifier_groups (organization_id, name, min_select, max_select) values (%L, 'ZGroupNew', 0, 3)$$, pg_temp.org('men-a')), 'manager creates a modifier group');

@@ -58,7 +58,7 @@ export function TenantsTable({ rows, setStatus }: { rows: TenantRow[]; setStatus
             <tr key={r.id}>
               {/* Names are rendered as React text nodes (escaped); never as HTML. */}
               <th scope="row" className={`${td} text-left font-medium`}>
-                <span className="break-words">{r.name}</span>
+                <Link href={`/admin/tenants/${r.id}`} className="break-words underline">{r.name}</Link>
                 <span className="block font-normal text-neutral-600 dark:text-neutral-400 break-all">{r.slug}</span>
               </th>
               <td className={td}><span className={`rounded px-2 py-0.5 text-xs font-medium ${BADGE[r.status]}`}>{r.status.replace("_", " ")}</span></td>

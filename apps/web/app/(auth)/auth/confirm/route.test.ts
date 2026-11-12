@@ -41,6 +41,34 @@ describe("GET /auth/confirm", () => {
     expect(location(await call("token_hash=a&type=recovery"))).toBe("https://app.restomate.app/reset-password");
     expect(location(await call("token_hash=a&type=email"))).toBe("https://app.restomate.app/");
   });
+  it("keeps the user's language: lang hint or /en next", async () => {
+    expect(location(await call("token_hash=a&type=recovery&lang=en"))).toBe("https://app.restomate.app/en/reset-password");
+    expect(location(await call("token_hash=a&type=recovery&next=/en/reset-password"))).toBe("https://app.restomate.app/en/reset-password");
+    expect(location(await call("token_hash=a&type=recovery&lang=fr"))).toBe("https://app.restomate.app/reset-password");
+    verifyOtp.mockResolvedValue({ data: {}, error: { message: "expired" } });
+    expect(location(await call("token_hash=a&type=signup&lang=en"))).toBe("https://app.restomate.app/en/login?error=link_expired");
+    expect(location(await call("token_hash=a&type=signup"))).toBe("https://app.restomate.app/login?error=link_expired");
+  });
+  it("applies lang=en to next: the reset mail's next=/reset-password lands on /en/reset-password", async () => {
+    const base = "token_hash=a&type=recovery&next=%2Freset-password";
+    expect(location(await call(`${base}&lang=en`))).toBe("https://app.restomate.app/en/reset-password");
+    expect(location(await call(base))).toBe("https://app.restomate.app/reset-password"); // Indonesian unchanged
+    expect(location(await call("token_hash=a&type=recovery&next=%2Flogin%3Fx%3D1&lang=en"))).toBe("https://app.restomate.app/en/login?x=1");
+    expect(location(await call("token_hash=a&type=recovery&next=%2Fen%2Freset-password&lang=en"))).toBe("https://app.restomate.app/en/reset-password"); // no double prefix
+  });
+  it("leaves untranslated pages unprefixed for English users (onboarding, home)", async () => {
+    expect(location(await call("token_hash=a&type=signup&next=%2Fonboarding&lang=en"))).toBe("https://app.restomate.app/onboarding");
+    expect(location(await call("token_hash=a&type=signup&lang=en"))).toBe("https://app.restomate.app/onboarding");
+    expect(location(await call("token_hash=a&type=email&next=%2Fdemo%2Fstaff&lang=en"))).toBe("https://app.restomate.app/demo/staff");
+  });
+  it.each(["fr", "EN", "en/../x", "%2F%2Fevil.test", "https://evil.test"])("accepts only id|en for lang (%s)", async (lang) => {
+    const r = await call(`token_hash=a&type=recovery&next=%2Freset-password&lang=${encodeURIComponent(lang)}`);
+    expect(location(r)).toBe("https://app.restomate.app/reset-password");
+  });
+  it.each(["https://evil.test", "//evil.test", "/\\evil.test", "%2F%2Fevil.test"])("an English hint never opens a redirect (next=%s)", async (next) => {
+    const r = await call(`token_hash=a&type=recovery&lang=en&next=${encodeURIComponent(next)}`);
+    expect(location(r)).toBe("https://app.restomate.app/en/reset-password");
+  });
   it.each(["https://evil.test", "//evil.test", "/\\evil.test", "javascript:alert(1)"])("never redirects off-site (next=%s)", async (next) => {
     const r = await call(`token_hash=a&type=signup&next=${encodeURIComponent(next)}`);
     expect(location(r)).toBe("https://app.restomate.app/onboarding");

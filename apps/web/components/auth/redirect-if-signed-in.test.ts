@@ -12,6 +12,11 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { redirectIfSignedIn, signedInDestination } from "./redirect-if-signed-in";
 
 describe("signedInDestination", () => {
+  it("never sends a signed-in user back to an auth page in either locale", () => {
+    expect(signedInDestination("/en/login")).toBe("/");
+    expect(signedInDestination("/en/signup?x=1")).toBe("/");
+    expect(signedInDestination("/english")).toBe("/english");
+  });
   it("keeps a same-site next", () => expect(signedInDestination("/acme/pos")).toBe("/acme/pos"));
   it.each([undefined, ["/a", "/b"], "", "//evil.com", "https://evil.com", "/\\evil.com", "/\t/evil.com", "/login", "/signup?next=/x", "/login/"])(
     "falls back to / for %j",

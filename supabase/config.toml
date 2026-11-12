@@ -118,7 +118,15 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
-# Uncomment to configure local storage buckets
+# Local storage buckets. The real bucket and its policies come from migration *_menu_images.sql (so hosted projects
+# get them too); this entry only makes the CLI upload the sample Demo images from supabase/seed/menu-images.
+[storage.buckets.menu-images]
+public = true
+file_size_limit = "2MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/webp"]
+objects_path = "./seed/menu-images"
+
+# Example of another bucket:
 # [storage.buckets.images]
 # public = false
 # file_size_limit = "50MiB"
@@ -285,9 +293,9 @@ max_frequency = "5s"
 # inactivity_timeout = "8h"
 
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
-# [auth.hook.before_user_created]
-# enabled = true
-# uri = "pg-functions://postgres/auth/before-user-created-hook"
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/before_user_created_signup_guard"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # [auth.hook.custom_access_token]

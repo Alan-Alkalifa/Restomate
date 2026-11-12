@@ -4,6 +4,7 @@ import { updateTag } from "next/cache";
 import { forbidden } from "next/navigation";
 import { requireOrgContext, requirePermission, requireUser } from "@/lib/auth/dal";
 import type { ActionResult } from "@/lib/auth/schemas";
+import { setupProgressTag } from "@/lib/auth/tags";
 import { EVENTS } from "@/lib/posthog/events";
 import { captureServer } from "@/lib/posthog/server";
 import { createClient } from "@/lib/supabase/server";
@@ -51,6 +52,8 @@ async function authorizeLocation(orgSlug: string, locationId: string) {
 }
 
 const bump = (orgId: string) => updateTag(menuTag(orgId));
+/** Item writes that can change whether the org has an active, published item: the setup checklist's menu step. */
+const bumpItems = (orgId: string) => { bump(orgId); updateTag(setupProgressTag(orgId)); };
 const bumpLocation = (orgId: string, locationId: string) => { updateTag(menuTag(orgId)); updateTag(menuLocationTag(orgId, locationId)); };
 
 /** Every id in `ids` must exist in `table` for this org (and extra filters). */
@@ -136,7 +139,7 @@ export const createItem: MenuAction = async (orgSlug, _prev, formData) => {
   });
   if (error) return mapMenuError(error);
   captureServer(EVENTS.menuItemCreated, { distinctId: user.id, organizationId: orgId });
-  bump(orgId);
+  bumpItems(orgId);
   return OK;
 };
 
@@ -153,7 +156,7 @@ export const updateItem: MenuAction = async (orgSlug, _prev, formData) => {
   }).eq("organization_id", orgId).eq("id", d.itemId);
   if (error) return mapMenuError(error);
   captureServer(EVENTS.menuItemUpdated, { distinctId: user.id, organizationId: orgId });
-  bump(orgId);
+  bumpItems(orgId);
   return OK;
 };
 
@@ -164,7 +167,7 @@ export const setItemActive: MenuAction = async (orgSlug, _prev, formData) => {
   if (!(await allOwned(supabase, "menu_items", orgId, [parsed.data.itemId]))) return NOT_FOUND;
   const { error } = await supabase.from("menu_items").update({ is_active: parsed.data.active }).eq("organization_id", orgId).eq("id", parsed.data.itemId);
   if (error) return mapMenuError(error);
-  bump(orgId);
+  bumpItems(orgId);
   return OK;
 };
 
@@ -175,7 +178,7 @@ export const setItemPublished: MenuAction = async (orgSlug, _prev, formData) => 
   if (!(await allOwned(supabase, "menu_items", orgId, [parsed.data.itemId]))) return NOT_FOUND;
   const { error } = await supabase.from("menu_items").update({ is_published: parsed.data.published }).eq("organization_id", orgId).eq("id", parsed.data.itemId);
   if (error) return mapMenuError(error);
-  bump(orgId);
+  bumpItems(orgId);
   return OK;
 };
 

@@ -163,11 +163,12 @@ test.describe("Cashier lifecycle (exit criterion 2)", () => {
     await expect(page).toHaveURL(/\/signup\?next=/);
     await page.waitForLoadState("networkidle");
     const since = new Date(Date.now() - 1000);
-    await page.getByLabel("Full name").fill("Cashier Live");
+    // The invite page links to the unprefixed (Bahasa) signup, so this form is in Indonesian.
+    await page.getByLabel("Nama lengkap").fill("Cashier Live");
     await page.getByLabel("Email").fill(cashierEmail);
-    await page.getByLabel("Password").fill(INVITE_PASSWORD);
-    await page.getByRole("button", { name: "Create account" }).click();
-    await expect(page.getByText(/check your email/i)).toBeVisible({ timeout: 60_000 });
+    await page.getByLabel("Kata sandi").fill(INVITE_PASSWORD);
+    await page.getByRole("button", { name: "Buat akun" }).click();
+    await expect(page.getByText(/periksa email anda/i)).toBeVisible({ timeout: 60_000 });
     await page.goto(extractLink(await waitForEmail(cashierEmail, { since, subject: /confirm/i })));
     await expect(page).toHaveURL(/\/invite\//); // back on the invite page, signed in
     await page.waitForLoadState("networkidle");

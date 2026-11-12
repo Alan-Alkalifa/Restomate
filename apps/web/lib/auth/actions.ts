@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { publicEnv } from "@/lib/env";
+import { isSignupEnabled } from "@/lib/public/platform-flags";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "./dal";
 import { sanitizeNext } from "./redirect";
@@ -29,6 +30,8 @@ const GENERIC_ERROR = "Something went wrong. Please try again.";
 /** A password change needs a sign-in via an emailed link (recovery / OTP) no older than this. */
 const RECENT_LINK_WINDOW_SECONDS = 10 * 60;
 
+const SIGNUP_DISABLED_RESULT: ActionResult = { ok: false, code: "SIGNUP_DISABLED", formError: "Sign-ups are closed right now." };
+
 const RATE_LIMIT_MESSAGE = "Too many attempts. Please wait a moment and try again.";
 const UNVERIFIED_MESSAGE = "We couldn't verify this request. Please try again from a normal browser, or contact support.";
 
@@ -50,6 +53,11 @@ function blocked(reason: GuardReason): ActionResult {
 function confirmUrl(next: string, locale: Locale = "id"): string {
   const base = `${publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/auth/confirm?next=${encodeURIComponent(next)}`;
   return locale === "en" ? `${base}&lang=en` : base;
+}
+
+/** The token of a same-site `/invite/{token}` (or `/en/invite/{token}`) path, else null. */
+function inviteTokenFromNext(path: string): string | null {
+  return /^\/(?:en\/)?invite\/([A-Za-z0-9_-]{16,256})$/.exec(path)?.[1] ?? null;
 }
 
 /** Sign in with email + password, then go to the validated `next` (default "/"). */
@@ -87,6 +95,16 @@ export async function signUp(_prev: ActionResult | null, formData: FormData): Pr
   if (!decision.allowed) return blocked(decision.reason);
 
   const supabase = await createClient();
+
+  // Server-side, uncached: hiding the form is not enough (MSS-T08). Sign-in is not affected.
+  // While signup is off, only an invitee may continue: the invite TOKEN in `next` (/invite/{token}) must be pending
+  // and belong to this email. The check is a boolean RPC, so the form cannot be used to probe for invitations.
+  if (!(await isSignupEnabled())) {
+    const token = inviteTokenFromNext(sanitizeNext(next, "/onboarding"));
+    if (!token) return SIGNUP_DISABLED_RESULT;
+    const { data: allowed, error: inviteError } = await supabase.rpc("can_signup_with_invitation", { invite_token: token, invite_email: email });
+    if (inviteError || allowed !== true) return SIGNUP_DISABLED_RESULT;
+  }
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
