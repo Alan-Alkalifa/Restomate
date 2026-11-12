@@ -118,7 +118,7 @@ insert into tests.write_specs (actor, stmt, expect, label) values
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img2'', 1, ''/etc/passwd'')','blocked','absolute image_path rejected'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img3'', 1, ''https://evil.test/x.png'')','blocked','URL image_path rejected'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img4'', 1, ''a b.png'')','blocked','image_path with space rejected'),
- ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img5'', 1, ''org/items/n5.png'')','ok','relative image_path accepted'),
+ ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, image_path) values ({A}, {CA1}, ''N-img5'', 1, ''org/items/n5.png'')','blocked','image_path outside the item''s own folder rejected (MVM-T13 strict check)'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price) values ({A}, {CA1}, '''', 1)','blocked','empty item name rejected'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price) values ({A}, {CA1}, repeat(''x'', 81), 1)','blocked','81-char item name rejected'),
  ('oa','insert into public.menu_items (organization_id, category_id, name, base_price, description) values ({A}, {CA1}, ''N-desc'', 1, repeat(''x'', 501))','blocked','501-char description rejected'),
@@ -166,7 +166,7 @@ select is((select price_delta from public.item_variants where id = (select id fr
 select is((select price_delta from public.modifiers where id = (select id from tests.ids where name = 'MA')), 0::bigint, 'modifier price untouched');
 select is((select price_override from public.location_menu_overrides where id = (select id from tests.ids where name = 'OA1')), 26000::bigint, 'override changed only by the scoped manager at own location');
 select is((select sold_out_until from public.location_menu_overrides where id = (select id from tests.ids where name = 'OA1')), null, 'sold_out_until never set by direct writes');
-select is((select count(*)::int from public.location_menu_overrides where sold_out_until is not null), 0, 'no override carries sold_out_until');
+select is((select count(*)::int from public.location_menu_overrides where sold_out_until is not null and organization_id in (select id from tests.ids where name in ('A', 'B'))), 0, 'no fixture override carries sold_out_until');
 select is((select base_price from public.menu_items where id = (select id from tests.ids where name = 'IB')), 10000::bigint, 'org B item price untouched');
 select is((select name from public.menu_items where id = (select id from tests.ids where name = 'IB')), 'Tea 2', 'org B item changed only by its owner');
 select is((select count(*)::int from public.menu_items where organization_id = (select id from tests.ids where name = 'B')), 1, 'org B still has one item');

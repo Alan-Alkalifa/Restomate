@@ -175,17 +175,34 @@ begin
       ('de000000-0000-4000-8000-0000000001a2', demo, 'de000000-0000-4000-8000-0000000000a1', 'Terrace', 2),
       ('de000000-0000-4000-8000-0000000001a3', demo, 'de000000-0000-4000-8000-0000000000a1', 'Bar',     3);
 
+    -- Positions are on the floor editor's 0-999 canvas (one canvas per area, snap step 10), spaced >= 200 apart.
     insert into public.tables (organization_id, location_id, area_id, label, capacity, shape, pos_x, pos_y, qr_token)
     select demo, 'de000000-0000-4000-8000-0000000000a1', a.id, t.label, t.capacity, t.shape, t.pos_x, t.pos_y, 'demo-qr-' || lower(t.label)
     from (values
-      ('Indoor',  'T1',  2, 'square', 1, 1), ('Indoor',  'T2',  2, 'square', 3, 1),
-      ('Indoor',  'T3',  4, 'rect',   1, 3), ('Indoor',  'T4',  4, 'rect',   3, 3),
-      ('Indoor',  'T5',  6, 'rect',   5, 2), ('Indoor',  'T6',  8, 'rect',   5, 5),
-      ('Terrace', 'P1',  4, 'round',  8, 1), ('Terrace', 'P2',  4, 'round',  8, 3),
-      ('Terrace', 'P3',  4, 'round',  8, 5), ('Terrace', 'P4',  6, 'round', 10, 3),
-      ('Bar',     'B1',  2, 'square', 1, 8), ('Bar',     'B2',  2, 'square', 3, 8)
+      ('Indoor',  'T1',  2, 'square', 100, 100), ('Indoor',  'T2',  2, 'square', 300, 100),
+      ('Indoor',  'T3',  4, 'rect',   100, 340), ('Indoor',  'T4',  4, 'rect',   340, 340),
+      ('Indoor',  'T5',  6, 'rect',   620, 200), ('Indoor',  'T6',  8, 'rect',   620, 520),
+      ('Terrace', 'P1',  4, 'round',  150, 150), ('Terrace', 'P2',  4, 'round',  150, 450),
+      ('Terrace', 'P3',  4, 'round',  450, 150), ('Terrace', 'P4',  6, 'round',  450, 450),
+      ('Bar',     'B1',  2, 'square', 200, 200), ('Bar',     'B2',  2, 'square', 400, 200)
     ) as t(area, label, capacity, shape, pos_x, pos_y)
     join public.areas a on a.location_id = 'de000000-0000-4000-8000-0000000000a1' and a.name = t.area;
+
+    -- Demo states on the Jakarta Selatan floor.
+    update public.tables set status = 'occupied'       where location_id = 'de000000-0000-4000-8000-0000000000a1' and label = 'T3';
+    update public.tables set status = 'needs_cleaning' where location_id = 'de000000-0000-4000-8000-0000000000a1' and label = 'P2';
+
+    -- Bandung floor (tokens demo-qr-bdg-*; Jakarta Selatan's demo-qr-* tokens are unchanged).
+    insert into public.areas (id, organization_id, location_id, name, sort_order) values
+      ('de000000-0000-4000-8000-0000000001a4', demo, 'de000000-0000-4000-8000-0000000000a2', 'Lantai 1', 1),
+      ('de000000-0000-4000-8000-0000000001a5', demo, 'de000000-0000-4000-8000-0000000000a2', 'Rooftop',  2);
+    insert into public.tables (organization_id, location_id, area_id, label, capacity, shape, pos_x, pos_y, qr_token)
+    select demo, 'de000000-0000-4000-8000-0000000000a2', a.id, t.label, t.capacity, t.shape, t.pos_x, t.pos_y, 'demo-qr-bdg-' || lower(t.label)
+    from (values
+      ('Lantai 1', 'L1', 2, 'square', 150, 150), ('Lantai 1', 'L2', 4, 'rect', 450, 150), ('Lantai 1', 'L3', 6, 'rect', 300, 480),
+      ('Rooftop',  'R1', 4, 'round',  200, 200), ('Rooftop',  'R2', 4, 'round', 500, 200), ('Rooftop',  'R3', 6, 'round', 350, 500)
+    ) as t(area, label, capacity, shape, pos_x, pos_y)
+    join public.areas a on a.location_id = 'de000000-0000-4000-8000-0000000000a2' and a.name = t.area;
   end if;
 
   if not exists (select 1 from public.areas where organization_id = other) then
@@ -210,8 +227,10 @@ begin
       ('de000000-0000-4000-8000-0000000003a3', demo, 'de000000-0000-4000-8000-0000000000a2', 'Dapur', 1),
       ('de000000-0000-4000-8000-0000000003a4', demo, 'de000000-0000-4000-8000-0000000000a2', 'Bar',   2);
 
-    insert into public.menu_items (organization_id, category_id, name, description, base_price, dietary_tags, is_published, sort_order)
-    select demo, c.id, i.name, i.descr, i.price, i.tags, true, i.ord
+    -- Six items have fixed ids so their sample images (supabase/seed/menu-images/<org>/items/<id>/sample.png) line up.
+    insert into public.menu_items (id, organization_id, category_id, name, description, base_price, dietary_tags, is_published, sort_order, image_path)
+    select coalesce(i.id, gen_random_uuid()), demo, c.id, i.name, i.descr, i.price, i.tags, true, i.ord,
+           case when i.id is not null then demo::text || '/items/' || i.id::text || '/sample.png' end
     from (values
       ('Makanan', 'Nasi Goreng Kampung', 'Nasi goreng bumbu terasi, telur, ayam suwir dan acar',        35000, array['halal']::text[],                  1),
       ('Makanan', 'Mie Goreng Jawa',     'Mie goreng manis gurih dengan sayuran dan bakso',             33000, array['halal']::text[],                  2),
@@ -234,7 +253,16 @@ begin
       ('Dessert', 'Klepon',              'Kue ketan isi gula merah, parutan kelapa, 5 buah',             15000, array['vegan']::text[],                  2),
       ('Dessert', 'Pisang Bakar Coklat', 'Pisang bakar, coklat, keju dan susu',                          20000, array['vegetarian']::text[],             3),
       ('Dessert', 'Es Teler',            'Alpukat, kelapa muda, nangka, susu dan sirup',                 22000, array['vegetarian']::text[],             4)
-    ) as i(cat, name, descr, price, tags, ord)
+    ) as v(cat, name, descr, price, tags, ord)
+    left join (values
+      ('Nasi Goreng Kampung', 'de000000-0000-4000-8000-000000000501'::uuid),
+      ('Mie Goreng Jawa',     'de000000-0000-4000-8000-000000000502'::uuid),
+      ('Ayam Bakar Taliwang', 'de000000-0000-4000-8000-000000000503'::uuid),
+      ('Es Teh Manis',        'de000000-0000-4000-8000-000000000504'::uuid),
+      ('Kopi Susu Gula Aren', 'de000000-0000-4000-8000-000000000505'::uuid),
+      ('Es Cendol',           'de000000-0000-4000-8000-000000000506'::uuid)
+    ) as fixed(name, id) on fixed.name = v.name
+    cross join lateral (select v.cat, v.name, v.descr, v.price, v.tags, v.ord, fixed.id) as i
     join public.menu_categories c on c.organization_id = demo and c.name = i.cat;
 
     -- an unpublished draft: must never reach the public menu
@@ -290,6 +318,13 @@ begin
     cross join public.menu_items i
     join public.menu_categories c on c.id = i.category_id
     where i.organization_id = demo and i.is_published;
+
+    -- Demo state: Rendang Sapi is sold out for the rest of today at Jakarta Selatan (end of day in Asia/Jakarta).
+    update public.location_menu_overrides o
+       set sold_out_until = (((now() at time zone 'Asia/Jakarta')::date + 1)::timestamp) at time zone 'Asia/Jakarta'
+      from public.menu_items i
+     where o.item_id = i.id and i.organization_id = demo and i.name = 'Rendang Sapi'
+       and o.location_id = 'de000000-0000-4000-8000-0000000000a1';
   end if;
 
   if not exists (select 1 from public.menu_categories where organization_id = other) then
