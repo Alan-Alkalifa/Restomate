@@ -183,14 +183,14 @@ isOneToOne: false
                   ]
                 },"locations": {
                   Row: {
-                    "address": string | null,"city": string | null,"created_at": string,"currency": string,"id": string,"is_active": boolean,"name": string,"organization_id": string,"phone": string | null,"service_charge_bps": number,"tax_on_service_charge": boolean,"tax_rate_bps": number,"timezone": string,"updated_at": string
+                    "address": string | null,"city": string | null,"created_at": string,"currency": string,"id": string,"is_active": boolean,"name": string,"organization_id": string,"phone": string | null,"service_charge_bps": number,"tax_id": string | null,"tax_on_service_charge": boolean,"tax_rate_bps": number,"timezone": string,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "address"?: string | null,"city"?: string | null,"created_at"?: string,"currency"?: string,"id"?: string,"is_active"?: boolean,"name": string,"organization_id": string,"phone"?: string | null,"service_charge_bps"?: number,"tax_on_service_charge"?: boolean,"tax_rate_bps"?: number,"timezone"?: string,"updated_at"?: string
+                    "address"?: string | null,"city"?: string | null,"created_at"?: string,"currency"?: string,"id"?: string,"is_active"?: boolean,"name": string,"organization_id": string,"phone"?: string | null,"service_charge_bps"?: number,"tax_id"?: string | null,"tax_on_service_charge"?: boolean,"tax_rate_bps"?: number,"timezone"?: string,"updated_at"?: string
                   }
                   Update: {
-                    "address"?: string | null,"city"?: string | null,"created_at"?: string,"currency"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"organization_id"?: string,"phone"?: string | null,"service_charge_bps"?: number,"tax_on_service_charge"?: boolean,"tax_rate_bps"?: number,"timezone"?: string,"updated_at"?: string
+                    "address"?: string | null,"city"?: string | null,"created_at"?: string,"currency"?: string,"id"?: string,"is_active"?: boolean,"name"?: string,"organization_id"?: string,"phone"?: string | null,"service_charge_bps"?: number,"tax_id"?: string | null,"tax_on_service_charge"?: boolean,"tax_rate_bps"?: number,"timezone"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {
