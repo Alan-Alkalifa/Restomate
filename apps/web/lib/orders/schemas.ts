@@ -52,3 +52,19 @@ export const updateKotSchema = z.object({ ticketId: id, status: z.enum(["in_prog
 export const bumpKotSchema = z.object({ ticketId: id });
 export const kotItemSchema = z.object({ ticketItemId: id, status: z.enum(["pending", "ready"], { error: "Invalid status." }) });
 export const tableIdSchema = z.object({ tableId: id });
+
+export const MAX_MERGE_TABLES = 9;
+const tableIds = z.string().max(4096, "Too much data.").transform((raw, ctx): string[] => {
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { ctx.addIssue({ code: "custom", message: "Invalid tables." }); return z.NEVER; }
+  const r = z.array(id).min(1, "Choose at least one table.").max(MAX_MERGE_TABLES, `Choose at most ${MAX_MERGE_TABLES} extra tables.`).safeParse(value);
+  if (!r.success) { ctx.addIssue({ code: "custom", message: r.error.issues[0]?.message ?? "Invalid tables." }); return z.NEVER; }
+  if (new Set(r.data).size !== r.data.length) { ctx.addIssue({ code: "custom", message: "A table is listed twice." }); return z.NEVER; }
+  return r.data;
+});
+
+export const moveOrderSchema = z.object({ orderId: id, toTableId: id });
+export const mergeTablesSchema = z.object({ orderId: id, tableIds });
+export const unmergeTableSchema = z.object({ orderId: id, tableId: id });
+/** `waiterId` empty = clear the assignment. */
+export const assignWaiterSchema = z.object({ orderId: id, waiterId: z.preprocess(blank, id.optional()) });

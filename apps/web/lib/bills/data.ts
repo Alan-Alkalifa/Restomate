@@ -63,6 +63,23 @@ export type BillPrintData = {
 
 const uuid = z.string().uuid();
 
+/**
+ * The table label printed on a bill. A party that used several tables (a table group) prints the primary table and
+ * every table it ever held, sorted by label, e.g. "T4 + T5". Released group rows count too, so a bill reprinted after
+ * the order closed (which releases the group) still shows the whole party. Null for takeaway.
+ */
+export function joinTableLabels(labels: string[]): string | null {
+  const unique = [...new Set(labels)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return unique.length ? unique.join(" + ") : null;
+}
+async function groupTableLabel(supabase: Awaited<ReturnType<typeof createClient>>, orgId: string, orderId: string, primaryId: string | null) {
+  if (!primaryId) return null;
+  const { data: rows } = await supabase.from("order_tables").select("table_id").eq("organization_id", orgId).eq("order_id", orderId);
+  const ids = [...new Set([primaryId, ...(rows ?? []).map((r) => r.table_id)])];
+  const { data: tables } = await supabase.from("tables").select("label").eq("organization_id", orgId).in("id", ids);
+  return joinTableLabels((tables ?? []).map((t) => t.label));
+}
+
 async function setup(orgSlug: string, locationId: string, anyOf: PermissionKey[]) {
   const ctx = await requireOrgContext(orgSlug);
   assertLocation(ctx, locationId);
@@ -188,9 +205,7 @@ export async function getBillPrintData(orgSlug: string, locationId: string, bill
     supabase.from("orders").select("order_number, channel, table_id, guest_count").eq("organization_id", ctx.org.id).eq("id", b.order_id).maybeSingle(),
     supabase.from("bill_items").select(LINE_COLS).eq("organization_id", ctx.org.id).eq("bill_set_id", b.bill_set_id).order("created_at"),
   ]);
-  const table = order.data?.table_id
-    ? (await supabase.from("tables").select("label").eq("organization_id", ctx.org.id).eq("id", order.data.table_id).maybeSingle()).data
-    : null;
+  const tableLabel = await groupTableLabel(supabase, ctx.org.id, b.order_id, order.data?.table_id ?? null);
   let payments: BillPrintData["payments"] = [];
   let paymentStatus: string | null = null;
   if (canSeePayments) {
@@ -209,7 +224,7 @@ export async function getBillPrintData(orgSlug: string, locationId: string, bill
       taxId: null, // locations.tax_id (NPWP) is the follow-up migration; null until it ships
       timezone: loc.data?.timezone ?? "Asia/Jakarta", currency: (loc.data?.currency ?? "IDR").trim(),
     },
-    order: { orderNumber: order.data?.order_number ?? 0, channel: order.data?.channel ?? "dine_in", tableLabel: table?.label ?? null, guestCount: order.data?.guest_count ?? null },
+    order: { orderNumber: order.data?.order_number ?? 0, channel: order.data?.channel ?? "dine_in", tableLabel, guestCount: order.data?.guest_count ?? null },
     lines: own.map((l) => ({ name: l.item_name, variantName: l.variant_name, modifiersText: l.modifiers_text, quantity: l.quantity, unitPrice: l.unit_price, lineTotal: l.line_total })),
     totals: {
       subtotal: b.subtotal, discount: b.discount, serviceCharge: b.service_charge, serviceChargeBps: set.data?.service_charge_bps ?? 0,

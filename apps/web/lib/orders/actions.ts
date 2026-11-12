@@ -10,8 +10,8 @@ import { captureServer } from "@/lib/posthog/server";
 import { createClient } from "@/lib/supabase/server";
 import { mapOrderError } from "./errors";
 import {
-  applyDiscountSchema, bumpKotSchema, cancelOrderSchema, fieldErrors, kotItemSchema, orderIdSchema, parseForm,
-  removeDiscountSchema, sendRoundSchema, tableIdSchema, updateKotSchema, voidItemSchema,
+  applyDiscountSchema, assignWaiterSchema, bumpKotSchema, cancelOrderSchema, fieldErrors, kotItemSchema, mergeTablesSchema, moveOrderSchema,
+  orderIdSchema, parseForm, removeDiscountSchema, sendRoundSchema, tableIdSchema, unmergeTableSchema, updateKotSchema, voidItemSchema,
 } from "./schemas";
 import { assertLocation, ordersTag } from "./shared";
 
@@ -162,4 +162,47 @@ export const markTableClean: OrderAction = async (orgSlug, locationId, _prev, fo
   if (error) return mapOrderError(error);
   updateTag(ordersTag(locationId));
   return { ok: true };
+};
+
+/* ---- table operations (docs/contracts/orders.md "Table operations") --------------------------------------------------- */
+
+/** A party moves to another available table. The old table goes to needs_cleaning. Allowed while a bill is active. */
+export const moveOrder: OrderAction = async (orgSlug, locationId, _prev, formData) => {
+  const { user, supabase, orgId } = await authorize(orgSlug, locationId, ["orders.create"]);
+  const p = parse(moveOrderSchema, formData);
+  if (p.error) return p.error;
+  if (!(await inLocation(supabase, "orders", orgId, locationId, p.data.orderId))) return NOT_FOUND;
+  const { error } = await supabase.rpc("move_order_to_table", { order_id: p.data.orderId, to_table_id: p.data.toTableId });
+  return error ? mapOrderError(error) : done(user, orgId, locationId, EVENTS.orderMoved);
+};
+
+/** Adds 1..9 available tables to the party (a table group inside one order). */
+export const mergeTables: OrderAction = async (orgSlug, locationId, _prev, formData) => {
+  const { user, supabase, orgId } = await authorize(orgSlug, locationId, ["orders.create"]);
+  const p = parse(mergeTablesSchema, formData);
+  if (p.error) return p.error;
+  if (!(await inLocation(supabase, "orders", orgId, locationId, p.data.orderId))) return NOT_FOUND;
+  const { error } = await supabase.rpc("merge_tables", { order_id: p.data.orderId, table_ids: p.data.tableIds });
+  return error ? mapOrderError(error) : done(user, orgId, locationId, EVENTS.tablesMerged);
+};
+
+/** Releases one extra table from the party; it goes to needs_cleaning. The primary table cannot be released. */
+export const unmergeTable: OrderAction = async (orgSlug, locationId, _prev, formData) => {
+  const { user, supabase, orgId } = await authorize(orgSlug, locationId, ["orders.create"]);
+  const p = parse(unmergeTableSchema, formData);
+  if (p.error) return p.error;
+  if (!(await inLocation(supabase, "orders", orgId, locationId, p.data.orderId))) return NOT_FOUND;
+  const { error } = await supabase.rpc("unmerge_table", { order_id: p.data.orderId, table_id: p.data.tableId });
+  return error ? mapOrderError(error) : done(user, orgId, locationId, EVENTS.tableUnmerged);
+};
+
+/** Take a table (yourself), clear your own assignment (orders.create), or assign/clear someone else (tables.manage). */
+export const assignWaiter: OrderAction = async (orgSlug, locationId, _prev, formData) => {
+  const { user, supabase, orgId } = await authorize(orgSlug, locationId, ["orders.create", "tables.manage"]);
+  const p = parse(assignWaiterSchema, formData);
+  if (p.error) return p.error;
+  if (!(await inLocation(supabase, "orders", orgId, locationId, p.data.orderId))) return NOT_FOUND;
+  // the parameter has no default and accepts null to clear; generated types model it as string
+  const { error } = await supabase.rpc("assign_order_waiter", { order_id: p.data.orderId, waiter_id: (p.data.waiterId ?? null) as unknown as string });
+  return error ? mapOrderError(error) : done(user, orgId, locationId, EVENTS.waiterAssigned);
 };
