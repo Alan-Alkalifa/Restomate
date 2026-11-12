@@ -144,6 +144,27 @@ begin
 end;
 $$;
 
+-- Lock order is tables -> orders -> bill_sets/bills -> cash_sessions (submit_order_round already takes the table row
+-- before the order). Anything that can reach complete_order_if_paid / free_table_if_idle (which update the table) must
+-- therefore lock a dine-in order's table row BEFORE the order row, or it can deadlock with submit_order_round.
+-- Takeaway orders have no table: nothing to lock. A non-locking read finds the table id first.
+create or replace function private.lock_order_table(p_order uuid)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_table uuid;
+begin
+  select o.table_id into v_table from public.orders o where o.id = p_order;
+  if v_table is not null then
+    perform 1 from public.tables t where t.id = v_table for update;
+  end if;
+end;
+$$;
+
 create or replace function private.bill_set_result(p_set uuid, p_replayed boolean)
 returns jsonb
 language sql
@@ -212,6 +233,7 @@ begin
   if v_reason is null or char_length(v_reason) not between 3 and 200 then
     raise exception 'INVALID_INPUT' using errcode = '22023';
   end if;
+  perform private.lock_order_table(v_order);
   select * into o from public.orders x where x.id = v_order for update;
   select * into v_set from public.bill_sets s where s.order_id = v_order and s.status = 'active' for update;
   if found then
@@ -251,6 +273,7 @@ begin
      or not public.has_location_access(o.location_id) then
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
+  perform private.lock_order_table(v_order);
   select * into o from public.orders x where x.id = v_order for update;
   if v_to is null or v_to not in ('accepted', 'served') then
     raise exception 'INVALID_TRANSITION' using errcode = 'P0001';
@@ -379,7 +402,8 @@ begin
     return private.bill_set_result(v_ex.id, true);
   end if;
 
-  -- lock the order, then check it can be billed and has no active set
+  -- lock the table, then the order, then check it can be billed and has no active set
+  perform private.lock_order_table(v_order);
   select * into o from public.orders x where x.id = v_order for update;
   if o.status not in ('accepted', 'preparing', 'ready', 'served') then
     raise exception 'ORDER_NOT_BILLABLE' using errcode = 'P0001';
@@ -596,7 +620,8 @@ begin
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
   if v_ref is null or v_amount is null or v_amount <= 0 or v_method is null
-     or (v_label is not null and char_length(v_label) not between 2 and 40) then
+     or (v_label is not null and char_length(v_label) not between 2 and 40)
+     or (v_tend is not null and (v_tend < 0 or v_tend > 1000000000000)) then
     raise exception 'INVALID_INPUT' using errcode = '22023';
   end if;
   if v_method not in ('cash', 'edc_card', 'other') then
@@ -625,7 +650,8 @@ begin
       'orderCompleted', (select x.status = 'completed' from public.orders x where x.id = b.order_id), 'replayed', true);
   end if;
 
-  -- lock order -> bill (-> session)
+  -- lock table -> order -> bill (-> session)
+  perform private.lock_order_table(b.order_id);
   select * into o from public.orders x where x.id = b.order_id for update;
   select * into b from public.bills x where x.id = v_bill for update;
   select * into s from public.bill_sets x where x.id = b.bill_set_id;

@@ -3,7 +3,7 @@
 -- events, refunds, cash sessions, printing, Realtime topic rules, waiter limits, isolation.
 -- Contract: docs/contracts/bills.md. REYKI's isolation suite (MSC-T08) is separate.
 begin;
-select plan(154);
+select plan(163);
 
 insert into public.packages (code, name, limits) values ('t-bill', 'Bills', '{}');
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, created_at, updated_at)
@@ -245,6 +245,7 @@ select throws_ok(format($$select pg_temp.pay(%L, 'cash', 30000, 20, 50000)$$, pg
 select is(public.open_cash_session(pg_temp.loc('L1'), 500000) ->> 'status', 'open', 'a cashier opens a session with a 500.000 float');
 select throws_ok(format($$select public.open_cash_session(%L, 1000)$$, pg_temp.loc('L1')), 'P0001', 'SESSION_ALREADY_OPEN', 'one open session per location');
 select throws_ok(format($$select pg_temp.pay(%L, 'cash', 30000, 21, 10000)$$, pg_temp.billid('equal', 1)), 'P0001', 'TENDERED_TOO_LOW', 'tendered below the amount is refused');
+select throws_ok(format($$select pg_temp.pay(%L, 'cash', 1000, 32, 1000000000001)$$, pg_temp.billid('equal', 1)), '22023', 'INVALID_INPUT', 'tendered is capped at 1e12');
 select throws_ok(format($$select pg_temp.pay(%L, 'doku', 1000, 22)$$, pg_temp.billid('equal', 1)), 'P0001', 'METHOD_NOT_ALLOWED', 'doku is reserved for M5');
 select throws_ok(format($$select pg_temp.pay(%L, 'other', 1000, 23)$$, pg_temp.billid('equal', 1)), '22023', 'INVALID_INPUT', 'other needs a label');
 select throws_ok(format($$select pg_temp.pay(%L, 'edc_card', 1000, 24, null, null, '1234567890123456')$$, pg_temp.billid('equal', 1)), '22023', 'INVALID_INPUT', 'an approval code is 4-12 alphanumerics (never a card number)');
@@ -264,6 +265,9 @@ select is((select payment_status from public.bill_balances where bill_id = pg_te
 select is((select count(*) from public.bill_events where bill_id = pg_temp.billid('equal', 1) and event_type = 'bill_paid'), 0::bigint, 'a cashier reads no bill_events (0 rows)');
 -- the other two shares: voucher + card. The order is not served yet, so it must not complete.
 select is(pg_temp.pay(pg_temp.billid('equal', 2), 'other', 56018, 30, null, 'Voucher') ->> 'paymentStatus', 'paid', 'share 2 paid with a voucher');
+select is(pg_temp.pay(pg_temp.billid('equal', 2), 'other', 56018, 30, null, '  Voucher ') ->> 'replayed', 'true', 'a label that differs only by surrounding spaces is a replay, not CLIENT_REF_CONFLICT');
+select is((select count(*) from public.payments where bill_id = pg_temp.billid('equal', 2)), 1::bigint, 'and creates no second payment');
+select throws_ok(format($$select pg_temp.pay(%L, 'other', 56018, 30, null, 'Gift card')$$, pg_temp.billid('equal', 2)), 'P0001', 'CLIENT_REF_CONFLICT', 'a genuinely different label with the same client_ref still conflicts');
 select is(pg_temp.pay(pg_temp.billid('equal', 3), 'edc_card', 56017, 31) ->> 'orderCompleted', 'false', 'all shares paid but not served: the order is not completed yet');
 reset role;
 select is(pg_temp.ostatus('T1'), 'ready', 'order A is still ready');
@@ -364,6 +368,22 @@ select public.cancel_order(pg_temp.order_of('T5'), 'guest left');
 reset role;
 select is((select status from public.bill_sets where id = pg_temp.setid('e_set')), 'void', 'cancel_order voided the unpaid set');
 select is(pg_temp.ostatus('T5'), 'cancelled', 'order E cancelled');
+
+-- ---- lock order: every path that can complete an order locks the TABLE row before the ORDER row ------------------------
+-- (submit_order_round takes table -> order; the same order everywhere avoids a deadlock between a payment and a round)
+select ok(strpos(pg_get_functiondef('public.record_payment(uuid,text,bigint,uuid,bigint,text,text)'::regprocedure), 'private.lock_order_table(')
+          between 1 and strpos(pg_get_functiondef('public.record_payment(uuid,text,bigint,uuid,bigint,text,text)'::regprocedure), 'for update') - 1,
+  'record_payment locks the table before the order');
+select ok(strpos(pg_get_functiondef('public.create_bills(uuid,uuid,text,integer,jsonb)'::regprocedure), 'private.lock_order_table(')
+          between 1 and strpos(pg_get_functiondef('public.create_bills(uuid,uuid,text,integer,jsonb)'::regprocedure), 'for update') - 1,
+  'create_bills locks the table before the order');
+select ok(strpos(pg_get_functiondef('public.set_order_status(uuid,text)'::regprocedure), 'private.lock_order_table(')
+          between 1 and strpos(pg_get_functiondef('public.set_order_status(uuid,text)'::regprocedure), 'for update') - 1,
+  'set_order_status locks the table before the order');
+select ok(strpos(pg_get_functiondef('public.cancel_order(uuid,text)'::regprocedure), 'private.lock_order_table(')
+          between 1 and strpos(pg_get_functiondef('public.cancel_order(uuid,text)'::regprocedure), 'for update') - 1,
+  'cancel_order locks the table before the order');
+select lives_ok(format($$select private.lock_order_table(%L)$$, pg_temp.order_of('T1')), 'lock_order_table runs for a dine-in order');
 
 -- ---- Realtime topic rules: exact matching -------------------------------------------------------------------------------------
 select pg_temp.act_as(pg_temp.uid(3));
