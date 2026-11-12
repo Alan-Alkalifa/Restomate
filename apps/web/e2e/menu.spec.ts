@@ -5,9 +5,6 @@ import { seedUsers } from "./support/users";
 const FORBIDDEN = /you don.t have access/i;
 test.setTimeout(300_000); // cold `pnpm dev`
 const NOT_FOUND = /^404$|page not found/i;
-// Until #79 merges, a member without menu.manage gets a read-only org menu and the per-location menu page does not exist.
-// Run with E2E_AFTER_79=1 once it is on main (then drop the guard).
-const AFTER_79 = process.env.E2E_AFTER_79 === "1";
 const PRICE_ERROR = /whole amount|without decimals|0 or more|Negative|too large|valid amount|Enter/i;
 const JAKARTA = "de000000-0000-4000-8000-0000000000a1";
 
@@ -39,7 +36,6 @@ test.describe("org menu editor (MVM-T09, #77)", () => {
   // #79 (de74d0e) changed this: without menu.manage the menu pages are refused (sold-out toggling lives on the POS).
   for (const [role, email] of [["cashier", seedUsers.cashier], ["waiter", seedUsers.waiter], ["kitchen", seedUsers.kitchen]] as const) {
     test(`${role}: org and location menu pages are refused, nothing of the menu in the page`, async ({ page }) => {
-      test.skip(!AFTER_79, "needs #79");
       await signInAs(page, email);
       for (const path of ["/demo/menu", `/demo/${JAKARTA}/menu`]) {
         await page.goto(path);
@@ -57,7 +53,6 @@ test.describe("org menu editor (MVM-T09, #77)", () => {
   });
 
   test("owner: location menu — override price whole rupiah only, sold out today / back on, unknown location is 404", async ({ page }) => {
-    test.skip(!AFTER_79, "needs #79");
     await signInAs(page, seedUsers.owner);
     await open(page, `/demo/${JAKARTA}/menu`);
     const row = page.getByRole("button", { name: /^Edit .* at this location$/ }).first();
@@ -80,7 +75,6 @@ test.describe("org menu editor (MVM-T09, #77)", () => {
   });
 
   test("owner of another restaurant cannot open the Demo location menu", async ({ page }) => {
-    test.skip(!AFTER_79, "needs #79");
     await signInAs(page, seedUsers.otherOwner);
     await page.goto(`/demo/${JAKARTA}/menu`);
     await expect(page.getByRole("heading", { name: FORBIDDEN }).or(page.getByRole("heading", { name: NOT_FOUND }))).toBeVisible();

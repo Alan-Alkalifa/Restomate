@@ -38,7 +38,7 @@ Environment: local Supabase (hosted project never used), `next dev`, Chromium. E
 
 ## New Playwright specs (apps/web/e2e)
 
-`menu.spec.ts` (needs `E2E_AFTER_79=1` until #79 merges), `signup-off.spec.ts`, `admin-packages.spec.ts`, `admin-tenant-detail.spec.ts`, `admin-settings.spec.ts`, `setup-checklist.spec.ts`, `pos-shell.spec.ts`.
+`menu.spec.ts`, `signup-off.spec.ts`, `admin-packages.spec.ts`, `admin-tenant-detail.spec.ts`, `admin-settings.spec.ts`, `setup-checklist.spec.ts`, `pos-shell.spec.ts`.
 They need the local stack (`supabase start`, `supabase db reset`) and the LOCAL service-role key in the environment (see `e2e/support/db.ts`); never the hosted project.
 
 ## Environment notes
