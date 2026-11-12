@@ -178,13 +178,12 @@ One bill. `bills` row = the set totals; every `bill_item` has `bill_id` of that 
 
 ### `equal` (2–20 shares)
 
-Totals are computed once on the whole order (steps 1–5 above), giving the set `subtotal`, `discount_total`, `service_charge`, `tax`, `total`. Then with `allocate` (remainder goes one unit each to the first shares):
+Totals are computed once on the whole order (steps 1–5 above), giving the set `subtotal`, `discount_total`, `service_charge`, `tax`, `total`. Then **every component is allocated** with `allocate` (the remainder goes one unit each to the first shares), and the share total is the **derived sum**:
 
-- `total_i = allocate(total, n)[i]` is **authoritative**: it is what share *i* must pay.
-- `subtotal_i`, `discount_i`, `service_charge_i` come from `allocate(subtotal, n)`, `allocate(discount_total, n)`, `allocate(service_charge, n)`.
-- `tax_i` is derived: `tax_i = total_i - subtotal_i + discount_i - service_charge_i`, which absorbs any component rounding difference and is always ≥ 0 and exact.
+- `subtotal_i = allocate(subtotal, n)[i]`, `discount_i = allocate(discount_total, n)[i]`, `service_charge_i = allocate(service_charge, n)[i]`, `tax_i = allocate(tax, n)[i]`.
+- `total_i = subtotal_i - discount_i + service_charge_i + tax_i`.
 
-Therefore `sum(total_i) = set.total` exactly, and each share's components add up to its own total. `bill_items.bill_id` is null: every bill prints the whole item list and "share k of n".
+Each component sums exactly to its set figure, so `sum(total_i) = set.total` exactly. Every component stays ≥ 0 because `allocate` never returns a negative, and `discount_i <= subtotal_i` always holds: with `discount_total <= subtotal`, both are split with the same remainder order, so the base of the discount is at most the base of the subtotal and, when the bases are equal, the discount remainder is at most the subtotal remainder. Hence `total_i >= 0`. (The first draft allocated the total and derived `tax_i` as the difference; that can go negative, for example a location with service charge but 0% tax, subtotal 5, service 10%, n = 2, so the derivation direction was reversed.) Consequence, accepted: shares may differ from each other by a few rupiah (at most 3: one unit each from subtotal, service charge and tax), not just by 1. `bill_items.bill_id` is null: every bill prints the whole item list and "share k of n".
 
 ### `by_item` (2–20 bills)
 
@@ -287,7 +286,7 @@ type RecordPaymentResult = {
 
 Discounts stay in the orders contract (`pos.discount`); creating a bill uses whatever discount the order already has. `has_location_access` applies to every row for staff limited to locations. Custom roles get exactly the permissions they were granted. Waiters cannot see or print bills in M3 (Still open).
 
-**RLS.** Every table: `SELECT` where `is_org_member(organization_id) and has_permission(organization_id, 'payments.view') and has_location_access(location_id)`; `bill_events` additionally needs `payments.refund` or `reports.view`. No INSERT/UPDATE/DELETE policy and no write grant for anyone; the RPCs bypass RLS as owner and re-check authorization themselves. `bill_balances` is `security_invoker` so it inherits all of this.
+**RLS.** Every table: `SELECT` where `is_org_member(organization_id) and has_permission(organization_id, 'payments.view') and has_location_access(location_id)`; `bill_events` additionally needs `payments.refund` or `reports.view`, so a cashier (who holds `payments.view` only) selects **0 rows** from `bill_events` (RLS filters; there is no error). No INSERT/UPDATE/DELETE policy and no write grant for anyone; the RPCs bypass RLS as owner and re-check authorization themselves. `bill_balances` is `security_invoker` so it inherits all of this.
 
 ## Printing hooks
 
@@ -319,7 +318,9 @@ Bill events go on a **separate private channel** so they stay behind `payments.v
 | `payment.changed` | `{ paymentId, billId, updatedAt }` |
 | `cash_session.changed` | `{ sessionId, status, updatedAt }` |
 
-The client treats each event as a **signal to refetch** through RLS-filtered selects; refetch everything on reconnect; never assume event order (compare `updatedAt`); show the reconnecting banner. Order completion and table changes still arrive on the orders channel as `order.changed` and `table.changed`. A pgTAP test proves a member of org B, and a location-scoped member of another location, cannot join `location:{A}:payments`.
+**Exact topic matching.** `location:{A}` is a prefix of `location:{A}:payments`, so neither `realtime.messages` policy may use `like 'location:%'`, `starts_with` or any prefix test. Both policies take `realtime.topic()` and match the **whole string** with an anchored pattern, extract the location id from the capture group, cast it to `uuid` (a failed cast denies), and require the canonical lowercase form (`id::text = captured`): orders `^location:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$` with `orders.view` or `kitchen.view`; payments the same pattern plus `:payments$` with `payments.view`. Any other topic, with any extra suffix or prefix, is denied by both. Bill triggers call `realtime.send` with the `:payments` topic only; nothing about a bill is ever sent to `location:{A}`.
+
+The client treats each event as a **signal to refetch** through RLS-filtered selects; refetch everything on reconnect; never assume event order (compare `updatedAt`); show the reconnecting banner. Order completion and table changes still arrive on the orders channel as `order.changed` and `table.changed`. pgTAP tests for the topic rules are listed under *Tests (REYKI)*.
 
 ## What ADIT consumes (`apps/web/lib/bills/`)
 
@@ -366,6 +367,7 @@ Each failing result is `{ ok: false, code, formError }` with a friendly `formErr
 3. `set_order_status(..., 'served')`: after the change, run the completion check from this contract.
 4. orders.md says "Cash-first POS may call `completeOrder`". There is **no** `completeOrder` action: completion happens only through the check above, whichever of "served" and "fully paid" is last.
 5. `order_counters.kind` gains `'bill'`; the Realtime topic list gains `location:{id}:payments`.
+6. The `realtime.messages` policy for `location:{id}` must match the topic **exactly** (anchored pattern, see *Realtime*), never by prefix; if the orders implementation used a prefix test, it is fixed there. These six changes are applied in the orders implementation PR (#123), so that PR and its QA do not have to reopen.
 
 ## Worked examples (IDR; service 5%, PB1 10% on subtotal + service, half-up)
 
@@ -383,7 +385,9 @@ Order #42: Nasi Goreng 35.000 × 2 = **70.000**; Es Teh 8.000 × 3 = **24.000**;
 | PB1 10% (15.277,5 → half-up) | 15.278 |
 | **total** | **168.053** |
 
-**3-way equal split** (`allocate`): `allocate(168.053, 3)` = **56.018 / 56.018 / 56.017**; subtotal `allocate(156.000, 3)` = 52.000 each; discount `allocate(10.500, 3)` = 3.500 each; service `allocate(7.275, 3)` = 2.425 each; tax derived = total − subtotal + discount − service = **5.093 / 5.093 / 5.092**. Check each share: 52.000 − 3.500 + 2.425 + 5.093 = 56.018; the third: 52.000 − 3.500 + 2.425 + 5.092 = 56.017. Shares sum to 56.018 + 56.018 + 56.017 = **168.053**; taxes sum to 5.093 + 5.093 + 5.092 = **15.278**.
+**3-way equal split** (every component through `allocate`): subtotal `allocate(156.000, 3)` = 52.000 each; discount `allocate(10.500, 3)` = 3.500 each; service `allocate(7.275, 3)` = 2.425 each; tax `allocate(15.278, 3)` = **5.093 / 5.093 / 5.092**. Share totals are derived: 52.000 − 3.500 + 2.425 + 5.093 = **56.018**; the same for share 2 = **56.018**; share 3: 52.000 − 3.500 + 2.425 + 5.092 = **56.017**. They sum to 56.018 + 56.018 + 56.017 = **168.053** (the unsplit total), and the taxes sum to 5.093 + 5.093 + 5.092 = **15.278**.
+
+**Equal split where the old derivation broke** (service charge, no PB1): subtotal 5, service 10% = 1, tax 0%, total 6, n = 2. Components: subtotal 3 / 2, service 1 / 0, tax 0 / 0 → totals **4 / 2**, sum 6. (Allocating the total as 3 / 3 and deriving tax would have given a tax of −1 on share 1.)
 
 **Partial cash payment with change** (share 1, bill total 56.018, session open): the customer hands over 50.000 and wants to pay 30.000 now → `record_payment(method cash, amount 30.000, tendered 50.000)`: `change_given` = **20.000**, `paid_total` 30.000, `outstanding` 26.018, status `partially_paid`. A second payment of 26.018 by `edc_card` (approval code `A1B2C3`) → `paid_total` 56.018, `outstanding` 0, status `paid`. A payment of 30.000 more would fail `PAYMENT_EXCEEDS_OUTSTANDING`. When shares 2 and 3 are also paid and the order is `served`, the order becomes `completed` and the table `needs_cleaning`.
 
@@ -395,12 +399,12 @@ Order #42: Nasi Goreng 35.000 × 2 = **70.000**; Es Teh 8.000 × 3 = **24.000**;
 
 ## Tests (REYKI, `supabase/tests/isolation/`)
 
-Isolation (every table and view): a member of org B cannot read or write org A's `bill_sets`, `bills`, `bill_items`, `payments`, `refunds`, `cash_sessions`, `bill_events` or `bill_balances`; a location-scoped member cannot read another location's rows; direct `INSERT/UPDATE/DELETE` by `authenticated` fails on every table; `anon` cannot execute any RPC; each RPC rejects a caller lacking its permission (`payments.take`, `payments.refund`, `payments.view`) with `FORBIDDEN`; a waiter and a kitchen user cannot read bills; `bill_events` is hidden without `payments.refund` or `reports.view`; org B cannot join `location:{A}:payments`, a location-scoped member cannot join another location's topic, and the orders channel does not carry any bill event.
+Isolation (every table and view): a member of org B cannot read or write org A's `bill_sets`, `bills`, `bill_items`, `payments`, `refunds`, `cash_sessions`, `bill_events` or `bill_balances`; a location-scoped member cannot read another location's rows; direct `INSERT/UPDATE/DELETE` by `authenticated` fails on every table; `anon` cannot execute any RPC; each RPC rejects a caller lacking its permission (`payments.take`, `payments.refund`, `payments.view`) with `FORBIDDEN`; a waiter and a kitchen user cannot read bills; `bill_events` is hidden without `payments.refund` or `reports.view`: a **cashier with `payments.view` selects 0 rows** (no error) while still reading bills, payments and `bill_balances`, and a manager reads them; org B cannot join `location:{A}:payments`, a location-scoped member cannot join another location's topic, and the orders channel does not carry any bill event. **Topic matching:** a kitchen user (holds `kitchen.view`, no `payments.view`) joins `location:{A}` but is refused `location:{A}:payments`; a custom role with only `payments.view` joins `location:{A}:payments` but is refused `location:{A}`; `location:{A}:payments:x`, `location:{A}x`, `location:{A}:`, `location:{A}:PAYMENTS`, an uppercase-uuid form and a trailing-newline form are refused by **both** policies; a payment recorded at A delivers `payment.changed` on `location:{A}:payments` and nothing on `location:{A}`.
 
 Behaviour:
 - **Creation:** allowed for `accepted`/`preparing`/`ready`/`served`, `ORDER_NOT_BILLABLE` for `draft`, `placed`, `completed`, `cancelled` and for an order with no active items; the bill snapshots survive a later menu price edit and a voided order item; one active set per order (`BILL_EXISTS`); same `client_ref` and request replays, a different request is `BILL_EXISTS`; mixed `tax_rate_bps` gives `TAX_RATE_MISMATCH`; `bill_number` resets per location-local day and stays unique under concurrent creation.
 - **Order locking:** with an active set, `submit_order_round`, `void_order_item`, `apply_order_discount` and `remove_order_discount` return `BILL_EXISTS`; after `void_bill_set` they work again; `void_bill_set` with any payment returns `BILL_HAS_PAYMENTS`.
-- **Math:** SQL totals equal the TS `calculateBill` golden vectors above (168.053; 56.018/56.018/56.017; 75.407/92.645); `sum(bills.total) = bill_sets.total` for `none` and `equal` over a generated range of totals and share counts; `by_item` rejects missing, duplicated, foreign or empty assignments (`INVALID_SPLIT`); `allocateByWeights` always sums to its amount (Vitest property test).
+- **Math:** SQL totals equal the TS `calculateBill` golden vectors above (168.053; 56.018/56.018/56.017; 75.407/92.645); `sum(bills.total) = bill_sets.total` for `none` and `equal` **property test** (Vitest on the TS helper and pgTAP on the SQL, same vectors) over generated subtotals 1–5.000, discounts 0..subtotal, service 0/5/10%, tax 0/10%, `taxOnServiceCharge` true/false and n ∈ {2,3,4,7,20}, **including tax 0% and service-only locations**: every component of every share is ≥ 0, `discount_i <= subtotal_i`, each component sums exactly to the set, shares differ by at most 3, and `total_i` equals the sum of its components; `by_item` rejects missing, duplicated, foreign or empty assignments (`INVALID_SPLIT`); `allocateByWeights` always sums to its amount (Vitest property test).
 - **Payments:** amount above outstanding fails (`PAYMENT_EXCEEDS_OUTSTANDING`), also under two concurrent payments (the second sees the first); cash with `tendered < amount` fails; change equals `tendered − amount`; cash without an open session fails (`NO_OPEN_SESSION`); `doku` is `METHOD_NOT_ALLOWED`; `other` without a label fails; `approval_code` rejects anything that is not 4–12 alphanumerics; no card data column exists; replay with the same `client_ref` creates no second row; a different body with the same `client_ref` is `CLIENT_REF_CONFLICT`; a failed payment leaves nothing behind.
 - **Derived status:** `bill_balances` returns unpaid → partially_paid → paid → partially_refunded → refunded for the worked example, and there is no column or path that writes the status; a refund never changes `outstanding` and never lets a further payment through.
 - **Completion:** served + all bills paid completes the order and moves the table to `needs_cleaning` in the same transaction, in both orders of events (pay first then serve; serve first then pay); a split set completes only when every bill is paid; a zero-total bill completes immediately; a refund after completion changes nothing on the order.
@@ -415,28 +419,25 @@ Proposed by DAVIN 2026-11-12 (all open to ALAN's review):
 
 1. Bills can be created from `accepted` onward and lock the order until voided.
 2. Discounts apply before service charge and tax; service charge first, then tax on net + service (location setting `tax_on_service_charge` respected); half-up rounding to a whole rupiah per step.
-3. A bill set holds the snapshot; bills are the payable shares; `equal` shares allocate the total with `allocate` and absorb component rounding in `tax`; `by_item` weights the discount with a new `allocateByWeights` and each bill rounds on its own (drift accepted).
+3. A bill set holds the snapshot; bills are the payable shares; `equal` shares allocate **every component** with `allocate` and derive the share total (review fix: allocating the total and deriving tax could go negative); `by_item` weights the discount with a new `allocateByWeights` and each bill rounds on its own (drift accepted).
 4. Payment status is derived in a view, on gross payments; a refund never re-opens a bill.
 5. Cash needs an open session; one open session per location; expected cash excludes change.
 6. Order completion is evaluated, not requested: served + every bill paid, whichever comes last; there is no `completeOrder` action.
 7. Bill signals use a separate `location:{id}:payments` private channel behind `payments.view`.
 8. Cashiers can create and void unpaid bills, take payments and run cash sessions; refunds are manager/owner only (`payments.refund`).
 
-## Still open (ALAN / the user)
+9. **Decided by ALAN 2026-11-12 (kept as M3 limits, moved to the M7 backlog):** re-splitting after a partial payment is not possible (an unpaid set can be voided and recreated); one line is never split across bills (whole lines only); mixed tax rates in one order are refused with `TAX_RATE_MISMATCH`; one cash drawer (open session) per location; any `payments.take` holder may close a session, with a variance audited in `audit_logs` and a note required; receipts by email/WhatsApp and e-faktur are out of scope for M3. Snapshots never change: bills keep the service/tax settings of their creation, and an unpaid set can be voided and recreated to pick up new location settings.
 
-1. **Cash rounding.** Round cash totals to the nearest Rp 100 or Rp 500? If yes: per location setting, a visible `rounding_adjustment` line on the bill, and the effect on tax reports.
-2. **Discount and tax treatment.** Confirm "discount before service charge and tax" with the user (or their accountant). It is the proposed default but the Indonesian practice varies by region and by whether the discount is a price reduction or a payment concession.
-3. **Tips / gratuity.** Not modelled. Needed? As a separate non-taxable line paid with the bill?
+## Still open (the user's decisions; asked by ALAN 2026-11-12)
+
+Answers go into this file before it merges. Each has the contract's proposal as the recommended default.
+
+1. **Cash rounding.** Round cash totals to the nearest Rp 100 or Rp 500? If yes: per location setting, a visible `rounding_adjustment` line on the bill, and the effect on tax reports. Proposal: no rounding in M3.
+2. **Discount and tax treatment.** Confirm "discount before service charge and tax" with the user (or their accountant). It is the proposed default, but Indonesian practice varies by region and by whether the discount is a price reduction or a payment concession.
+3. **Tips / gratuity.** Not modelled. Needed? As a separate non-taxable line paid with the bill? Proposal: not in M3.
 4. **Voiding or cancelling a bill/order that already has payments.** M3 blocks it (`BILL_HAS_PAYMENTS`); the only way out is refunds. Should a manager be able to void a paid bill, with automatic refunds?
-5. **Pay part, then split.** After a partial payment on an unsplit bill, the set cannot be re-split. Should a manager be able to re-split the remainder?
-6. **Splitting one line across bills** (2 of 3 portions on bill A). M3 splits whole lines only.
-7. **Mixed tax rates in one order** (location rate edited mid-service) is refused with `TAX_RATE_MISMATCH`. Acceptable, or should the bill compute per-rate groups?
-8. **Cash drawers.** One open session per location. Multiple tills/cashiers at one location need a `drawer` concept.
-9. **Session closing rights.** Any `payments.take` holder can close a session; should a variance above some threshold need a manager?
-10. **Waiters and bills.** Waiters cannot see or print a pre-bill in M3. Give them `payments.view` (or a narrower print-only permission)?
-11. **Tax id on the receipt.** `locations` has no tax identification column (NPWP). Add one under settings, owned by a settings task?
-12. **Edited location tax/service settings** never change existing bills (snapshot). Confirm that is intended for open, unpaid bills too.
-13. **Receipts by email/WhatsApp** and **e-faktur** are out of scope for M3.
+5. **Waiters and bills** (was #10). Waiters cannot see or print a pre-bill in M3. Give them `payments.view` (or a narrower print-only permission)?
+6. **Tax id on the receipt** (was #11). `locations` has no tax identification column (NPWP). Add one under settings, owned by a settings task?
 
 ## Out of scope here
 
