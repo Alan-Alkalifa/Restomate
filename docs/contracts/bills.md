@@ -166,11 +166,11 @@ All computed **only** by `calculateBill` in `lib/money.ts` (mirrored in SQL), on
 
 A bill's `service_charge_bps`, `tax_on_service_charge` and `tax_rate_bps` are the values **snapshotted at creation**; editing the location settings later never changes an existing bill.
 
-**Tax rate.** Every `order_items.tax_rate_bps` is the location rate when that round was sent. If all lines share one rate, that rate is the set's `tax_rate_bps`. If they differ (an owner changed the rate mid-order), `create_bills` fails with `TAX_RATE_MISMATCH` rather than guessing (Still open).
+**Tax rate.** Every `order_items.tax_rate_bps` is the location rate when that round was sent. If all lines share one rate, that rate is the set's `tax_rate_bps`. If they differ (an owner changed the rate mid-order), `create_bills` fails with `TAX_RATE_MISMATCH` rather than guessing (an M3 limit, Decisions log 9).
 
 ## Splits
 
-A set is created with exactly one split choice, in one transaction. Re-splitting later means voiding the unpaid set and creating a new one (a set that already has a payment cannot be voided or re-split, see Still open).
+A set is created with exactly one split choice, in one transaction. Re-splitting later means voiding the unpaid set and creating a new one (a set that already has a payment cannot be voided or re-split, see Decisions log 9; voiding a paid set is Still open #4).
 
 ### `none`
 
@@ -187,7 +187,7 @@ Each component sums exactly to its set figure, so `sum(total_i) = set.total` exa
 
 ### `by_item` (2–20 bills)
 
-The client sends an assignment: which order-item lines go on which bill (`assignments`: an array of arrays of `order_item_id`, one inner array per bill). Rules: every `active` order item appears **exactly once** in total (whole lines only, no splitting one line's quantity, Still open), no empty bill, ids must belong to the order (else `INVALID_SPLIT`).
+The client sends an assignment: which order-item lines go on which bill (`assignments`: an array of arrays of `order_item_id`, one inner array per bill). Rules: every `active` order item appears **exactly once** in total (whole lines only, no splitting one line's quantity, an M3 limit, Decisions log 9), no empty bill, ids must belong to the order (else `INVALID_SPLIT`).
 
 Per bill *i*: `subtotal_i` = sum of its lines. The order discount is spread by weight so it sums exactly: `discount_i = allocateByWeights(discount_total, [subtotal_1 … subtotal_n])[i]`. `allocateByWeights(amount, weights)` is a new pure function in `lib/money.ts` using **largest remainder** (floor each exact share, then give the leftover units one each to the largest fractional parts, ties to the lower index), with property tests that the result always sums to `amount`. Then each bill is its own `calculateBill({ subtotal: subtotal_i - discount_i, … })`, and the **set totals are the sums over its bills**.
 
