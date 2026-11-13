@@ -175,4 +175,20 @@ test.describe("marketing site (MSS-T13)", () => {
     await open(page, "/features");
     expect(await page.getByRole("navigation", { name: "Utama" }).getByRole("link", { name: "Harga" }).getAttribute("href")).toBe("/pricing");
   });
+
+  // BUG-130-1: the raw attributes must be absolute (a relative hreflang is ignored by search engines). The tests above
+  // resolve hrefs against the page, which would hide a relative one, so this reads them as written.
+  for (const path of ["/", "/features", "/pricing", "/en", "/en/features", "/en/pricing"]) {
+    test(`${path}: canonical and every hreflang are absolute URLs on one host (id, en, x-default)`, async ({ page }) => {
+      await open(page, path);
+      const hrefs = await page.locator('link[rel="canonical"], link[rel="alternate"][hreflang]').evaluateAll((els) =>
+        els.map((e) => ({ rel: e.getAttribute("rel"), hreflang: e.getAttribute("hreflang"), href: e.getAttribute("href") })));
+      const canonical = hrefs.filter((h) => h.rel === "canonical");
+      const alts = hrefs.filter((h) => h.rel === "alternate");
+      expect(canonical, "one canonical").toHaveLength(1);
+      expect(alts.map((a) => a.hreflang).sort()).toEqual(["en", "id", "x-default"]);
+      for (const h of [...canonical, ...alts]) expect(h.href, `${h.rel} ${h.hreflang ?? ""}`).toMatch(/^https?:\/\//);
+      expect(new Set([...canonical, ...alts].map((h) => new URL(h.href!).origin)).size, "one host").toBe(1);
+    });
+  }
 });

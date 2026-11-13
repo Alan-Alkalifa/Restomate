@@ -2,6 +2,8 @@
  * Locale helpers (no server-only: used by client components too).
  * Routing: the default locale (id) lives at unprefixed URLs, English under /en.
  */
+import { vercelPreviewHosts } from "@/lib/routing/host";
+
 export const locales = ["id", "en"] as const;
 export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "id";
@@ -33,10 +35,19 @@ export function localeFromHints(lang: string | null | undefined, next: string | 
   return defaultLocale;
 }
 
-/** Absolute base for canonical/hreflang URLs. Never throws (the build must not need runtime env). */
-export function metadataBase(): URL | undefined {
+/**
+ * Absolute base for canonical/hreflang URLs, used by EVERY root tree (via defaultMetadata) so no alternate is ever
+ * relative. Never throws (the build must not need runtime env), and never hard-codes a host:
+ *  - on a Vercel preview deployment (VERCEL_ENV exactly "preview", B1-T23/#117) it is THIS deployment's own host, so a
+ *    preview does not point search engines or reviewers at production;
+ *  - everywhere else it is NEXT_PUBLIC_APP_URL.
+ * Both come from the environment the server was built/started with, never from a request header.
+ */
+export function metadataBase(env: Record<string, string | undefined> = process.env): URL | undefined {
   try {
-    return process.env.NEXT_PUBLIC_APP_URL ? new URL(process.env.NEXT_PUBLIC_APP_URL) : undefined;
+    const preview = vercelPreviewHosts(env)[0];
+    if (preview) return new URL(`https://${preview}`);
+    return env.NEXT_PUBLIC_APP_URL ? new URL(env.NEXT_PUBLIC_APP_URL) : undefined;
   } catch {
     return undefined;
   }

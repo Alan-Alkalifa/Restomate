@@ -101,6 +101,8 @@ export const id: Dictionary = {
       cta: "Coba gratis",
       signupClosed: "Pendaftaran ditutup",
       limits: { max_locations: "lokasi", max_staff: "staf", max_tables: "meja", max_orders_per_month: "pesanan per bulan" },
+      // Bahasa Indonesia has no plural form: the singular is the same word (kept so both dictionaries have the same keys).
+      limitsOne: { max_locations: "lokasi", max_staff: "staf", max_tables: "meja", max_orders_per_month: "pesanan per bulan" },
       features: { qr_ordering: "Pemesanan QR", reservations: "Reservasi", custom_domain: "Domain kustom", advanced_reports: "Laporan lanjutan" },
     },
     modules: {

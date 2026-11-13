@@ -19,7 +19,12 @@ const humanize = (key: string) =>
 // Plan names, descriptions, limit and feature keys come from the database (packages) and are not translated here.
 export function PricingGrid({ packages, formatMoney, t, locale, signupEnabled }: Props) {
   // Known keys (packages contract LIMIT_KEYS / FEATURE_KEYS) are translated; an unknown key falls back to humanize().
-  const limitLabel = (k: string) => (t.limits as Record<string, string>)[k] ?? humanize(k).toLowerCase();
+  // Plural-aware: "1 location" / "2 locations" in English via Intl.PluralRules; Bahasa has no plural form (same word).
+  const plural = new Intl.PluralRules(locale);
+  const limitLabel = (k: string, n: number | null) => {
+    const forms = (n !== null && plural.select(n) === "one" ? t.limitsOne : t.limits) as Record<string, string>;
+    return forms[k] ?? humanize(k).toLowerCase();
+  };
   const featureLabel = (f: string) => (t.features as Record<string, string>)[f] ?? humanize(f);
   const numberLocale = locale === "id" ? "id-ID" : "en-US";
   if (packages.length === 0) {
@@ -48,7 +53,7 @@ export function PricingGrid({ packages, formatMoney, t, locale, signupEnabled }:
           <ul className="flex flex-col gap-1 text-sm">
             {Object.entries(p.limits).map(([k, v]) => (
               <li key={k}>
-                {v === null ? t.unlimited : v} {limitLabel(k)}
+                {v === null ? t.unlimited : v} {limitLabel(k, v)}
               </li>
             ))}
             {p.features.map((f) => (
