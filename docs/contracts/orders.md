@@ -1,6 +1,6 @@
 # Contract: orders + kitchen tickets (M3 §7, MSC-T02)
 
-Draft 2026-11-10 by **DAVIN** for ALAN's review. **DAVIN** implements the schema, the RPCs and `lib/orders`. **ADIT** builds the POS (send to kitchen), the live order board and the KDS against it. **REYKI** writes the isolation tests against it. Changes need agreement from all three, plus ALAN, and are made in this file first. Bills, payments, refunds and cash sessions are a **separate later contract** (M3 Bills); this file only leaves the hooks they need.
+Draft 2026-11-10 by **DAVIN** (implementation notes from MSC-T04 are marked inline) for ALAN's review. **DAVIN** implements the schema, the RPCs and `lib/orders`. **ADIT** builds the POS (send to kitchen), the live order board and the KDS against it. **REYKI** writes the isolation tests against it. Changes need agreement from all three, plus ALAN, and are made in this file first. Bills, payments, refunds and cash sessions are a **separate later contract** (M3 Bills); this file only leaves the hooks they need.
 
 Decisions on the earlier OPEN questions (ALAN and the user, 2026-11-10) are folded in below and marked **Decided**. The decisions log is at the end.
 
@@ -244,7 +244,7 @@ Plan limits: `max_orders_per_month` (if the package defines it) is checked when 
 | `set_order_status(order_id uuid, to_status text)` | per the order table (`served`, `accepted`) | Validates through the SQL mirror of `canTransitionOrder`. Derived statuses (`preparing`, `ready`) and `completed` are rejected here (`INVALID_TRANSITION`). |
 | `update_kot_status(ticket_id uuid, to_status text)` | `kitchen.update` | Validates `canTransitionKot`, stamps `accepted_at`/`ready_at`/`bumped_at`, re-derives the order status, writes `kot_status_changed`. Idempotent: setting the current status again is a no-op that returns ok. |
 | `set_kot_item_status(ticket_item_id uuid, to_status text)` | `kitchen.update` | `pending ↔ ready` only. |
-| `mark_table_clean(table_id uuid)` | `orders.create` | `needs_cleaning → available`. |
+| `mark_table_clean(table_id uuid)` | `orders.create` | `needs_cleaning → available`. No order is attached, so the trail is an `audit_logs` row (`table.cleaned`), not `order_events` (implementation note, MSC-T04). |
 
 ## Void and discount rules
 
@@ -309,7 +309,7 @@ POS offline behaviour: the cart is persisted locally with its `clientRef`. On re
 
 ## Errors
 
-New members of `ActionErrorCode` in `lib/auth/schemas.ts`, added by DAVIN: **`ITEM_UNAVAILABLE`**, **`MODIFIER_INVALID`**, **`VARIANT_REQUIRED`**, **`TABLE_NOT_FOUND`**, **`ORDER_CLOSED`**, **`ALREADY_VOID`**, **`INVALID_TRANSITION`**, **`DISCOUNT_EXCEEDS_SUBTOTAL`**, **`CLIENT_REF_CONFLICT`**, **`ALREADY_REMOVED`**. Reused: `FORBIDDEN`, `PLAN_LIMIT`, `INVALID_INPUT` (Zod/shape errors).
+New members of `ActionErrorCode` in `lib/auth/schemas.ts`, added by DAVIN: **`ITEM_UNAVAILABLE`**, **`MODIFIER_INVALID`**, **`VARIANT_REQUIRED`**, **`TABLE_NOT_FOUND`**, **`ORDER_CLOSED`**, **`ALREADY_VOID`**, **`INVALID_TRANSITION`**, **`DISCOUNT_EXCEEDS_SUBTOTAL`**, **`CLIENT_REF_CONFLICT`**, **`ALREADY_REMOVED`**, and **`INVALID_INPUT`** (it did not exist yet; shape errors from the RPC). Reused: `FORBIDDEN`, `PLAN_LIMIT`. `ActionResult` also gains two optional fields: `data` on success (the `sendRound` ids) and `details` on failure (`itemIds`, `groupId`).
 
 | SQL | Code |
 |---|---|
@@ -540,6 +540,19 @@ Decided 2026-11-10 (ALAN review and the user):
 9. The `kitchen` role may read prices through RLS; the KDS payload omits them.
 
 No open questions remain for the order and kitchen contract above. The *Table operations* section has its own **Still open** list.
+
+## Implementation notes (MSC-T04, accepted by ALAN)
+
+Deviations found while building, all accepted:
+
+1. `mark_table_clean` writes an `audit_logs` row (`table.cleaned`), not `order_events`: a clean-up has no order and `order_events.order_id` is NOT NULL.
+2. `tables.status` keeps its M2 column grants for now (tables.manage can still set it from the tables UI); table transitions are enforced inside the RPCs. Locking it to the RPC paths is B1-T27.
+3. Seating a table that is `needs_cleaning` is refused with `INVALID_TRANSITION`; a waiter marks it clean first.
+4. `cancel_order` marks the order's active discounts removed (reason "Order cancelled") so totals stay consistent.
+5. `order_counters` has an explicit deny policy for clients (the repo guard test requires a policy on every public table).
+6. `INVALID_INPUT` is added to `ActionErrorCode`, and `ActionResult` gains optional `data` (success) and `details` (failure).
+
+Also: orders are not readable by platform admins through RLS (`orders_select` has no `is_platform_admin()` branch); super admin counts will come through a definer function.
 
 ## Out of scope here
 
