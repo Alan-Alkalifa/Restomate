@@ -2,7 +2,7 @@
 begin;
 \ir _helpers.inc
 \ir _rpc.inc
-select plan(130);
+select plan(131);
 
 select tests.mkuser('y1'); select tests.mkuser('y2'); select tests.mkuser('y3'); select tests.mkuser('y4');
 select tests.mkuser('y5'); select tests.mkuser('y6', false);
@@ -105,8 +105,9 @@ select alike(tests.errmsg('y5', tests.co('iso-atomic')), 'OK:%', 'atomic: retry 
 select is(tests.scalar('anon', $$(select array_agg(k order by k) from jsonb_object_keys(public.get_storefront('iso-org-a')) k)$$), '{branding,locations,name,slug,status}', 'storefront: exact top-level keys');
 select is(tests.scalar('anon', $$public.get_storefront('iso-org-a')->>'status'$$), 'active', 'storefront: active');
 select is(tests.scalar('anon', $$jsonb_array_length(public.get_storefront('iso-org-a')->'locations')$$), '2', 'storefront: locations');
-select is(tests.scalar('anon', $$(select array_agg(distinct k order by k) from jsonb_array_elements(public.get_storefront('iso-org-a')->'locations') e, jsonb_object_keys(e) k)$$), '{address,city,name,phone,timezone}', 'storefront: location keys carry no ids');
-select doesnt_match(tests.scalar('anon', $$public.get_storefront('iso-org-a')$$), '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}|@iso\.test|contact_email|organization_id|"id")', 'storefront: no uuid, no email, no id fields');
+select is(tests.scalar('anon', $$(select array_agg(distinct k order by k) from jsonb_array_elements(public.get_storefront('iso-org-a')->'locations') e, jsonb_object_keys(e) k)$$), '{address,city,id,name,phone,timezone}', 'storefront: location keys are the whitelist (a location id is public since MCS-T02)');
+select doesnt_match(tests.scalar('anon', $$public.get_storefront('iso-org-a')$$), '(@iso\.test|contact_email|organization_id)', 'storefront: no email and no organization id');
+select is(tests.scalar('anon', $$(select count(*) from regexp_matches(public.get_storefront('iso-org-a')::text, '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', 'g'))$$), '2', 'storefront: the only uuids are the two location ids');
 select is(tests.scalar('anon', $$public.get_storefront('ISO-ORG-A')->>'slug'$$), 'iso-org-a', 'storefront: slug lookup is case-insensitive');
 select is(tests.scalar('anon', $$public.get_storefront('does-not-exist')$$), null, 'storefront: unknown slug -> null');
 select is(tests.scalar('anon', 'public.get_storefront(null)'), null, 'storefront: null slug -> null');

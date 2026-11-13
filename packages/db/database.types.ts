@@ -123,6 +123,26 @@ isOneToOne: false
       referencedColumns: ["id","organization_id"]
     }
                   ]
+                },"location_hours": {
+                  Row: {
+                    "closes_min": number,"created_at": string,"day_of_week": number,"id": string,"location_id": string,"opens_min": number,"organization_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "closes_min": number,"created_at"?: string,"day_of_week": number,"id"?: string,"location_id": string,"opens_min": number,"organization_id": string
+                  }
+                  Update: {
+                    "closes_min"?: number,"created_at"?: string,"day_of_week"?: number,"id"?: string,"location_id"?: string,"opens_min"?: number,"organization_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "lh_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"location_menu_overrides": {
                   Row: {
                     "created_at": string,"id": string,"is_available": boolean,"item_id": string,"kitchen_station_id": string | null,"location_id": string,"organization_id": string,"price_override": number | null,"sold_out_until": string | null,"updated_at": string
@@ -153,6 +173,26 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "kitchen_stations"
       referencedColumns: ["id","location_id"]
+    }
+                  ]
+                },"location_ordering_settings": {
+                  Row: {
+                    "accepting_orders": boolean,"auto_accept_online": boolean,"auto_accept_qr": boolean,"created_at": string,"location_id": string,"min_order_amount": number,"online_enabled": boolean,"organization_id": string,"pending_ttl_minutes": number,"pickup_lead_minutes": number,"pickup_max_orders_per_slot": number | null,"pickup_slot_minutes": number,"qr_enabled": boolean,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "accepting_orders"?: boolean,"auto_accept_online"?: boolean,"auto_accept_qr"?: boolean,"created_at"?: string,"location_id": string,"min_order_amount"?: number,"online_enabled"?: boolean,"organization_id": string,"pending_ttl_minutes"?: number,"pickup_lead_minutes"?: number,"pickup_max_orders_per_slot"?: number | null,"pickup_slot_minutes"?: number,"qr_enabled"?: boolean,"updated_at"?: string
+                  }
+                  Update: {
+                    "accepting_orders"?: boolean,"auto_accept_online"?: boolean,"auto_accept_qr"?: boolean,"created_at"?: string,"location_id"?: string,"min_order_amount"?: number,"online_enabled"?: boolean,"organization_id"?: string,"pending_ttl_minutes"?: number,"pickup_lead_minutes"?: number,"pickup_max_orders_per_slot"?: number | null,"pickup_slot_minutes"?: number,"qr_enabled"?: boolean,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "los_location_org_fk"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
     }
                   ]
                 },"location_staff": {
@@ -629,6 +669,12 @@ isOneToOne: false
 "get_org_package":
 { Args: { "org": string }; Returns: Json
                            },
+"get_pickup_slots":
+{ Args: { "location_id": string,"org_slug": string }; Returns: Json
+                           },
+"get_public_location_info":
+{ Args: { "location_id": string,"org_slug": string }; Returns: Json
+                           },
 "get_public_menu":
 { Args: { "location_id": string,"org_slug": string }; Returns: Json
                            },
@@ -689,6 +735,9 @@ isOneToOne: false
                            },
 "save_item_variants":
 { Args: { "item_id": string,"variants": Json }; Returns: undefined
+                           },
+"save_location_hours":
+{ Args: { "intervals": Json,"location_id": string }; Returns: Json
                            },
 "set_item_sold_out":
 { Args: { "item_id": string,"location_id": string,"sold_out": boolean }; Returns: string
