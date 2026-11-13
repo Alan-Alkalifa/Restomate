@@ -6,3 +6,4 @@ export type Dictionary = Widen<typeof en>;
 export type AuthDictionary = Dictionary["auth"];
 export type MarketingDictionary = Dictionary["marketing"];
 export type ModuleKey = keyof MarketingDictionary["modules"];
+export type StorefrontDictionary = Dictionary["storefront"];

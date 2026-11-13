@@ -1,21 +1,13 @@
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { StorefrontHome, StorefrontUnavailable } from "@/components/storefront/StorefrontHome";
-import { getStorefront } from "@/lib/storefront/get-storefront";
-import { brandingToCssVars } from "@/lib/theme";
+import { StorefrontPage, storefrontMetadata } from "@/components/storefront/pages";
+import { StorefrontSkeleton } from "@/components/storefront/StorefrontSkeleton";
 
-async function StorefrontContent({ params }: { params: PageProps<"/s/[tenant]">["params"] }) {
-  const { tenant } = await params;
-  const storefront = await getStorefront(tenant);
-  if (!storefront) notFound();
-  if (storefront.status === "unavailable") return <StorefrontUnavailable />;
-  return <StorefrontHome data={storefront} cssVars={brandingToCssVars(storefront.branding)} />;
-}
+export const generateMetadata = ({ params }: PageProps<"/s/[tenant]">) => storefrontMetadata("id", params);
 
-export default function StorefrontPage({ params }: PageProps<"/s/[tenant]">) {
+export default function Page({ params, searchParams }: PageProps<"/s/[tenant]">) {
   return (
-    <Suspense fallback={<div role="status" aria-label="Loading" className="min-h-screen animate-pulse bg-neutral-100 dark:bg-neutral-900" />}>
-      <StorefrontContent params={params} />
+    <Suspense fallback={<StorefrontSkeleton />}>
+      <StorefrontPage locale="id" params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
